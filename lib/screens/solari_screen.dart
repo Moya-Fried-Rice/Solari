@@ -2,6 +2,9 @@ import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:cactus/cactus.dart';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 
 class SolariScreen extends StatefulWidget {
   final BluetoothDevice device;
@@ -13,7 +16,6 @@ class SolariScreen extends StatefulWidget {
 }
 
 class _SolariScreenState extends State<SolariScreen> {
-
   final List<int> _audioBuffer = [];
   bool _audioStreaming = false;
   bool _negotiating = false;
@@ -26,20 +28,24 @@ class _SolariScreenState extends State<SolariScreen> {
   int _expectedImageSize = 0;
   final List<int> _imageBuffer = [];
   bool _receivingImage = false;
-
-
+  CactusVLM? _vlm;
 
   @override
   void initState() {
     super.initState();
     _requestMtu();
     _subscribeToService();
+    _initModel();
   }
 
   @override
   void dispose() {
+    _vlm?.dispose();
+    _vlm = null;
+
     super.dispose();
   }
+
 
   Future<void> _subscribeToService() async {
     const serviceUuid = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
@@ -124,9 +130,14 @@ class _SolariScreenState extends State<SolariScreen> {
     if (asString.startsWith("I_END")) {
       debugPrint("Image received: ${_imageBuffer.length} bytes");
       _receivingImage = false;
+
       setState(() {
         _receivedImage = Uint8List.fromList(_imageBuffer);
       });
+
+      // Process image with model
+      _processReceivedImage(_receivedImage!);
+
       return;
     }
 
@@ -170,6 +181,61 @@ class _SolariScreenState extends State<SolariScreen> {
       });
     }
   }
+
+
+  Future<void> _initModel() async {
+    try {
+      _vlm = CactusVLM();
+      await _vlm!.download(
+        modelUrl: 'https://huggingface.co/ggml-org/SmolVLM-500M-Instruct-GGUF/resolve/main/SmolVLM-500M-Instruct-Q8_0.gguf',
+        mmprojUrl: 'https://huggingface.co/ggml-org/SmolVLM-500M-Instruct-GGUF/resolve/main/mmproj-SmolVLM-500M-Instruct-Q8_0.gguf',
+      );
+      await _vlm!.init(contextSize: 2048);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Model initialized successfully')),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error initializing model: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error initializing model: $e')),
+        );
+      }
+    }
+  }
+  
+
+  Future<void> _processReceivedImage(Uint8List imageData) async {
+    if (_vlm == null) return;
+
+    try {
+      final tempDir = await getTemporaryDirectory();
+      final tempFile = File('${tempDir.path}/temp_image.jpg');
+      await tempFile.writeAsBytes(imageData, flush: true);
+
+      String response = '';
+      await _vlm!.completion(
+        [ChatMessage(role: 'user', content: 'Describe this image')],
+        imagePaths: [tempFile.path],
+        maxTokens: 200,
+        onToken: (token) {
+          response += token;
+          return true; // Continue streaming
+        },
+      );
+
+      debugPrint('Image description: $response');
+
+      await tempFile.delete();
+    } catch (e) {
+      debugPrint('Error processing image: $e');
+    }
+  }
+
+
 
   @override
   Widget build(BuildContext context) {
