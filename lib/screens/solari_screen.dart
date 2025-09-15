@@ -63,6 +63,11 @@ class _SolariScreenState extends State<SolariScreen> {
             });
           }
         }
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Successfully subscribed to service')),
+          );
+        }
       }
     } catch (e) {
       debugPrint("Error subscribing: $e");
@@ -147,6 +152,11 @@ class _SolariScreenState extends State<SolariScreen> {
     try {
       int mtu = await widget.device.requestMtu(517);
       debugPrint("MTU negotiated: $mtu");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('MTU negotiated: $mtu')),
+        );
+      }
     } catch (e) {
       debugPrint("MTU request failed: $e");
       if (mounted) {
