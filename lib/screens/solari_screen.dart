@@ -20,10 +20,7 @@ class _SolariScreenState extends State<SolariScreen> {
   bool _audioStreaming = false;
   bool _negotiating = false;
   BluetoothService? _targetService;
-  List<BluetoothCharacteristic> _subscribedCharacteristics = [];
-
-
-
+  final List<BluetoothCharacteristic> _subscribedCharacteristics = [];
   Uint8List? _receivedImage;
   int _expectedImageSize = 0;
   final List<int> _imageBuffer = [];
@@ -46,6 +43,29 @@ class _SolariScreenState extends State<SolariScreen> {
     super.dispose();
   }
 
+  Future<void> _initModel() async {
+    try {
+      _vlm = CactusVLM();
+      await _vlm!.download(
+        modelUrl: 'https://huggingface.co/ggml-org/SmolVLM-500M-Instruct-GGUF/resolve/main/SmolVLM-500M-Instruct-Q8_0.gguf',
+        mmprojUrl: 'https://huggingface.co/ggml-org/SmolVLM-500M-Instruct-GGUF/resolve/main/mmproj-SmolVLM-500M-Instruct-Q8_0.gguf',
+      );
+      await _vlm!.init(contextSize: 2048);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Model initialized successfully')),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error initializing model: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error initializing model: $e')),
+        );
+      }
+    }
+  }
 
   Future<void> _subscribeToService() async {
     const serviceUuid = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
@@ -90,7 +110,6 @@ class _SolariScreenState extends State<SolariScreen> {
 
     String asString = String.fromCharCodes(value);
 
-
     if (asString.startsWith("VQA_START")) {
       debugPrint("VQA session started");
       _imageBuffer.clear();
@@ -101,8 +120,6 @@ class _SolariScreenState extends State<SolariScreen> {
       setState(() {});
       return;
     }
-
-
 
     if (asString.startsWith("A_START")) {
       debugPrint("Audio streaming started");
@@ -154,8 +171,6 @@ class _SolariScreenState extends State<SolariScreen> {
     }
   }
 
-
-
   Future<void> _requestMtu() async {
     setState(() {
       _negotiating = true;
@@ -181,33 +196,7 @@ class _SolariScreenState extends State<SolariScreen> {
       });
     }
   }
-
-
-  Future<void> _initModel() async {
-    try {
-      _vlm = CactusVLM();
-      await _vlm!.download(
-        modelUrl: 'https://huggingface.co/ggml-org/SmolVLM-500M-Instruct-GGUF/resolve/main/SmolVLM-500M-Instruct-Q8_0.gguf',
-        mmprojUrl: 'https://huggingface.co/ggml-org/SmolVLM-500M-Instruct-GGUF/resolve/main/mmproj-SmolVLM-500M-Instruct-Q8_0.gguf',
-      );
-      await _vlm!.init(contextSize: 2048);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Model initialized successfully')),
-        );
-      }
-    } catch (e) {
-      debugPrint('Error initializing model: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error initializing model: $e')),
-        );
-      }
-    }
-  }
   
-
   Future<void> _processReceivedImage(Uint8List imageData) async {
     if (_vlm == null) return;
 
