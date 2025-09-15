@@ -3,11 +3,6 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
-// REMOVE PLAYBACK
-// import 'dart:convert'; // for ascii encoding, removed
-// import 'package:audioplayers/audioplayers.dart';
-// REMOVE PLAYBACK
-
 class SolariScreen extends StatefulWidget {
   final BluetoothDevice device;
 
@@ -71,6 +66,11 @@ class _SolariScreenState extends State<SolariScreen> {
       }
     } catch (e) {
       debugPrint("Error subscribing: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error subscribing: $e')),
+        );
+      }
     }
   }
 
@@ -149,6 +149,11 @@ class _SolariScreenState extends State<SolariScreen> {
       debugPrint("MTU negotiated: $mtu");
     } catch (e) {
       debugPrint("MTU request failed: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('MTU request failed: $e')),
+        );
+      }
     } finally {
       setState(() {
         _negotiating = false;

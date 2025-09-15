@@ -4,7 +4,6 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:location/location.dart';
-import 'package:device_info_plus/device_info_plus.dart';
 
 import '../utils/snackbar.dart';
 import '../utils/extra.dart';
@@ -81,16 +80,23 @@ class _ScanScreenState extends State<ScanScreen> {
     try {
       bool needsLocation = true;
 
-      // Check platform & version
       if (Platform.isAndroid) {
-        final deviceInfo = DeviceInfoPlugin();
-        final androidInfo = await deviceInfo.androidInfo;
-        if (androidInfo.version.sdkInt >= 31) {
-          // Android 12+ (API 31): no location permission required for BLE scan
-          needsLocation = false;
+        // Parse Android version from OS string
+        // Example: "11" or "12" or "12.1.0"
+        try {
+          final versionString = Platform.operatingSystemVersion;
+          final versionMatch = RegExp(r'\d+').firstMatch(versionString);
+          final version = versionMatch != null ? int.parse(versionMatch.group(0)!) : 0;
+
+          if (version >= 12) {
+            // Android 12+ (API 31+): no location permission required for BLE scan
+            needsLocation = false;
+          }
+        } catch (_) {
+          // fallback if parsing fails
+          needsLocation = true;
         }
       } else if (Platform.isIOS) {
-        // iOS: still requires location permission for BLE scanning
         needsLocation = true;
       }
 
