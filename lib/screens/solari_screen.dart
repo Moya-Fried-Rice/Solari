@@ -148,6 +148,7 @@ class _SolariScreenState extends State<SolariScreen> {
       _imageBuffer.clear();
       _audioBuffer.clear();
       _receivedImage = null;
+      _imageDescription = null;
       _receivingImage = false;
       _audioStreaming = false;
       setState(() {});
@@ -252,7 +253,7 @@ class _SolariScreenState extends State<SolariScreen> {
 
       String response = '';
       await _vlm!.completion(
-        [ChatMessage(role: 'user', content: 'Describe this image in 10 words or less.')],
+        [ChatMessage(role: 'user', content: 'Describe this image.')],
         imagePaths: [tempFile.path],
         maxTokens: 200,
         onToken: (token) {
@@ -296,17 +297,6 @@ class _SolariScreenState extends State<SolariScreen> {
               const Text('Negotiating MTU...', style: TextStyle(fontSize: 16)),
             const SizedBox(height: 24),
 
-            // Simple processing indicator
-            if (_isProcessing)
-              Column(
-                children: const [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 8),
-                  Text('Processing image...', style: TextStyle(fontSize: 14)),
-                  SizedBox(height: 16),
-                ],
-              ),
-
             if (_receivedImage != null) ...[
               Image.memory(_receivedImage!, height: 200, fit: BoxFit.contain),
               const SizedBox(height: 8),
@@ -321,6 +311,17 @@ class _SolariScreenState extends State<SolariScreen> {
                 ),
               ],
             ],
+
+             // Simple processing indicator
+            if (_isProcessing)
+              Column(
+                children: const [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 8),
+                  Text('Processing response...', style: TextStyle(fontSize: 14)),
+                  SizedBox(height: 16),
+                ],
+              ),
             const SizedBox(height: 16),
             ElevatedButton.icon(
               icon: const Icon(Icons.logout),
