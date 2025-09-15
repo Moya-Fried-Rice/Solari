@@ -16,33 +16,56 @@ class SolariScreen extends StatefulWidget {
 }
 
 class _SolariScreenState extends State<SolariScreen> {
-  final List<int> _audioBuffer = [];
-  bool _audioStreaming = false;
-  bool _negotiating = false;
+  // =================================================================================================================================
+  // Variables
+
+  // Bluetooth service and characteristics
   BluetoothService? _targetService;
   final List<BluetoothCharacteristic> _subscribedCharacteristics = [];
+
+  // Audio streaming
+  final List<int> _audioBuffer = [];
+  bool _audioStreaming = false;
+
+  // Image receiving
+  final List<int> _imageBuffer = [];
   Uint8List? _receivedImage;
   int _expectedImageSize = 0;
-  final List<int> _imageBuffer = [];
   bool _receivingImage = false;
-  CactusVLM? _vlm;
 
+  // Negotiation state
+  bool _negotiating = false;
+
+  // Cactus VLM model
+  CactusVLM? _vlm;
+  String? _imageDescription;
+  bool _isProcessing = false;
+  // =================================================================================================================================
+
+
+
+  // =================================================================================================================================
+  // Initialize and dispose
   @override
   void initState() {
-    super.initState();
-    _requestMtu();
-    _subscribeToService();
-    _initModel();
+  super.initState();
+  _requestMtu();
+  _subscribeToService();
+  _initModel();
   }
 
   @override
   void dispose() {
-    _vlm?.dispose();
-    _vlm = null;
-
-    super.dispose();
+  _vlm?.dispose();
+  _vlm = null;
+  super.dispose();
   }
+  // ================================================================================================================================
 
+  
+
+  // =================================================================================================================================
+  // Initialize the Cactus VLM model
   Future<void> _initModel() async {
     try {
       _vlm = CactusVLM();
@@ -66,7 +89,12 @@ class _SolariScreenState extends State<SolariScreen> {
       }
     }
   }
+  // =================================================================================================================================
 
+
+
+  // =================================================================================================================================
+  // Subscribe to the Solari service and its characteristics
   Future<void> _subscribeToService() async {
     const serviceUuid = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
     try {
@@ -104,7 +132,12 @@ class _SolariScreenState extends State<SolariScreen> {
       }
     }
   }
+  // =================================================================================================================================
 
+
+
+  // =================================================================================================================================
+  // Handle incoming data from characteristics
   void _handleIncomingData(List<int> value) {
     if (value.isEmpty) return;
 
@@ -170,7 +203,12 @@ class _SolariScreenState extends State<SolariScreen> {
       _imageBuffer.addAll(value);
     }
   }
+  // =================================================================================================================================
 
+
+
+  // ================================================================================================================================
+  // Request a larger MTU for better performance
   Future<void> _requestMtu() async {
     setState(() {
       _negotiating = true;
@@ -196,36 +234,50 @@ class _SolariScreenState extends State<SolariScreen> {
       });
     }
   }
-  
+  // ================================================================================================================================
+
+
+
+  // ================================================================================================================================
+  // Process the received image with the Cactus VLM model
   Future<void> _processReceivedImage(Uint8List imageData) async {
     if (_vlm == null) return;
 
     try {
+      setState(() => _isProcessing = true); // start indicator
+
       final tempDir = await getTemporaryDirectory();
       final tempFile = File('${tempDir.path}/temp_image.jpg');
       await tempFile.writeAsBytes(imageData, flush: true);
 
       String response = '';
       await _vlm!.completion(
-        [ChatMessage(role: 'user', content: 'Describe this image')],
+        [ChatMessage(role: 'user', content: 'Describe this image in 10 words or less.')],
         imagePaths: [tempFile.path],
         maxTokens: 200,
         onToken: (token) {
           response += token;
-          return true; // Continue streaming
+          return true;
         },
       );
 
-      debugPrint('Image description: $response');
-
       await tempFile.delete();
+
+      if (mounted) {
+        setState(() => _imageDescription = response);
+      }
     } catch (e) {
       debugPrint('Error processing image: $e');
+    } finally {
+      if (mounted) setState(() => _isProcessing = false); // stop indicator
     }
   }
+  // ================================================================================================================================
 
 
 
+  // =================================================================================================================================
+  // Build the UI
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -243,11 +295,31 @@ class _SolariScreenState extends State<SolariScreen> {
             if (_negotiating)
               const Text('Negotiating MTU...', style: TextStyle(fontSize: 16)),
             const SizedBox(height: 24),
+
+            // Simple processing indicator
+            if (_isProcessing)
+              Column(
+                children: const [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 8),
+                  Text('Processing image...', style: TextStyle(fontSize: 14)),
+                  SizedBox(height: 16),
+                ],
+              ),
+
             if (_receivedImage != null) ...[
               Image.memory(_receivedImage!, height: 200, fit: BoxFit.contain),
               const SizedBox(height: 8),
-              Text('Image size: ${_receivedImage!.lengthInBytes} bytes', style: TextStyle(fontSize: 16)),
-              Text('Audio size: ${_audioBuffer.length} bytes', style: TextStyle(fontSize: 16)),
+              Text('Image size: ${_receivedImage!.lengthInBytes} bytes', style: const TextStyle(fontSize: 16)),
+              Text('Audio size: ${_audioBuffer.length} bytes', style: const TextStyle(fontSize: 16)),
+              if (_imageDescription != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Description: $_imageDescription',
+                  style: const TextStyle(fontSize: 16, fontStyle: FontStyle.italic),
+                  textAlign: TextAlign.center,
+                ),
+              ],
             ],
             const SizedBox(height: 16),
             ElevatedButton.icon(
@@ -263,4 +335,5 @@ class _SolariScreenState extends State<SolariScreen> {
       ),
     );
   }
+  // ================================================================================================================================
 }
