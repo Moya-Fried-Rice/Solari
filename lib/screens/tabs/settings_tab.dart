@@ -6,29 +6,19 @@ import 'package:provider/provider.dart';
 import '../../core/providers/theme_provider.dart';
 
 class SettingsTab extends StatelessWidget {
+  final VoidCallback? onDisconnect;
+  const SettingsTab({Key? key, this.onDisconnect}) : super(key: key);
+
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
-    // Define your settings items here
     final List<Map<String, dynamic>> items = [
-      {
-        'label': 'Connection',
-      },
-      {
-        'label': 'Preference',
-      },
-      {
-        'label': 'Help',
-      },
-      {
-        'label': 'About',
-      },
-      {
-        'label': 'Terms of Use',
-      },
-      {
-        'label': 'Disconnect',
-      },
+      {'label': 'Connection'},
+      {'label': 'Preference'},
+      {'label': 'Help'},
+      {'label': 'About'},
+      {'label': 'Terms of Use'},
+      {'label': 'Disconnect'},
     ];
 
     return Scaffold(
@@ -38,9 +28,7 @@ class SettingsTab extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-
               SizedBox(height: 32),
-
               for (var i = 0; i < items.length; i++) ...[
                 CustomButton(
                   label: items[i]["label"] as String,
@@ -51,8 +39,8 @@ class SettingsTab extends StatelessWidget {
                     horizontal: 15,
                     vertical: 20,
                   ),
+                  onPressed: items[i]["label"] == 'Disconnect' ? onDisconnect : null,
                 ),
-
                 SizedBox(height: 16),
               ],
             ],

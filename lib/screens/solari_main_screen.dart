@@ -9,6 +9,8 @@ import 'package:path_provider/path_provider.dart';
 // import 'package:provider/provider.dart';
 import '../core/providers/history_provider.dart';
 import 'package:provider/provider.dart';
+
+import '../utils/extra.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 
 // UI and state management
@@ -208,6 +210,22 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
 
 
   // =================================================================================================================================
+  // Handle device disconnection
+    Future<void> _handleDisconnect() async {
+    try {
+      await widget.device.disconnectAndUpdateStream();
+    } catch (e) {
+      debugPrint('Error disconnecting: $e');
+    }
+    if (mounted && Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
+  }
+  // ================================================================================================================================
+  
+  
+  
+  // =================================================================================================================================
   // Handle incoming data from characteristics
   void _handleIncomingData(List<int> value) {
     if (value.isEmpty) return;
@@ -358,7 +376,7 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
 
   List<Widget> get _tabs => [
     SolariTab(image: _receivedImage, temperature: _currentTemp),
-    SettingsTab(),
+    SettingsTab(onDisconnect: _handleDisconnect),
     HistoryTab(),
   ];
 
