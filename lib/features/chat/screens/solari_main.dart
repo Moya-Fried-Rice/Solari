@@ -5,19 +5,27 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:cactus/cactus.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
+import 'package:provider/provider.dart';
+import 'package:flutter_tts/flutter_tts.dart';
+
+import '../../../core/theme/theme_provider.dart';
+
+// Tabs
+import 'solari_history.dart';
+import 'solari_settings.dart';
+import 'solari_ai.dart';
 
 class SolariScreen extends StatefulWidget {
   final BluetoothDevice device;
 
-  const SolariScreen({Key? key, required this.device}) : super(key: key);
+  const SolariScreen({super.key, required this.device});
 
   @override
   State<SolariScreen> createState() => _SolariScreenState();
 }
 
-class _SolariScreenState extends State<SolariScreen> {
+class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderStateMixin {
   // =================================================================================================================================
-  // Variables
 
   // Bluetooth service and characteristics
   BluetoothService? _targetService;
@@ -33,13 +41,11 @@ class _SolariScreenState extends State<SolariScreen> {
   int _expectedImageSize = 0;
   bool _receivingImage = false;
 
-  // Negotiation state
-  bool _negotiating = false;
-
   // Cactus VLM model
   CactusVLM? _vlm;
-  String? _imageDescription;
-  bool _isProcessing = false;
+
+  // TTS
+  final FlutterTts _flutterTts = FlutterTts();
   // =================================================================================================================================
 
 
@@ -52,6 +58,7 @@ class _SolariScreenState extends State<SolariScreen> {
   _requestMtu();
   _subscribeToService();
   _initModel();
+  _initializeTts();
   }
 
   @override
@@ -59,6 +66,7 @@ class _SolariScreenState extends State<SolariScreen> {
   _vlm?.dispose();
   _vlm = null;
   super.dispose();
+  _flutterTts.stop();
   }
   // ================================================================================================================================
 
@@ -68,30 +76,64 @@ class _SolariScreenState extends State<SolariScreen> {
   // Initialize the Cactus VLM model
   Future<void> _initModel() async {
     try {
-      _vlm = CactusVLM();
-      await _vlm!.download(
-        modelUrl: 'https://huggingface.co/ggml-org/SmolVLM-500M-Instruct-GGUF/resolve/main/SmolVLM-500M-Instruct-Q8_0.gguf',
-        mmprojUrl: 'https://huggingface.co/ggml-org/SmolVLM-500M-Instruct-GGUF/resolve/main/mmproj-SmolVLM-500M-Instruct-Q8_0.gguf',
-      );
-      await _vlm!.init(contextSize: 2048);
+      final vlm = CactusVLM();
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Model initialized successfully')),
-        );
+      // Download the smaller 500M model (faster, less memory)
+      bool downloadSuccess = await vlm.download(
+        modelUrl:
+            'https://huggingface.co/ggml-org/SmolVLM-500M-Instruct-GGUF/resolve/main/SmolVLM-500M-Instruct-Q8_0.gguf',
+        mmprojUrl:
+            'https://huggingface.co/ggml-org/SmolVLM-500M-Instruct-GGUF/resolve/main/mmproj-SmolVLM-500M-Instruct-Q8_0.gguf',
+        modelFilename: 'SmolVLM-500M-Instruct-Q8_0.gguf',
+        mmprojFilename: 'mmproj-SmolVLM-500M-Instruct-Q8_0.gguf',
+        onProgress: (progress, status, isError) {
+          debugPrint('$status ${progress != null ? '${(progress * 100).toInt()}%' : ''}');
+          if (isError) debugPrint('Download error: $status');
+        },
+      );
+
+      if (!downloadSuccess) {
+        throw Exception('Model download failed - check internet connection');
       }
+
+      // Initialize the model
+      await vlm.init(
+        contextSize: 2048,
+        modelFilename: 'SmolVLM-500M-Instruct-Q8_0.gguf',
+        mmprojFilename: 'mmproj-SmolVLM-500M-Instruct-Q8_0.gguf',
+      );
+
+      // Store the instance for later use
+      _vlm = vlm;
+
     } catch (e) {
       debugPrint('Error initializing model: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error initializing model: $e')),
-        );
-      }
     }
   }
+
   // =================================================================================================================================
 
 
+  
+  // =================================================================================================================================
+  // Initialize TTS
+  void _initializeTts() {
+    _flutterTts.setLanguage("en-US");
+    _flutterTts.setSpeechRate(0.5);
+    _flutterTts.setVolume(1.0);
+    _flutterTts.setPitch(1.0);
+  }
+
+  Future<void> _speakText(String text) async {
+    try {
+      await _flutterTts.speak(text);
+    } catch (e) {
+      debugPrint('Error speaking text: $e');
+    }
+  }
+  // =================================================================================================================================
+  
+  
 
   // =================================================================================================================================
   // Subscribe to the Solari service and its characteristics
@@ -148,7 +190,6 @@ class _SolariScreenState extends State<SolariScreen> {
       _imageBuffer.clear();
       _audioBuffer.clear();
       _receivedImage = null;
-      _imageDescription = null;
       _receivingImage = false;
       _audioStreaming = false;
       setState(() {});
@@ -211,9 +252,6 @@ class _SolariScreenState extends State<SolariScreen> {
   // ================================================================================================================================
   // Request a larger MTU for better performance
   Future<void> _requestMtu() async {
-    setState(() {
-      _negotiating = true;
-    });
     try {
       int mtu = await widget.device.requestMtu(517);
       debugPrint("MTU negotiated: $mtu");
@@ -229,11 +267,7 @@ class _SolariScreenState extends State<SolariScreen> {
           SnackBar(content: Text('MTU request failed: $e')),
         );
       }
-    } finally {
-      setState(() {
-        _negotiating = false;
-      });
-    }
+    } 
   }
   // ================================================================================================================================
 
@@ -245,7 +279,6 @@ class _SolariScreenState extends State<SolariScreen> {
     if (_vlm == null) return;
 
     try {
-      setState(() => _isProcessing = true); // start indicator
 
       final tempDir = await getTemporaryDirectory();
       final tempFile = File('${tempDir.path}/temp_image.jpg');
@@ -265,13 +298,12 @@ class _SolariScreenState extends State<SolariScreen> {
       await tempFile.delete();
 
       if (mounted) {
-        setState(() => _imageDescription = response);
+        debugPrint('Image description: $response');
+        _speakText(response);
       }
     } catch (e) {
       debugPrint('Error processing image: $e');
-    } finally {
-      if (mounted) setState(() => _isProcessing = false); // stop indicator
-    }
+    } 
   }
   // ================================================================================================================================
 
@@ -279,61 +311,54 @@ class _SolariScreenState extends State<SolariScreen> {
 
   // =================================================================================================================================
   // Build the UI
+  int _currentIndex = 0;
+
+  final List<Widget> _tabs = [
+    AiTab(),
+    SettingsTab(),
+    HistoryTab(),
+  ];
+
   @override
   Widget build(BuildContext context) {
+    final theme = Provider.of<ThemeProvider>(context);
+
     return Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.device_hub, size: 64),
-            const SizedBox(height: 16),
-            Text(
-              'Connected to: ${widget.device.platformName}',
-              style: const TextStyle(fontSize: 18),
-            ),
-            const SizedBox(height: 16),
-            if (_negotiating)
-              const Text('Negotiating MTU...', style: TextStyle(fontSize: 16)),
-            const SizedBox(height: 24),
 
-            if (_receivedImage != null) ...[
-              Image.memory(_receivedImage!, height: 200, fit: BoxFit.contain),
-              const SizedBox(height: 8),
-              Text('Image size: ${_receivedImage!.lengthInBytes} bytes', style: const TextStyle(fontSize: 16)),
-              Text('Audio size: ${_audioBuffer.length} bytes', style: const TextStyle(fontSize: 16)),
-              if (_imageDescription != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  'Description: $_imageDescription',
-                  style: const TextStyle(fontSize: 16, fontStyle: FontStyle.italic),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ],
-
-             // Simple processing indicator
-            if (_isProcessing)
-              Column(
-                children: const [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 8),
-                  Text('Processing response...', style: TextStyle(fontSize: 14)),
-                  SizedBox(height: 16),
-                ],
-              ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              icon: const Icon(Icons.logout),
-              label: const Text('Disconnect'),
-              onPressed: () async {
-                await widget.device.disconnect();
-                if (mounted) Navigator.of(context).pop();
-              },
-            ),
-          ],
+      // BODY with fade animation
+      body: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 300),
+        transitionBuilder: (Widget child, Animation<double> animation) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+        child: IndexedStack(
+          key: ValueKey<int>(_currentIndex),
+          index: _currentIndex,
+          children: _tabs,
         ),
       ),
+
+      // BOTTOM NAVIGATION BAR with theme colors
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        onTap: (index) => setState(() => _currentIndex = index),
+        iconSize: 100,
+        selectedItemColor: theme.iconColor,
+        unselectedItemColor: theme.unselectedColor,
+        backgroundColor: theme.primaryColor,
+        selectedLabelStyle: theme.labelStyle.copyWith(
+          fontSize: 20,
+        ),
+        unselectedLabelStyle: theme.labelStyle.copyWith(
+          fontSize: 20,
+          color: theme.unselectedColor,
+        ),
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.memory), label: 'Solari'),
+          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Settings'),
+          BottomNavigationBarItem(icon: Icon(Icons.history), label: 'History'),
+        ],
+      )
     );
   }
   // ================================================================================================================================

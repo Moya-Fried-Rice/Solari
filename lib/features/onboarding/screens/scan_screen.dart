@@ -4,10 +4,17 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:location/location.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-import '../utils/snackbar.dart';
-import '../utils/extra.dart';
-import 'solari_screen.dart';
+import '../../../utils/snackbar.dart';
+import '../../../utils/extra.dart';
+import '../../chat/screens/solari_main.dart';
+
+import '../../../core/constants/app_constants.dart';
+import '../../../core/constants/app_strings.dart';
+// import '../../../core/navigation/navigation_service.dart';
+import '../../../shared/widgets/custom_button.dart';
+// import '../../../features/chat/screens/chat_input_screen.dart';
 
 class ScanScreen extends StatefulWidget {
   const ScanScreen({super.key});
@@ -189,11 +196,11 @@ class _ScanScreenState extends State<ScanScreen> {
   }
 
   // Solari glasses icon
-  Widget buildSolariIcon(BuildContext context) {
-    return Icon(
-      _solariDevice != null ? Icons.visibility : Icons.search,
-      size: 128,
-      color: _solariDevice != null ? Colors.green : Colors.grey,
+  Widget buildSolariIcon(BuildContext context, bool isDarkMode) {
+    return FaIcon(
+      _solariDevice != null ? FontAwesomeIcons.glasses : FontAwesomeIcons.glasses,
+      size: 200,
+      color: Colors.white,
     );
   }
 
@@ -201,54 +208,78 @@ class _ScanScreenState extends State<ScanScreen> {
   Widget buildTitle(BuildContext context) {
     String status;
     if (_isScanning) {
-      status = 'Scanning for Solari Smart Glasses...';
+      status = AppStrings.scanningLabel;
     } else if (_solariDevice != null) {
-      status = 'Device Found!';
+      status = AppStrings.deviceFoundLabel;
     } else {
-      status = 'No Solari Smart Glasses Found';
+      status = AppStrings.noDeviceLabel;
     }
 
-    return Column(
-      children: [
-        Text(
-          status,
-          style: Theme.of(context).textTheme.titleMedium,
-          textAlign: TextAlign.center,
-        ),
-        if (_solariDevice != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 8.0),
-            child: Text(
-              'Solari Smart Glasses Ready',
-              style: Theme.of(context).textTheme.bodyMedium,
-              textAlign: TextAlign.center,
-            ),
+    return Text(
+      status,
+      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontSize: AppConstants.titleFontSize,
+            fontWeight: FontWeight.bold,
           ),
-      ],
+      textAlign: TextAlign.center,
     );
   }
+
 
   // Connect button
   Widget buildConnectButton(BuildContext context) {
-    return TextButton(
-      onPressed: _solariDevice != null
-          ? () => onConnectPressed(_solariDevice!)
-          : null,
-      child: const Text('Connect to Solari'),
+    // Hide button if no device is found
+    if (_solariDevice == null) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 40,
+        vertical: 15,
+      ),
+      child: SizedBox(
+        height: 250,
+        width: double.infinity,
+        child: CustomButton(
+          label: AppStrings.connectButtonLabel,
+          fontSize: 52,
+          labelAlignment: Alignment.center,
+          onPressed: () => onConnectPressed(_solariDevice!),
+        ),
+      ),
     );
   }
 
+
   // Scan button
   Widget buildScanButton(BuildContext context) {
-    return TextButton(
-      onPressed: _isScanning ? null : _startSolariDeviceScan,
-      child: Text(_isScanning ? 'Scanning...' : 'Scan Again'),
+    // Hide button while scanning or when a device is found
+    if (_isScanning || _solariDevice != null) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 40,
+        vertical: 15,
+      ),
+      child: SizedBox(
+        height: 250,
+        width: double.infinity,
+        child: CustomButton(
+          label: AppStrings.scanAgainButtonLabel,
+          fontSize: 52,
+          labelAlignment: Alignment.center,
+          onPressed: _startSolariDeviceScan,
+        ),
+      ),
     );
   }
+
+
+
 
   // Build the main UI
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return ScaffoldMessenger(
       key: Snackbar.snackBarKeyB,
       child: Scaffold(
@@ -256,7 +287,7 @@ class _ScanScreenState extends State<ScanScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              buildSolariIcon(context),
+              buildSolariIcon(context, isDarkMode),
               const SizedBox(height: 24),
               buildTitle(context),
               const SizedBox(height: 24),
@@ -264,7 +295,7 @@ class _ScanScreenState extends State<ScanScreen> {
               const SizedBox(height: 16),
               buildScanButton(context),
             ],
-          ),
+          )
         ),
       ),
     );

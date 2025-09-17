@@ -3,13 +3,28 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
-import 'screens/bluetooth_off_screen.dart';
-import 'screens/scan_screen.dart';
-import 'screens/solari_screen.dart';
+import 'features/onboarding/screens/bluetooth_off_screen.dart';
+import 'features/onboarding/screens/scan_screen.dart';
+import 'features/chat/screens/solari_main.dart';
+
+// UI by Patricia
+import 'package:provider/provider.dart';
+
+import 'core/constants/app_strings.dart';
+import 'core/theme/app_theme.dart';
+import 'core/theme/theme_provider.dart';
+// import 'features/onboarding/screens/launch_screen.dart';
 
 void main() {
+  // Enable verbose logging for Bluetooth
   FlutterBluePlus.setLogLevel(LogLevel.verbose, color: true);
-  runApp(const SolariApp());
+
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) => ThemeProvider(),
+      child: const SolariApp(),
+    ),
+  );
 }
 
 // Solari Application main widget
@@ -86,23 +101,32 @@ class _SolariAppState extends State<SolariApp> {
   // Build the UI based on the current Bluetooth state and connection status
   @override
   Widget build(BuildContext context) {
-    Widget screen;
+    return Consumer<ThemeProvider>(
+      builder: (context, themeProvider, _) {
+        Widget screen;
 
-    if (_adapterState != BluetoothAdapterState.on) {
-      // Show BluetoothOffScreen if Bluetooth is off
-      screen = BluetoothOffScreen(adapterState: _adapterState);
-    } else if (_connectedSolariDevice != null) {
-      // Show SolariScreen if connected to a Solari device
-      screen = SolariScreen(device: _connectedSolariDevice!);
-    } else {
-      // Show ScanScreen if Bluetooth is on but not connected to Solari
-      screen = const ScanScreen();
-    }
+        if (_adapterState != BluetoothAdapterState.on) {
+          // Show BluetoothOffScreen if Bluetooth is off
+          screen = BluetoothOffScreen(adapterState: _adapterState);
+        } else if (_connectedSolariDevice != null) {
+          // Show SolariScreen if connected to a Solari device
+          screen = SolariScreen(device: _connectedSolariDevice!);
+        } else {
+          // Show ScanScreen if Bluetooth is on but not connected to Solari
+          screen = const ScanScreen();
+        }
 
-    return MaterialApp(
-      title: 'Solari',
-      home: screen,
-      navigatorObservers: [BluetoothAdapterStateObserver()],
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          title: AppStrings.appName, // or 'Solari', whichever you prefer
+          theme: AppTheme.lightTheme,
+          darkTheme: AppTheme.darkTheme,
+          themeMode: themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+          // navigatorKey: NavigationService.navigatorKey,
+          home: screen,
+          navigatorObservers: [BluetoothAdapterStateObserver()],
+        );
+      },
     );
   }
 }
