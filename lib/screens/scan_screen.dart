@@ -12,7 +12,7 @@ import 'solari_main_screen.dart';
 
 import '../core/constants/app_constants.dart';
 import '../core/constants/app_strings.dart';
-import '../widgets/button_onboarding.dart';
+import '../widgets/onboard_button.dart';
 
 class ScanScreen extends StatefulWidget {
   const ScanScreen({super.key});

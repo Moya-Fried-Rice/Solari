@@ -6,7 +6,7 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import '../core/constants/app_strings.dart';
 import '../core/constants/app_constants.dart';
 import '../utils/snackbar.dart';
-import '../widgets/button_onboarding.dart';
+import '../widgets/onboard_button.dart';
 
 
 class BluetoothOffScreen extends StatelessWidget {

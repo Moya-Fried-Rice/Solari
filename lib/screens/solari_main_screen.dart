@@ -30,13 +30,13 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
   // Subscription to device connection state
   StreamSubscription<BluetoothConnectionState>? _connectionStateSubscription;
 
-
   // =================================================================================================================================
   // Variables
   
   // Bluetooth service and characteristics
   BluetoothService? _targetService;
   final List<BluetoothCharacteristic> _subscribedCharacteristics = [];
+  final List<StreamSubscription<List<int>>> _charSubscriptions = [];
 
   // Audio streaming
   final List<int> _audioBuffer = [];
@@ -47,6 +47,9 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
   Uint8List? _receivedImage;
   int _expectedImageSize = 0;
   bool _receivingImage = false;
+
+  // Temperature received
+  double? _currentTemp;
 
   // Cactus VLM model
   CactusVLM? _vlm;
@@ -80,10 +83,15 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
   @override
   void dispose() {
     _connectionStateSubscription?.cancel();
+    for (var sub in _charSubscriptions) {
+      sub.cancel();
+    }
+    _charSubscriptions.clear();
+
     _vlm?.dispose();
     _vlm = null;
-    super.dispose();
     _flutterTts.stop();
+    super.dispose();
   }
   // ================================================================================================================================
 
@@ -92,40 +100,40 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
   // =================================================================================================================================
   // Initialize the Cactus VLM model
   Future<void> _initModel() async {
-    // try {
-    //   final vlm = CactusVLM();
+    try {
+      final vlm = CactusVLM();
 
-    //   // Download the smaller 500M model (faster, less memory)
-    //   bool downloadSuccess = await vlm.download(
-    //     modelUrl:
-    //         'https://huggingface.co/ggml-org/SmolVLM-500M-Instruct-GGUF/resolve/main/SmolVLM-500M-Instruct-Q8_0.gguf',
-    //     mmprojUrl:
-    //         'https://huggingface.co/ggml-org/SmolVLM-500M-Instruct-GGUF/resolve/main/mmproj-SmolVLM-500M-Instruct-Q8_0.gguf',
-    //     modelFilename: 'SmolVLM-500M-Instruct-Q8_0.gguf',
-    //     mmprojFilename: 'mmproj-SmolVLM-500M-Instruct-Q8_0.gguf',
-    //     onProgress: (progress, status, isError) {
-    //       debugPrint('$status ${progress != null ? '${(progress * 100).toInt()}%' : ''}');
-    //       if (isError) debugPrint('Download error: $status');
-    //     },
-    //   );
+      // Download the smaller 500M model (faster, less memory)
+      bool downloadSuccess = await vlm.download(
+        modelUrl:
+            'https://huggingface.co/ggml-org/SmolVLM-500M-Instruct-GGUF/resolve/main/SmolVLM-500M-Instruct-Q8_0.gguf',
+        mmprojUrl:
+            'https://huggingface.co/ggml-org/SmolVLM-500M-Instruct-GGUF/resolve/main/mmproj-SmolVLM-500M-Instruct-Q8_0.gguf',
+        modelFilename: 'SmolVLM-500M-Instruct-Q8_0.gguf',
+        mmprojFilename: 'mmproj-SmolVLM-500M-Instruct-Q8_0.gguf',
+        onProgress: (progress, status, isError) {
+          debugPrint('$status ${progress != null ? '${(progress * 100).toInt()}%' : ''}');
+          if (isError) debugPrint('Download error: $status');
+        },
+      );
 
-    //   if (!downloadSuccess) {
-    //     throw Exception('Model download failed - check internet connection');
-    //   }
+      if (!downloadSuccess) {
+        throw Exception('Model download failed - check internet connection');
+      }
 
-    //   // Initialize the model
-    //   await vlm.init(
-    //     contextSize: 2048,
-    //     modelFilename: 'SmolVLM-500M-Instruct-Q8_0.gguf',
-    //     mmprojFilename: 'mmproj-SmolVLM-500M-Instruct-Q8_0.gguf',
-    //   );
+      // Initialize the model
+      await vlm.init(
+        contextSize: 2048,
+        modelFilename: 'SmolVLM-500M-Instruct-Q8_0.gguf',
+        mmprojFilename: 'mmproj-SmolVLM-500M-Instruct-Q8_0.gguf',
+      );
 
-    //   // Store the instance for later use
-    //   _vlm = vlm;
+      // Store the instance for later use
+      _vlm = vlm;
 
-    // } catch (e) {
-    //   debugPrint('Error initializing model: $e');
-    // }
+    } catch (e) {
+      debugPrint('Error initializing model: $e');
+    }
   }
 
   // =================================================================================================================================
@@ -171,9 +179,11 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
             await characteristic.setNotifyValue(true);
             _subscribedCharacteristics.add(characteristic);
 
-            characteristic.lastValueStream.listen((value) {
+            final sub = characteristic.lastValueStream.listen((value) {
+              if (!mounted) return; // Safety check
               _handleIncomingData(value);
             });
+            _charSubscriptions.add(sub);
           }
         }
         if (mounted) {
@@ -201,6 +211,18 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
     if (value.isEmpty) return;
 
     String asString = String.fromCharCodes(value);
+    if (asString.startsWith("T:")) {
+      final tempString = asString.substring(2);
+      final tempValue = double.tryParse(tempString);
+      if (tempValue != null) {
+        // debugPrint("🌡️ Temperature received: $tempValue °C");
+        setState(() {
+          _currentTemp = tempValue;
+        });
+      }
+      return;
+    }
+
 
     if (asString.startsWith("VQA_START")) {
       debugPrint("VQA session started");
@@ -330,8 +352,8 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
   // Build the UI
   int _currentIndex = 0;
 
-  final List<Widget> _tabs = [
-    SolariTab(),
+  List<Widget> get _tabs => [
+    SolariTab(image: _receivedImage, temperature: _currentTemp),
     SettingsTab(),
     HistoryTab(),
   ];
