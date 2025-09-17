@@ -14,7 +14,7 @@ class AppConstants {
   static const double smallPadding = 8.0;
   
   // UI sizing
-  static const double defaultButtonBorderRadius = 16.0;
+  static const double defaultButtonBorderRadius = 8.0;
   static const double defaultIconSize = 36.0;
   static const double smallIconSize = 28.0;
   static const double largeIconSize = 40.0;

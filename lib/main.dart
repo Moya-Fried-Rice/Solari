@@ -1,19 +1,19 @@
 import 'dart:async';
 
+// Flutter imports
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
-
-import 'features/onboarding/screens/bluetooth_off_screen.dart';
-import 'features/onboarding/screens/scan_screen.dart';
-import 'features/chat/screens/solari_main.dart';
-
-// UI by Patricia
 import 'package:provider/provider.dart';
 
+// Screens
+import 'screens/bluetooth_off_screen.dart';
+import 'screens/scan_screen.dart';
+import 'screens/solari_main.dart';
+
+// UI and state management
 import 'core/constants/app_strings.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_provider.dart';
-// import 'features/onboarding/screens/launch_screen.dart';
 
 void main() {
   // Enable verbose logging for Bluetooth
@@ -29,7 +29,7 @@ void main() {
 
 // Solari Application main widget
 class SolariApp extends StatefulWidget {
-  const SolariApp({Key? key}) : super(key: key);
+  const SolariApp({super.key}); // ✅ Use super parameter
 
   @override
   State<SolariApp> createState() => _SolariAppState();
@@ -145,7 +145,9 @@ class BluetoothAdapterStateObserver extends NavigatorObserver {
       ) {
         if (state != BluetoothAdapterState.on) {
           // Disconnect from smart glasses if Bluetooth is off
-          navigator?.pop();
+          if (navigator?.canPop() ?? false) {
+            navigator?.pop();
+          }
         }
       });
     }

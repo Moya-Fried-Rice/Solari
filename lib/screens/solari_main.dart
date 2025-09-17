@@ -1,19 +1,21 @@
+// Flutter imports
 import 'dart:async';
 import 'dart:typed_data';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:cactus/cactus.dart';
-import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 
-import '../../../core/theme/theme_provider.dart';
+// UI and state management
+import '../core/theme/theme_provider.dart';
 
-// Tabs
-import 'solari_history.dart';
-import 'solari_settings.dart';
-import 'solari_ai.dart';
+// Tabs for bottom navigation
+import 'tabs/history_tab.dart';
+import 'tabs/settings_tab.dart';
+import 'tabs/solari_tab.dart';
 
 class SolariScreen extends StatefulWidget {
   final BluetoothDevice device;
@@ -25,8 +27,13 @@ class SolariScreen extends StatefulWidget {
 }
 
 class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderStateMixin {
-  // =================================================================================================================================
+  // Subscription to device connection state
+  StreamSubscription<BluetoothConnectionState>? _connectionStateSubscription;
 
+
+  // =================================================================================================================================
+  // Variables
+  
   // Bluetooth service and characteristics
   BluetoothService? _targetService;
   final List<BluetoothCharacteristic> _subscribedCharacteristics = [];
@@ -59,14 +66,24 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
   _subscribeToService();
   _initModel();
   _initializeTts();
+  
+    // Listen for device disconnection
+    _connectionStateSubscription = widget.device.connectionState.listen((state) {
+      if (state == BluetoothConnectionState.disconnected) {
+        if (mounted && Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
+      }
+    });
   }
 
   @override
   void dispose() {
-  _vlm?.dispose();
-  _vlm = null;
-  super.dispose();
-  _flutterTts.stop();
+    _connectionStateSubscription?.cancel();
+    _vlm?.dispose();
+    _vlm = null;
+    super.dispose();
+    _flutterTts.stop();
   }
   // ================================================================================================================================
 
@@ -75,40 +92,40 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
   // =================================================================================================================================
   // Initialize the Cactus VLM model
   Future<void> _initModel() async {
-    try {
-      final vlm = CactusVLM();
+    // try {
+    //   final vlm = CactusVLM();
 
-      // Download the smaller 500M model (faster, less memory)
-      bool downloadSuccess = await vlm.download(
-        modelUrl:
-            'https://huggingface.co/ggml-org/SmolVLM-500M-Instruct-GGUF/resolve/main/SmolVLM-500M-Instruct-Q8_0.gguf',
-        mmprojUrl:
-            'https://huggingface.co/ggml-org/SmolVLM-500M-Instruct-GGUF/resolve/main/mmproj-SmolVLM-500M-Instruct-Q8_0.gguf',
-        modelFilename: 'SmolVLM-500M-Instruct-Q8_0.gguf',
-        mmprojFilename: 'mmproj-SmolVLM-500M-Instruct-Q8_0.gguf',
-        onProgress: (progress, status, isError) {
-          debugPrint('$status ${progress != null ? '${(progress * 100).toInt()}%' : ''}');
-          if (isError) debugPrint('Download error: $status');
-        },
-      );
+    //   // Download the smaller 500M model (faster, less memory)
+    //   bool downloadSuccess = await vlm.download(
+    //     modelUrl:
+    //         'https://huggingface.co/ggml-org/SmolVLM-500M-Instruct-GGUF/resolve/main/SmolVLM-500M-Instruct-Q8_0.gguf',
+    //     mmprojUrl:
+    //         'https://huggingface.co/ggml-org/SmolVLM-500M-Instruct-GGUF/resolve/main/mmproj-SmolVLM-500M-Instruct-Q8_0.gguf',
+    //     modelFilename: 'SmolVLM-500M-Instruct-Q8_0.gguf',
+    //     mmprojFilename: 'mmproj-SmolVLM-500M-Instruct-Q8_0.gguf',
+    //     onProgress: (progress, status, isError) {
+    //       debugPrint('$status ${progress != null ? '${(progress * 100).toInt()}%' : ''}');
+    //       if (isError) debugPrint('Download error: $status');
+    //     },
+    //   );
 
-      if (!downloadSuccess) {
-        throw Exception('Model download failed - check internet connection');
-      }
+    //   if (!downloadSuccess) {
+    //     throw Exception('Model download failed - check internet connection');
+    //   }
 
-      // Initialize the model
-      await vlm.init(
-        contextSize: 2048,
-        modelFilename: 'SmolVLM-500M-Instruct-Q8_0.gguf',
-        mmprojFilename: 'mmproj-SmolVLM-500M-Instruct-Q8_0.gguf',
-      );
+    //   // Initialize the model
+    //   await vlm.init(
+    //     contextSize: 2048,
+    //     modelFilename: 'SmolVLM-500M-Instruct-Q8_0.gguf',
+    //     mmprojFilename: 'mmproj-SmolVLM-500M-Instruct-Q8_0.gguf',
+    //   );
 
-      // Store the instance for later use
-      _vlm = vlm;
+    //   // Store the instance for later use
+    //   _vlm = vlm;
 
-    } catch (e) {
-      debugPrint('Error initializing model: $e');
-    }
+    // } catch (e) {
+    //   debugPrint('Error initializing model: $e');
+    // }
   }
 
   // =================================================================================================================================
@@ -314,7 +331,7 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
   int _currentIndex = 0;
 
   final List<Widget> _tabs = [
-    AiTab(),
+    SolariTab(),
     SettingsTab(),
     HistoryTab(),
   ];

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/theme_provider.dart';
+// import '../../core/services/vibration_service.dart';
 
 /// Custom button widget with animated press effect
 class CustomButton extends StatefulWidget {
@@ -29,6 +30,10 @@ class CustomButton extends StatefulWidget {
   
   /// Icon position (left or right)
   final bool iconOnRight;
+  
+  /// Whether to trigger vibration feedback when the button is pressed
+  /// Set to false when you handle vibration in the onPressed callback
+  final bool enableVibration;
 
   /// Creates a custom button
   const CustomButton({
@@ -41,6 +46,7 @@ class CustomButton extends StatefulWidget {
     this.labelAlignment = Alignment.center,
     this.icon,
     this.iconOnRight = false,
+    this.enableVibration = true,
   });
 
   @override
@@ -51,8 +57,12 @@ class _CustomButtonState extends State<CustomButton> {
   bool _isPressed = false;
 
   void _handleTapDown(_) => setState(() => _isPressed = true);
+  
   void _handleTapUp(_) {
     setState(() => _isPressed = false);
+    if (widget.enableVibration) {
+      // VibrationService.mediumFeedback();
+    }
     widget.onPressed?.call();
   }
 

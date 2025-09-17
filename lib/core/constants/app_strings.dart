@@ -6,12 +6,12 @@ class AppStrings {
   static const String appTagline = 'Smart Glasses';
 
   // Bluetooth information
-  static const String bluetoothOffLabel = 'Bluetooth is Off...';
+  static const String bluetoothOffLabel = 'Bluetooth is disabled';
 
   // Status messages
   static const String scanningLabel = 'Scanning for Solari...';
   static const String deviceFoundLabel = 'Solari Found!';
-  static const String noDeviceLabel = 'No Solari Found';
+  static const String noDeviceLabel = 'Unable to locate Solari';
 
   // Navigation
   static const String chatTabLabel = 'Chat';
@@ -29,7 +29,7 @@ class AppStrings {
   static const String termsConditionsTitle = 'Terms & Conditions';
   
   // Button labels
-  static const String enableButtonLabel = 'Enable';
+  static const String enableButtonLabel = 'Turn On';
   static const String connectButtonLabel = 'Connect';
   static const String disconnectButtonLabel = 'Disconnect';
   static const String scanAgainButtonLabel = 'Retry';

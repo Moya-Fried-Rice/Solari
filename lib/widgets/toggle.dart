@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../core/constants/app_constants.dart';
-import '../../core/theme/theme_provider.dart';
+import '../core/constants/app_constants.dart';
+import '../core/theme/theme_provider.dart';
 
 /// Custom toggle switch with label
 class Toggle extends StatelessWidget {
