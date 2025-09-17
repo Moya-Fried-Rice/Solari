@@ -22,13 +22,13 @@ class AppTheme {
         thickness: 10,
       ),
       switchTheme: SwitchThemeData(
-        trackColor: MaterialStateProperty.resolveWith<Color>((states) {
-          return states.contains(MaterialState.selected)
+        trackColor: WidgetStateProperty.resolveWith<Color>((states) {
+          return states.contains(WidgetState.selected)
               ? AppColors.lightPrimary.withOpacity(0.4)
               : AppColors.lightUnselectedColor.withOpacity(0.4);
         }),
-        thumbColor: MaterialStateProperty.resolveWith<Color>((states) {
-          return states.contains(MaterialState.selected)
+        thumbColor: WidgetStateProperty.resolveWith<Color>((states) {
+          return states.contains(WidgetState.selected)
               ? AppColors.lightPrimary
               : AppColors.lightUnselectedColor;
         }),
@@ -54,13 +54,13 @@ class AppTheme {
         thickness: 10,
       ),
       switchTheme: SwitchThemeData(
-        trackColor: MaterialStateProperty.resolveWith<Color>((states) {
-          return states.contains(MaterialState.selected)
+        trackColor: WidgetStateProperty.resolveWith<Color>((states) {
+          return states.contains(WidgetState.selected)
               ? AppColors.darkPrimary.withOpacity(0.4)
               : AppColors.darkUnselectedColor.withOpacity(0.4);
         }),
-        thumbColor: MaterialStateProperty.resolveWith<Color>((states) {
-          return states.contains(MaterialState.selected)
+        thumbColor: WidgetStateProperty.resolveWith<Color>((states) {
+          return states.contains(WidgetState.selected)
               ? AppColors.darkPrimary
               : AppColors.darkUnselectedColor;
         }),

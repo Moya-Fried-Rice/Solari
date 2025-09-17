@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants/app_constants.dart';
-import '../../core/theme/theme_provider.dart';
+import '../core/providers/theme_provider.dart';
 // import '../../core/services/vibration_service.dart';
 
 /// Custom button widget with animated press effect
@@ -41,7 +41,7 @@ class CustomButton extends StatefulWidget {
     required this.label,
     this.onPressed,
     this.borderRadius = AppConstants.defaultButtonBorderRadius,
-    this.padding = const EdgeInsets.symmetric(horizontal: 36, vertical: 28),
+    this.padding = const EdgeInsets.symmetric(horizontal: 0, vertical: 0),
     this.fontSize = AppConstants.bodyFontSize,
     this.labelAlignment = Alignment.center,
     this.icon,

@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:provider/provider.dart';
+import 'core/providers/history_provider.dart';
 
 // Screens
 import 'screens/bluetooth_off_screen.dart';
@@ -13,15 +14,18 @@ import 'screens/solari_main_screen.dart';
 // UI and state management
 import 'core/constants/app_strings.dart';
 import 'core/theme/app_theme.dart';
-import 'core/theme/theme_provider.dart';
+import 'core/providers/theme_provider.dart';
 
 void main() {
   // Enable verbose logging for Bluetooth
   FlutterBluePlus.setLogLevel(LogLevel.verbose, color: true);
 
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => ThemeProvider(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => HistoryProvider()),
+      ],
       child: const SolariApp(),
     ),
   );

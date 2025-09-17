@@ -6,11 +6,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:cactus/cactus.dart';
 import 'package:path_provider/path_provider.dart';
+// import 'package:provider/provider.dart';
+import '../core/providers/history_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 
 // UI and state management
-import '../core/theme/theme_provider.dart';
+import '../core/providers/theme_provider.dart';
 
 // Tabs for bottom navigation
 import 'tabs/history_tab.dart';
@@ -318,7 +320,6 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
     if (_vlm == null) return;
 
     try {
-
       final tempDir = await getTemporaryDirectory();
       final tempFile = File('${tempDir.path}/temp_image.jpg');
       await tempFile.writeAsBytes(imageData, flush: true);
@@ -339,10 +340,13 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
       if (mounted) {
         debugPrint('Image description: $response');
         _speakText(response);
+        // Add to history
+        final historyProvider = Provider.of<HistoryProvider>(context, listen: false);
+        historyProvider.addEntry(imageData, response);
       }
     } catch (e) {
       debugPrint('Error processing image: $e');
-    } 
+    }
   }
   // ================================================================================================================================
 
@@ -381,16 +385,18 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (index) => setState(() => _currentIndex = index),
-        iconSize: 100,
+        iconSize: 75,
         selectedItemColor: theme.iconColor,
         unselectedItemColor: theme.unselectedColor,
         backgroundColor: theme.primaryColor,
         selectedLabelStyle: theme.labelStyle.copyWith(
           fontSize: 20,
+          fontWeight: FontWeight.bold,
         ),
         unselectedLabelStyle: theme.labelStyle.copyWith(
           fontSize: 20,
           color: theme.unselectedColor,
+          fontWeight: FontWeight.normal
         ),
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.memory), label: 'Solari'),

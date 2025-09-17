@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../core/constants/app_constants.dart';
-import '../../core/theme/theme_provider.dart';
+import '../core/providers/theme_provider.dart';
 import 'package:provider/provider.dart';
 
 class OnboardingButton extends StatelessWidget {

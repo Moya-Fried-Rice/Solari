@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../constants/app_constants.dart';
-import 'app_colors.dart';
+import '../theme/app_colors.dart';
 
 /// Provider for managing theme state throughout the app
 class ThemeProvider extends ChangeNotifier {
