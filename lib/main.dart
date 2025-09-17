@@ -8,7 +8,7 @@ import 'package:provider/provider.dart';
 // Screens
 import 'screens/bluetooth_off_screen.dart';
 import 'screens/scan_screen.dart';
-import 'screens/solari_main.dart';
+import 'screens/solari_main_screen.dart';
 
 // UI and state management
 import 'core/constants/app_strings.dart';

@@ -8,7 +8,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../utils/snackbar.dart';
 import '../utils/extra.dart';
-import 'solari_main.dart';
+import 'solari_main_screen.dart';
 
 import '../core/constants/app_constants.dart';
 import '../core/constants/app_strings.dart';
