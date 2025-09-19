@@ -1,12 +1,14 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:provider/provider.dart';
+
+import '../../../core/providers/device_info_provider.dart';
 import '../../../core/providers/theme_provider.dart';
 import '../../../widgets/app_bar.dart';
-import '../../../core/providers/device_info_provider.dart';
 import '../../../widgets/settings_button.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class DeviceStatusPage extends StatefulWidget {
   final BluetoothDevice device;

@@ -8,7 +8,6 @@ class OnboardingButton extends StatelessWidget {
   final double height;
   final VoidCallback onPressed;
   final Color? backgroundColor;
-  final Color? textColor;
 
   const OnboardingButton({
     super.key,
@@ -16,7 +15,6 @@ class OnboardingButton extends StatelessWidget {
     required this.onPressed,
     this.height = 200,
     this.backgroundColor,
-    this.textColor,
   });
 
   @override
@@ -25,7 +23,7 @@ class OnboardingButton extends StatelessWidget {
     final buttonTextStyle = TextStyle(
       fontSize: AppConstants.titleFontSize,
       fontWeight: FontWeight.bold,
-      color: textColor ?? theme.buttonTextColor,
+      color: theme.buttonTextColor,
     );
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -37,7 +35,6 @@ class OnboardingButton extends StatelessWidget {
           child: ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: backgroundColor ?? Theme.of(context).primaryColor,
-              foregroundColor: textColor ?? Colors.white,
               shape: const RoundedRectangleBorder(
                 borderRadius: BorderRadius.only(
                   topLeft: Radius.circular(75),

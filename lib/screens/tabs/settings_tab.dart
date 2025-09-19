@@ -22,11 +22,10 @@ class SettingsTab extends StatelessWidget {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final List<Map<String, dynamic>> items = [
       {'label': 'Device Status'},
-      {'label': 'Preference'},
+      {'label': 'Preferences'},
       {'label': 'Help'},
       {'label': 'About'},
       {'label': 'Terms of Use'},
-      {'label': 'Disconnect'},
     ];
 
     return Scaffold(
@@ -56,7 +55,7 @@ class SettingsTab extends StatelessWidget {
                           builder: (_) => DeviceStatusPage(device: device),
                         ),
                       );
-                    } else if (label == 'Preference') {
+                    } else if (label == 'Preferences') {
                       Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (context) => const PreferencePage(),
@@ -80,8 +79,6 @@ class SettingsTab extends StatelessWidget {
                           builder: (context) => const TermsOfUsePage(),
                         ),
                       );
-                    } else if (label == 'Disconnect') {
-                      if (onDisconnect != null) onDisconnect!();
                     }
                   },
                 ),

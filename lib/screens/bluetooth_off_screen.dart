@@ -72,7 +72,6 @@ class BluetoothOffScreen extends StatelessWidget {
                     },
                     height: 200, // same height as before
                     backgroundColor: Theme.of(context).primaryColor,
-                    textColor: Colors.black,
                   ),
                 ],
               ),

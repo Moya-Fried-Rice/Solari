@@ -30,6 +30,9 @@ class AppConstants {
   // Min/Max values
   static const double minFontSize = 28.0;
   static const double maxFontSize = 48.0;
+  static const double minLineHeight = 1.0;
+  static const double maxLineHeight = 2.0;
+  static const double lineHeightStep = 0.1;
   static const int minSpeedPitch = 0;
   static const int maxSpeedPitch = 10;
   static const int speedPitchStep = 2;

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../core/constants/app_constants.dart';
-import '../core/providers/theme_provider.dart';
+import '../../core/constants/app_constants.dart';
+import '../../core/providers/theme_provider.dart';
+// import '../../core/services/vibration_service.dart';
 
 /// Custom toggle switch with label
 class Toggle extends StatelessWidget {
@@ -18,6 +19,13 @@ class Toggle extends StatelessWidget {
   /// Custom font size for the label
   final double? fontSize;
   
+
+  /// Optional color for the label text
+  final Color? labelColor;
+
+  /// Optional font weight for the label text
+  final FontWeight? labelFontWeight;
+
   /// Creates a toggle switch
   const Toggle({
     super.key,
@@ -25,6 +33,8 @@ class Toggle extends StatelessWidget {
     required this.value,
     required this.onChanged,
     this.fontSize,
+    this.labelColor,
+    this.labelFontWeight,
   });
 
   @override
@@ -38,9 +48,11 @@ class Toggle extends StatelessWidget {
         // Flexible text that can wrap
         Expanded(
           child: Text(
-            label, 
+            label,
             style: TextStyle(
               fontSize: fontSize ?? AppConstants.bodyFontSize,
+              color: labelColor,
+              fontWeight: labelFontWeight,
             ),
             softWrap: true,
             overflow: TextOverflow.visible,
@@ -51,7 +63,13 @@ class Toggle extends StatelessWidget {
         // Switch is not flexible - always stays at its natural size
         Switch(
           value: value,
-          onChanged: onChanged,
+          onChanged: (newValue) {
+            // Add vibration feedback when toggle changes
+            if (newValue != value) {
+              // VibrationService.mediumFeedback();
+            }
+            onChanged(newValue);
+          },
           activeColor: theme.primaryColor,
           inactiveThumbColor: theme.unselectedColor,
           activeTrackColor: theme.primaryColor.withOpacity(0.4),

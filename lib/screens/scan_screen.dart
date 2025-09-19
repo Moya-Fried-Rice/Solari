@@ -168,7 +168,8 @@ class _ScanScreenState extends State<ScanScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
+  final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     String status;
     if (_isScanning) {
@@ -198,7 +199,7 @@ class _ScanScreenState extends State<ScanScreen> {
                         width: 200,
                         height: 200,
                         colorFilter: ColorFilter.mode(
-                          Colors.white,
+                          isDarkMode ? Colors.white : Colors.black,
                           BlendMode.srcIn,
                         ),
                       ),
@@ -228,7 +229,6 @@ class _ScanScreenState extends State<ScanScreen> {
                       onPressed: () => onConnectPressed(_solariDevice!),
                       height: 200,
                       backgroundColor: Theme.of(context).primaryColor,
-                      textColor: Colors.black,
                     ),
                   if (!_isScanning && _solariDevice == null)
                     OnboardingButton(
@@ -236,7 +236,6 @@ class _ScanScreenState extends State<ScanScreen> {
                       onPressed: _startSolariDeviceScan,
                       height: 200,
                       backgroundColor: Theme.of(context).primaryColor,
-                      textColor: Colors.black,
                     ),
                 ],
               ),
