@@ -424,7 +424,7 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
   int _currentIndex = 0;
 
   List<Widget> get _tabs => [
-    SolariTab(temperature: _currentTemp, speaking: _isSpeaking),
+  SolariTab(temperature: _currentTemp, speaking: _isSpeaking, image: _receivedImage),
     SettingsTab(device: widget.device, onDisconnect: _handleDisconnect),
     HistoryTab(),
   ];

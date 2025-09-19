@@ -1,12 +1,13 @@
-// import 'dart:typed_data';
+import 'dart:typed_data';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 class SolariTab extends StatelessWidget {
   final double? temperature;
   final bool speaking;
+  final Uint8List? image;
 
-  const SolariTab({Key? key, this.temperature, required this.speaking}) : super(key: key);
+  const SolariTab({Key? key, this.temperature, required this.speaking, this.image}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -21,6 +22,35 @@ class SolariTab extends StatelessWidget {
               child: AnimatedSoundWave(speaking: speaking),
             ),
           ),
+          // Small image in top right corner
+          if (image != null)
+            Positioned(
+              top: 16,
+              right: 16,
+              child: Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.deepOrange, width: 2),
+                  borderRadius: BorderRadius.circular(12),
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black26,
+                      blurRadius: 4,
+                      offset: Offset(2, 2),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Image.memory(
+                    image!,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+            ),
           // Temperature at the very bottom
           Positioned(
             left: 0,
