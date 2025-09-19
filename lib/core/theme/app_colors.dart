@@ -7,7 +7,7 @@ class AppColors {
   static const Color lightText = Colors.black;
   static const Color lightBackground = Colors.white;
   static const Color lightButtonText = Colors.white;
-  static const Color lightUnselectedColor = Color(0xFFBDBDBD); // Grey400
+  static const Color lightUnselectedColor = Color.fromARGB(255, 189, 125, 80); // Grey400
   
   // Dark theme colors
   static const Color darkPrimary = Color(0xFFF57600);

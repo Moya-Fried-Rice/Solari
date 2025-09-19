@@ -32,6 +32,8 @@ class SolariScreen extends StatefulWidget {
 }
 
 class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderStateMixin {
+  // Track if TTS is currently speaking
+  bool _isSpeaking = false;
   // Subscription to device connection state
   StreamSubscription<BluetoothConnectionState>? _connectionStateSubscription;
 
@@ -165,9 +167,32 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
 
   Future<void> _speakText(String text) async {
     try {
+      setState(() {
+        _isSpeaking = true;
+      });
       await _flutterTts.speak(text);
+      // Optionally, listen for completion
+      _flutterTts.setCompletionHandler(() {
+        if (mounted) {
+          setState(() {
+            _isSpeaking = false;
+          });
+        }
+      });
+      _flutterTts.setCancelHandler(() {
+        if (mounted) {
+          setState(() {
+            _isSpeaking = false;
+          });
+        }
+      });
     } catch (e) {
       debugPrint('Error speaking text: $e');
+      if (mounted) {
+        setState(() {
+          _isSpeaking = false;
+        });
+      }
     }
   }
   // =================================================================================================================================
@@ -391,7 +416,7 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
   int _currentIndex = 0;
 
   List<Widget> get _tabs => [
-    SolariTab(image: _receivedImage, temperature: _currentTemp),
+    SolariTab(temperature: _currentTemp, speaking: _isSpeaking),
     SettingsTab(device: widget.device, onDisconnect: _handleDisconnect),
     HistoryTab(),
   ];
