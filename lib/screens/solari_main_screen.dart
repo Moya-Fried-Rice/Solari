@@ -54,6 +54,7 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
   Uint8List? _receivedImage;
   int _expectedImageSize = 0;
   bool _receivingImage = false;
+  bool _processingImage = false;
 
   // Temperature received
   double? _currentTemp;
@@ -383,6 +384,10 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
       return;
     }
 
+    setState(() {
+      _processingImage = true;
+    });
+
     try {
       debugPrint('[AI] Writing received image to temp file for model input...');
       final tempDir = await getTemporaryDirectory();
@@ -413,6 +418,12 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
       }
     } catch (e) {
       debugPrint('[AI] Error processing image: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _processingImage = false;
+        });
+      }
     }
   }
   // ================================================================================================================================
@@ -424,7 +435,12 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
   int _currentIndex = 0;
 
   List<Widget> get _tabs => [
-  SolariTab(temperature: _currentTemp, speaking: _isSpeaking, image: _receivedImage),
+    SolariTab(
+      temperature: _currentTemp,
+      speaking: _isSpeaking,
+      processing: _processingImage,
+      image: _receivedImage,
+    ),
     SettingsTab(device: widget.device, onDisconnect: _handleDisconnect),
     HistoryTab(),
   ];

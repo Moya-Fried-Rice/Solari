@@ -5,9 +5,10 @@ import 'package:flutter/material.dart';
 class SolariTab extends StatelessWidget {
   final double? temperature;
   final bool speaking;
+  final bool processing;
   final Uint8List? image;
 
-  const SolariTab({Key? key, this.temperature, required this.speaking, this.image}) : super(key: key);
+  const SolariTab({Key? key, this.temperature, required this.speaking, required this.processing, this.image}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +20,7 @@ class SolariTab extends StatelessWidget {
             child: SizedBox(
               height: 60,
               width: MediaQuery.of(context).size.width,
-              child: AnimatedSoundWave(speaking: speaking),
+              child: AnimatedSoundWave(speaking: speaking, processing: processing),
             ),
           ),
           // Small image in top right corner
@@ -71,7 +72,8 @@ class SolariTab extends StatelessWidget {
 /// Animated widget for the sound wave
 class AnimatedSoundWave extends StatefulWidget {
   final bool speaking;
-  const AnimatedSoundWave({Key? key, required this.speaking}) : super(key: key);
+  final bool processing;
+  const AnimatedSoundWave({Key? key, required this.speaking, required this.processing}) : super(key: key);
 
   @override
   State<AnimatedSoundWave> createState() => AnimatedSoundWaveState();
@@ -87,7 +89,7 @@ class AnimatedSoundWaveState extends State<AnimatedSoundWave> with SingleTickerP
       vsync: this,
       duration: const Duration(seconds: 2),
     );
-    if (widget.speaking) {
+    if (widget.speaking || widget.processing) {
       _controller.repeat();
     }
   }
@@ -95,9 +97,9 @@ class AnimatedSoundWaveState extends State<AnimatedSoundWave> with SingleTickerP
   @override
   void didUpdateWidget(covariant AnimatedSoundWave oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.speaking && !_controller.isAnimating) {
+    if ((widget.speaking || widget.processing) && !_controller.isAnimating) {
       _controller.repeat();
-    } else if (!widget.speaking && _controller.isAnimating) {
+    } else if (!widget.speaking && !widget.processing && _controller.isAnimating) {
       _controller.stop();
     }
   }
@@ -113,9 +115,20 @@ class AnimatedSoundWaveState extends State<AnimatedSoundWave> with SingleTickerP
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
-        final progress = widget.speaking ? _controller.value : 0.0;
+        double progress = 0.0;
+        bool flat = false;
+        if (widget.speaking) {
+          progress = _controller.value;
+          flat = false;
+        } else if (widget.processing) {
+          progress = _controller.value * 0.25; // subtle, slow movement
+          flat = false;
+        } else {
+          progress = 0.0;
+          flat = true;
+        }
         return CustomPaint(
-          painter: SoundWavePainter(progress, flat: !widget.speaking),
+          painter: SoundWavePainter(progress, flat: flat),
         );
       },
     );
