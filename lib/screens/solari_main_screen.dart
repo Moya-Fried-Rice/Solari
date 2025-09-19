@@ -278,7 +278,6 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
       return;
     }
 
-
     if (asString.startsWith("VQA_START")) {
       debugPrint("VQA session started");
       _imageBuffer.clear();
@@ -307,20 +306,21 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
     if (asString.startsWith("I:")) {
       // Image header with size
       _expectedImageSize = int.tryParse(asString.split(":")[1]) ?? 0;
-      debugPrint("Image incoming, expected size: $_expectedImageSize bytes");
+      debugPrint("[BLE] Image incoming header received, expected size: $_expectedImageSize bytes");
       _imageBuffer.clear();
       _receivingImage = true;
       return;
     }
 
     if (asString.startsWith("I_END")) {
-      debugPrint("Image received: ${_imageBuffer.length} bytes");
+      debugPrint("[BLE] Image transfer complete. Received: ${_imageBuffer.length} bytes");
       _receivingImage = false;
 
       setState(() {
         _receivedImage = Uint8List.fromList(_imageBuffer);
       });
 
+      debugPrint("[AI] Passing received image to model for processing...");
       // Process image with model
       _processReceivedImage(_receivedImage!);
 
@@ -334,8 +334,10 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
 
     // --- OTHERWISE THIS IS BINARY DATA ---
     if (_audioStreaming) {
+      debugPrint("[BLE] Audio data chunk received: ${value.length} bytes");
       _audioBuffer.addAll(value);
     } else if (_receivingImage) {
+      debugPrint("[BLE] Image data chunk received: ${value.length} bytes (total: ${_imageBuffer.length + value.length}/${_expectedImageSize})");
       _imageBuffer.addAll(value);
     }
   }
@@ -370,26 +372,32 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
   // ================================================================================================================================
   // Process the received image with the Cactus VLM model
   Future<void> _processReceivedImage(Uint8List imageData) async {
-    if (_vlm == null) return;
+    if (_vlm == null) {
+      debugPrint('[AI] Model not initialized, skipping image processing.');
+      return;
+    }
 
     // ✅ Validate image size before processing
     if (_imageBuffer.length < _expectedImageSize) {
-      debugPrint("⚠️ Incomplete image received. Expected $_expectedImageSize bytes, got ${_imageBuffer.length} bytes.");
+      debugPrint("[AI] ⚠️ Incomplete image received. Expected $_expectedImageSize bytes, got ${_imageBuffer.length} bytes.");
       return;
     }
 
     try {
+      debugPrint('[AI] Writing received image to temp file for model input...');
       final tempDir = await getTemporaryDirectory();
       final tempFile = File('${tempDir.path}/temp_image.jpg');
       await tempFile.writeAsBytes(imageData, flush: true);
 
       String response = '';
+      debugPrint('[AI] Running VLM model completion on image...');
       await _vlm!.completion(
         [ChatMessage(role: 'user', content: 'Describe this image.')],
         imagePaths: [tempFile.path],
         maxTokens: 200,
         onToken: (token) {
           response += token;
+          debugPrint('[AI] Model token: $token');
           return true;
         },
       );
@@ -397,14 +405,14 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
       await tempFile.delete();
 
       if (mounted) {
-        debugPrint('Image description: $response');
+        debugPrint('[AI] Image description complete: $response');
         _speakText(response);
         // Add to history
         final historyProvider = Provider.of<HistoryProvider>(context, listen: false);
         historyProvider.addEntry(imageData, response);
       }
     } catch (e) {
-      debugPrint('Error processing image: $e');
+      debugPrint('[AI] Error processing image: $e');
     }
   }
   // ================================================================================================================================
