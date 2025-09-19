@@ -69,13 +69,9 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
   // Initialize and dispose
   @override
   void initState() {
-  super.initState();
-  _requestMtu();
-  _subscribeToService();
-  _initModel();
-  _initializeTts();
-  
-    // Listen for device disconnection
+    super.initState();
+
+    // 1. Listen for disconnection events (keep this!)
     _connectionStateSubscription = widget.device.connectionState.listen((state) {
       if (state == BluetoothConnectionState.disconnected) {
         if (mounted && Navigator.of(context).canPop()) {
@@ -83,7 +79,19 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
         }
       }
     });
+
+    // 2. Wait until connected before subscribing
+    widget.device.connectionState.firstWhere(
+      (state) => state == BluetoothConnectionState.connected,
+    ).then((_) {
+      if (!mounted) return;
+      _requestMtu();
+      _subscribeToService();
+      _initModel();
+      _initializeTts();
+    });
   }
+
 
   @override
   void dispose() {
@@ -92,12 +100,13 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
       sub.cancel();
     }
     _charSubscriptions.clear();
-
+    _audioBuffer.clear();
+    _imageBuffer.clear();
     _vlm?.dispose();
-    _vlm = null;
     _flutterTts.stop();
     super.dispose();
   }
+
   // ================================================================================================================================
 
   
@@ -338,6 +347,12 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
   Future<void> _processReceivedImage(Uint8List imageData) async {
     if (_vlm == null) return;
 
+    // ✅ Validate image size before processing
+    if (_imageBuffer.length < _expectedImageSize) {
+      debugPrint("⚠️ Incomplete image received. Expected $_expectedImageSize bytes, got ${_imageBuffer.length} bytes.");
+      return;
+    }
+
     try {
       final tempDir = await getTemporaryDirectory();
       final tempFile = File('${tempDir.path}/temp_image.jpg');
@@ -399,30 +414,6 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
           children: _tabs,
         ),
       ),
-
-      // // BOTTOM NAVIGATION BAR with theme colors
-      // bottomNavigationBar: BottomNavigationBar(
-      //   currentIndex: _currentIndex,
-      //   onTap: (index) => setState(() => _currentIndex = index),
-      //   iconSize: 75,
-      //   selectedItemColor: theme.iconColor,
-      //   unselectedItemColor: theme.unselectedColor,
-      //   backgroundColor: theme.primaryColor,
-      //   selectedLabelStyle: theme.labelStyle.copyWith(
-      //     fontSize: 20,
-      //     fontWeight: FontWeight.bold,
-      //   ),
-      //   unselectedLabelStyle: theme.labelStyle.copyWith(
-      //     fontSize: 20,
-      //     color: theme.unselectedColor,
-      //     fontWeight: FontWeight.normal
-      //   ),
-      //   items: const [
-      //     BottomNavigationBarItem(icon: Icon(Icons.memory), label: 'Solari'),
-      //     BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Settings'),
-      //     BottomNavigationBarItem(icon: Icon(Icons.history), label: 'History'),
-      //   ],
-      // )
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (index) => setState(() => _currentIndex = index),
