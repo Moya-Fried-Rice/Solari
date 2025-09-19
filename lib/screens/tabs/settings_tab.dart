@@ -10,9 +10,12 @@ import 'settings/terms_of_use.dart';
 import 'package:provider/provider.dart';
 import '../../core/providers/theme_provider.dart';
 
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+
 class SettingsTab extends StatelessWidget {
+  final BluetoothDevice device;
   final VoidCallback? onDisconnect;
-  const SettingsTab({super.key, this.onDisconnect});
+  const SettingsTab({super.key, required this.device, this.onDisconnect});
 
   @override
   Widget build(BuildContext context) {
@@ -47,9 +50,10 @@ class SettingsTab extends StatelessWidget {
                   onPressed: () {
                     final label = items[i]["label"];
                     if (label == 'Device Status') {
-                      Navigator.of(context).push(
+                      Navigator.push(
+                        context,
                         MaterialPageRoute(
-                          builder: (context) => const DeviceStatusPage(),
+                          builder: (_) => DeviceStatusPage(device: device),
                         ),
                       );
                     } else if (label == 'Preference') {

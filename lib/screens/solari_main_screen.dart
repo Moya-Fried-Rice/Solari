@@ -392,7 +392,7 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
 
   List<Widget> get _tabs => [
     SolariTab(image: _receivedImage, temperature: _currentTemp),
-    SettingsTab(onDisconnect: _handleDisconnect),
+    SettingsTab(device: widget.device, onDisconnect: _handleDisconnect),
     HistoryTab(),
   ];
 
@@ -414,6 +414,8 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
           children: _tabs,
         ),
       ),
+
+      // BOTTOM NAVIGATION BAR
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (index) => setState(() => _currentIndex = index),

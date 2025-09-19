@@ -115,23 +115,23 @@ class _SolariAppState extends State<SolariApp> {
         } 
         
         // 🔧 TEMPORARY CHANGE: Force SolariScreen for debugging even without device
-        else {
-          screen = SolariScreen(
-            device: _connectedSolariDevice ??
-                BluetoothDevice(
-                  remoteId: DeviceIdentifier('00:11:22:33:44:55'), // Fake MAC
-                ),
-          );
-        }
+        // else {
+        //   screen = SolariScreen(
+        //     device: _connectedSolariDevice ??
+        //         BluetoothDevice(
+        //           remoteId: DeviceIdentifier('00:11:22:33:44:55'), // Fake MAC
+        //         ),
+        //   );
+        // }
 
         // ✅ ORIGINAL LOGIC (UNCOMMENT WHEN DONE DEBUGGING)
-        // else if (_connectedSolariDevice != null) {
-        //   // Show SolariScreen if connected to a Solari device
-        //   screen = SolariScreen(device: _connectedSolariDevice!);
-        // } else {
-        //   // Show ScanScreen if Bluetooth is on but not connected to Solari
-        //   screen = const ScanScreen();
-        // }
+        else if (_connectedSolariDevice != null) {
+          // Show SolariScreen if connected to a Solari device
+          screen = SolariScreen(device: _connectedSolariDevice!);
+        } else {
+          // Show ScanScreen if Bluetooth is on but not connected to Solari
+          screen = const ScanScreen();
+        }
 
         return MaterialApp(
           debugShowCheckedModeBanner: false,
