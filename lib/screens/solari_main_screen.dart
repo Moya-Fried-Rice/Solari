@@ -73,7 +73,10 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
   @override
   void initState() {
     super.initState();
-
+_requestMtu();
+      _subscribeToService();
+      _initModel();
+      _initializeTts();
     // 1. Listen for disconnection events (keep this!)
     _connectionStateSubscription = widget.device.connectionState.listen((state) {
       if (state == BluetoothConnectionState.disconnected) {
@@ -84,15 +87,15 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
     });
 
     // 2. Wait until connected before subscribing
-    widget.device.connectionState.firstWhere(
-      (state) => state == BluetoothConnectionState.connected,
-    ).then((_) {
-      if (!mounted) return;
-      _requestMtu();
-      _subscribeToService();
-      _initModel();
-      _initializeTts();
-    });
+    // widget.device.connectionState.firstWhere(
+    //   (state) => state == BluetoothConnectionState.connected,
+    // ).then((_) {
+    //   if (!mounted) return;
+    //   _requestMtu();
+    //   _subscribeToService();
+    //   _initModel();
+    //   _initializeTts();
+    // });
   }
 
 

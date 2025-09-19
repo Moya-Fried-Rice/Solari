@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/constants/app_constants.dart';
 import '../core/providers/theme_provider.dart';
-// import '../../core/services/vibration_service.dart';
+import '../../core/services/vibration_service.dart';
 
 /// Custom button widget with animated press effect
 class CustomButton extends StatefulWidget {
@@ -61,7 +61,7 @@ class _CustomButtonState extends State<CustomButton> {
   void _handleTapUp(_) {
     setState(() => _isPressed = false);
     if (widget.enableVibration) {
-      // VibrationService.mediumFeedback();
+      VibrationService.mediumFeedback();
     }
     widget.onPressed?.call();
   }
