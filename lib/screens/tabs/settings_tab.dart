@@ -2,18 +2,23 @@ import 'package:flutter/material.dart';
 
 
 import '../../widgets/settings_button.dart';
+import 'settings/device_status.dart';
+import 'settings/preference.dart';
+import 'settings/help.dart';
+import 'settings/about.dart';
+import 'settings/terms_of_use.dart';
 import 'package:provider/provider.dart';
 import '../../core/providers/theme_provider.dart';
 
 class SettingsTab extends StatelessWidget {
   final VoidCallback? onDisconnect;
-  const SettingsTab({Key? key, this.onDisconnect}) : super(key: key);
+  const SettingsTab({super.key, this.onDisconnect});
 
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final List<Map<String, dynamic>> items = [
-      {'label': 'Connection'},
+      {'label': 'Device Status'},
       {'label': 'Preference'},
       {'label': 'Help'},
       {'label': 'About'},
@@ -39,7 +44,42 @@ class SettingsTab extends StatelessWidget {
                     horizontal: 15,
                     vertical: 20,
                   ),
-                  onPressed: items[i]["label"] == 'Disconnect' ? onDisconnect : null,
+                  onPressed: () {
+                    final label = items[i]["label"];
+                    if (label == 'Device Status') {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => const DeviceStatusPage(),
+                        ),
+                      );
+                    } else if (label == 'Preference') {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => const PreferencePage(),
+                        ),
+                      );
+                    } else if (label == 'Help') {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => const HelpPage(),
+                        ),
+                      );
+                    } else if (label == 'About') {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => const AboutPage(),
+                        ),
+                      );
+                    } else if (label == 'Terms of Use') {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => const TermsOfUsePage(),
+                        ),
+                      );
+                    } else if (label == 'Disconnect') {
+                      if (onDisconnect != null) onDisconnect!();
+                    }
+                  },
                 ),
                 SizedBox(height: 16),
               ],
