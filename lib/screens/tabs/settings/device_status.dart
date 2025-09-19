@@ -1,15 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../../core/providers/theme_provider.dart';
+import '../../../widgets/app_bar.dart';
 
 class DeviceStatusPage extends StatelessWidget {
   const DeviceStatusPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Placeholder for device status info
+    final theme = Provider.of<ThemeProvider>(context);
+
+    // App bar
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Device Status'),
+      appBar: const CustomAppBar(
+        title: 'Device Status',
+        showBackButton: true,
       ),
+
+      
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -29,6 +37,10 @@ class DeviceStatusPage extends StatelessWidget {
           ],
         ),
       ),
+
+
+
+
     );
   }
 }

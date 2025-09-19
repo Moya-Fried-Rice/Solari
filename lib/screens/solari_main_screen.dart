@@ -1,22 +1,23 @@
-// Flutter imports
+// Dart imports
 import 'dart:async';
-import 'dart:typed_data';
 import 'dart:io';
+import 'dart:typed_data';
+
+// Flutter imports
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+// Third-party packages
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:cactus/cactus.dart';
 import 'package:path_provider/path_provider.dart';
-// import 'package:provider/provider.dart';
-import '../core/providers/history_provider.dart';
-import 'package:provider/provider.dart';
-
-import '../utils/extra.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 
-// UI and state management
+// Project imports
+import '../core/providers/history_provider.dart';
 import '../core/providers/theme_provider.dart';
-
-// Tabs for bottom navigation
+import '../utils/extra.dart';
 import 'tabs/history_tab.dart';
 import 'tabs/settings_tab.dart';
 import 'tabs/solari_tab.dart';
@@ -399,11 +400,33 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
         ),
       ),
 
-      // BOTTOM NAVIGATION BAR with theme colors
+      // // BOTTOM NAVIGATION BAR with theme colors
+      // bottomNavigationBar: BottomNavigationBar(
+      //   currentIndex: _currentIndex,
+      //   onTap: (index) => setState(() => _currentIndex = index),
+      //   iconSize: 75,
+      //   selectedItemColor: theme.iconColor,
+      //   unselectedItemColor: theme.unselectedColor,
+      //   backgroundColor: theme.primaryColor,
+      //   selectedLabelStyle: theme.labelStyle.copyWith(
+      //     fontSize: 20,
+      //     fontWeight: FontWeight.bold,
+      //   ),
+      //   unselectedLabelStyle: theme.labelStyle.copyWith(
+      //     fontSize: 20,
+      //     color: theme.unselectedColor,
+      //     fontWeight: FontWeight.normal
+      //   ),
+      //   items: const [
+      //     BottomNavigationBarItem(icon: Icon(Icons.memory), label: 'Solari'),
+      //     BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Settings'),
+      //     BottomNavigationBarItem(icon: Icon(Icons.history), label: 'History'),
+      //   ],
+      // )
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (index) => setState(() => _currentIndex = index),
-        iconSize: 75,
+        iconSize: 60,
         selectedItemColor: theme.iconColor,
         unselectedItemColor: theme.unselectedColor,
         backgroundColor: theme.primaryColor,
@@ -414,14 +437,33 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
         unselectedLabelStyle: theme.labelStyle.copyWith(
           fontSize: 20,
           color: theme.unselectedColor,
-          fontWeight: FontWeight.normal
+          fontWeight: FontWeight.normal,
         ),
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.memory), label: 'Solari'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Settings'),
-          BottomNavigationBarItem(icon: Icon(Icons.history), label: 'History'),
+        items: [
+          BottomNavigationBarItem(
+            icon: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8.0),
+              child: const FaIcon(FontAwesomeIcons.eyeLowVision),
+            ),
+            label: 'Solari',
+          ),
+          BottomNavigationBarItem(
+            icon: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8.0),
+              child: const FaIcon(FontAwesomeIcons.gear),
+            ),
+            label: 'Settings',
+          ),
+          BottomNavigationBarItem(
+            icon: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8.0),
+              child: const FaIcon(FontAwesomeIcons.clockRotateLeft),
+            ),
+            label: 'History',
+          ),
         ],
       )
+      
     );
   }
   // ================================================================================================================================
