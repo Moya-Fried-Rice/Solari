@@ -120,14 +120,9 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
   // Initialize the VLM model using the service
   Future<void> _initModel() async {
     try {
-      await _vlmService.initModel(
-        onProgress: (progress, status, isError) {
-          debugPrint('$status ${progress != null ? '${(progress * 100).toInt()}%' : ''}');
-          if (isError) debugPrint('Download error: $status');
-        },
-      );
+      await _vlmService.loadModel();
     } catch (e) {
-      debugPrint('Error initializing model: $e');
+      debugPrint('Error loading model: $e');
     }
   }
 

@@ -48,12 +48,12 @@ class VlmService {
   }
 
   /// For backward compatibility: downloads and loads the model.
-  Future<void> initModel({
-    void Function(double? progress, String status, bool isError)? onProgress,
-  }) async {
-    await downloadModel(onProgress: onProgress);
-    await loadModel();
-  }
+  // Future<void> initModel({
+  //   void Function(double? progress, String status, bool isError)? onProgress,
+  // }) async {
+  //   await downloadModel(onProgress: onProgress);
+  //   await loadModel();
+  // }
 
   Future<String?> processImage(Uint8List imageData) async {
     if (_vlm == null) {
