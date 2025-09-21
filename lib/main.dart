@@ -33,7 +33,7 @@ void main() {
 
 // Solari Application main widget
 class SolariApp extends StatefulWidget {
-  const SolariApp({super.key}); // ✅ Use super parameter
+  const SolariApp({super.key});
 
   @override
   State<SolariApp> createState() => _SolariAppState();

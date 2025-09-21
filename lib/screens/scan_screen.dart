@@ -77,8 +77,13 @@ class _ScanScreenState extends State<ScanScreen> {
 
   Future _startSolariDeviceScan() async {
     try {
+      // Always stop previous scan before starting a new one
+      await FlutterBluePlus.stopScan();
+      await Future.delayed(const Duration(milliseconds: 300));
+
       bool needsLocation = true;
 
+      // Check if location services and permissions are needed (Android only)
       if (Platform.isAndroid) {
         try {
           final versionString = Platform.operatingSystemVersion;
@@ -90,6 +95,7 @@ class _ScanScreenState extends State<ScanScreen> {
         }
       }
 
+      // Request location services and permissions if needed
       if (needsLocation) {
         Location location = Location();
         bool serviceEnabled = await location.serviceEnabled();
@@ -103,6 +109,7 @@ class _ScanScreenState extends State<ScanScreen> {
           return;
         }
 
+        // Check location permission
         PermissionStatus permissionGranted = await location.hasPermission();
         if (permissionGranted == PermissionStatus.denied) {
           permissionGranted = await location.requestPermission();
@@ -117,8 +124,10 @@ class _ScanScreenState extends State<ScanScreen> {
         }
       }
 
+      // Reset any previously found device
       setState(() => _solariDevice = null);
 
+      // Restart scan fresh
       await FlutterBluePlus.startScan(
         timeout: const Duration(seconds: 15),
         withServices: [Guid(_solariServiceUUID)],
@@ -133,6 +142,7 @@ class _ScanScreenState extends State<ScanScreen> {
       debugPrint("backtrace: $backtrace");
     }
   }
+
 
   Future _stopScan() async {
     try {
