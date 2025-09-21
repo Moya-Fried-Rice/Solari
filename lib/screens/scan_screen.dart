@@ -1,18 +1,21 @@
 import 'dart:async';
 import 'dart:io' show Platform;
 
+// Flutter imports
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:location/location.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+// UI and state management
 import '../utils/snackbar.dart';
 import '../utils/extra.dart';
-import 'solari_main_screen.dart';
-
 import '../core/constants/app_constants.dart';
 import '../core/constants/app_strings.dart';
 import '../widgets/onboard_button.dart';
+
+// Screens
+import 'solari_main_screen.dart';
 
 class ScanScreen extends StatefulWidget {
   const ScanScreen({super.key});
