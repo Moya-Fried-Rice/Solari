@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:image_picker/image_picker.dart';
 
 // Providers
 import '../core/providers/history_provider.dart';
@@ -26,14 +27,23 @@ import '../utils/extra.dart';
 
 class SolariScreen extends StatefulWidget {
   final BluetoothDevice device;
+  final bool isMock; // ✅ Add this field properly
 
-  const SolariScreen({super.key, required this.device});
+  const SolariScreen({
+    super.key,
+    required this.device,
+
+    // ⚠️ REMOVE SOON - FOR TESTING ONLY ⚠️
+    this.isMock = false, // ✅ Initialize default value
+    // ⚠️--------------------------------⚠️
+  });
 
   @override
   State<SolariScreen> createState() => _SolariScreenState();
 }
 
 class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderStateMixin {
+  final ImagePicker _picker = ImagePicker();
   // Track if TTS is currently speaking
   bool _isSpeaking = false;
   // Subscription to device connection state
@@ -66,6 +76,10 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
 
   // TTS
   final FlutterTts _flutterTts = FlutterTts();
+
+  // Downloading state
+  bool _downloadingModel = false;
+  double? _downloadProgress;
   // =================================================================================================================================
 
 
@@ -75,7 +89,21 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
   @override
   void initState() {
     super.initState();
-      
+
+    // ⚠️ REMOVE SOON - FOR TESTING ONLY ⚠️
+    if (widget.isMock) {
+      debugPrint("⚠️ SolariScreen running in MOCK MODE — skipping BLE connect.");
+      _initModel();
+      _initializeTts();
+      // Optionally set mock values so UI looks alive
+      setState(() {
+        _currentTemp = 25.5; // Fake temperature
+        _receivedImage = null; // or load a placeholder asset
+      });
+      return;
+    }
+    // ⚠️--------------------------------⚠️
+
     // 1. Listen for disconnection events
     _connectionStateSubscription = widget.device.connectionState.listen((state) {
       if (state == BluetoothConnectionState.disconnected) {
@@ -90,12 +118,13 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
       (state) => state == BluetoothConnectionState.connected,
     ).then((_) {
       if (!mounted) return;
-  _requestMtu();
-  _subscribeToService();
-  _initModel();
-  _initializeTts();
+      _requestMtu();
+      _subscribeToService();
+      _initModel();
+      _initializeTts();
     });
   }
+
 
 
   @override
@@ -111,7 +140,6 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
     _flutterTts.stop();
     super.dispose();
   }
-
   // ================================================================================================================================
 
   
@@ -120,9 +148,31 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
   // Initialize the VLM model using the service
   Future<void> _initModel() async {
     try {
-      await _vlmService.loadModel();
+      setState(() {
+        _downloadingModel = true;
+        _downloadProgress = 0;
+        debugPrint('Downloading model');
+      });
+      await _vlmService.initModel(
+        onProgress: (progress, status, isError) {
+          setState(() {
+            _downloadProgress = progress;
+            if (isError) _downloadingModel = false;
+          });
+          debugPrint('$status ${progress != null ? '${(progress * 100).toInt()}%' : ''}');
+        },
+      );
+      setState(() {
+        _downloadingModel = false;
+        _downloadProgress = 1.0;
+        debugPrint('Model loaded!');
+      });
     } catch (e) {
-      debugPrint('Error loading model: $e');
+      setState(() {
+        _downloadingModel = false;
+        debugPrint('Error initializing model: $e');
+      });
+      debugPrint('Error initializing model: $e');
     }
   }
 
@@ -296,7 +346,7 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
 
       debugPrint("[AI] Passing received image to model for processing...");
       // Process image with model
-      _processReceivedImage(_receivedImage!);
+      _processReceivedImage(_receivedImage!, prompt: 'Describe this image.');
 
       return;
     }
@@ -345,10 +395,10 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
 
   // ================================================================================================================================
   // Process the received image with the Cactus VLM model
-  Future<void> _processReceivedImage(Uint8List imageData) async {
+  Future<void> _processReceivedImage(Uint8List imageData, {required String prompt}) async {
     // ✅ Validate image size before processing
     if (_imageBuffer.length < _expectedImageSize) {
-      debugPrint("[AI] ⚠️ Incomplete image received. Expected $_expectedImageSize bytes, got ${_imageBuffer.length} bytes.");
+      debugPrint("[AI] ⚠️ Incomplete image received. Expected $_expectedImageSize bytes, got \\${_imageBuffer.length} bytes.");
       return;
     }
 
@@ -358,7 +408,7 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
 
     try {
       debugPrint('[AI] Passing image to VlmService for processing...');
-      final response = await _vlmService.processImage(imageData);
+      final response = await _vlmService.processImage(imageData, prompt: prompt);
       if (response != null && mounted) {
         debugPrint('[AI] Image description complete: $response');
         _speakText(response);
@@ -390,76 +440,140 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
       speaking: _isSpeaking,
       processing: _processingImage,
       image: _receivedImage,
+      downloadingModel: _downloadingModel,
+      downloadProgress: _downloadProgress,
     ),
     SettingsTab(device: widget.device, onDisconnect: _handleDisconnect),
     HistoryTab(),
   ];
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Provider.of<ThemeProvider>(context);
+Widget build(BuildContext context) {
+  final theme = Provider.of<ThemeProvider>(context);
 
-    return Scaffold(
-
-      // BODY with fade animation
-      body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 300),
-        transitionBuilder: (Widget child, Animation<double> animation) {
-          return FadeTransition(opacity: animation, child: child);
-        },
-        child: IndexedStack(
-          key: ValueKey<int>(_currentIndex),
-          index: _currentIndex,
-          children: _tabs,
-        ),
-      ),
-
-      // BOTTOM NAVIGATION BAR
-        bottomNavigationBar: BottomNavigationBar(
-          currentIndex: _currentIndex,
-          onTap: (index) {
-            VibrationService.mediumFeedback();
-            setState(() => _currentIndex = index);
+  return Scaffold(
+    body: Stack(
+      children: [
+        // Main content with fade animation
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 300),
+          transitionBuilder: (Widget child, Animation<double> animation) {
+            return FadeTransition(opacity: animation, child: child);
           },
-          iconSize: 60,
-          selectedItemColor: theme.iconColor,
-          unselectedItemColor: theme.unselectedColor,
-          backgroundColor: theme.primaryColor,
-          selectedLabelStyle: theme.labelStyle.copyWith(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
+          child: IndexedStack(
+            key: ValueKey<int>(_currentIndex),
+            index: _currentIndex,
+            children: _tabs,
           ),
-          unselectedLabelStyle: theme.labelStyle.copyWith(
-            fontSize: 20,
-            color: theme.unselectedColor,
-            fontWeight: FontWeight.normal,
+        ),
+
+        // Camera button as box, positioned just above bottom nav bar
+        if (widget.isMock)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0, // <-- Adjust spacing so it rests above bottom navbar
+            child: Align(
+              alignment: Alignment.bottomLeft,
+              child: Opacity(
+                opacity: 0.6, // Lower opacity
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: theme.primaryColor,
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.camera_alt, color: Colors.white, size: 20),
+                    onPressed: () async {
+                      final XFile? pickedFile = await _picker.pickImage(source: ImageSource.gallery);
+                      if (pickedFile != null) {
+                        final bytes = await pickedFile.readAsBytes();
+
+                        // Prompt user for a question
+                        String? prompt = await showDialog<String>(
+                          context: context,
+                          builder: (context) {
+                            String input = '';
+                            return AlertDialog(
+                              title: const Text('Ask a question about the image'),
+                              content: TextField(
+                                autofocus: true,
+                                decoration: const InputDecoration(hintText: 'Describe this image.'),
+                                onChanged: (value) => input = value,
+                                onSubmitted: (value) => Navigator.of(context).pop(value),
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(context).pop(input.isNotEmpty ? input : 'Describe this image.'),
+                                  child: const Text('OK'),
+                                ),
+                              ],
+                            );
+                          },
+                        );
+
+                        if (prompt == null || prompt.trim().isEmpty) {
+                          prompt = 'Describe this image.';
+                        }
+
+                        _processReceivedImage(bytes, prompt: prompt);
+                      }
+                    },
+                    tooltip: 'Pick an image',
+                  ),
+                ),
+              ),
+            ),
           ),
-          items: [
-            BottomNavigationBarItem(
-              icon: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8.0),
-                child: const FaIcon(FontAwesomeIcons.eyeLowVision),
-              ),
-              label: 'Solari',
-            ),
-            BottomNavigationBarItem(
-              icon: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8.0),
-                child: const FaIcon(FontAwesomeIcons.gear),
-              ),
-              label: 'Settings',
-            ),
-            BottomNavigationBarItem(
-              icon: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8.0),
-                child: const FaIcon(FontAwesomeIcons.clockRotateLeft),
-              ),
-              label: 'History',
-            ),
-          ],
-        )
-      
-    );
-  }
+      ],
+    ),
+    // BOTTOM NAVIGATION BAR
+    bottomNavigationBar: BottomNavigationBar(
+      currentIndex: _currentIndex,
+      onTap: (index) {
+        VibrationService.mediumFeedback();
+        setState(() => _currentIndex = index);
+      },
+      iconSize: 60,
+      selectedItemColor: theme.iconColor,
+      unselectedItemColor: theme.unselectedColor,
+      backgroundColor: theme.primaryColor,
+      selectedLabelStyle: theme.labelStyle.copyWith(
+        fontSize: 20,
+        fontWeight: FontWeight.bold,
+      ),
+      unselectedLabelStyle: theme.labelStyle.copyWith(
+        fontSize: 20,
+        color: theme.unselectedColor,
+        fontWeight: FontWeight.normal,
+      ),
+      items: const [
+        BottomNavigationBarItem(
+          icon: Padding(
+            padding: EdgeInsets.symmetric(vertical: 8.0),
+            child: FaIcon(FontAwesomeIcons.eyeLowVision),
+          ),
+          label: 'Solari',
+        ),
+        BottomNavigationBarItem(
+          icon: Padding(
+            padding: EdgeInsets.symmetric(vertical: 8.0),
+            child: FaIcon(FontAwesomeIcons.gear),
+          ),
+          label: 'Settings',
+        ),
+        BottomNavigationBarItem(
+          icon: Padding(
+            padding: EdgeInsets.symmetric(vertical: 8.0),
+            child: FaIcon(FontAwesomeIcons.clockRotateLeft),
+          ),
+          label: 'History',
+        ),
+      ],
+    ),
+  );
+}
+
   // ================================================================================================================================
 }

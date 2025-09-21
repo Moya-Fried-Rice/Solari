@@ -181,8 +181,7 @@ class _ScanScreenState extends State<ScanScreen> {
 
   @override
   Widget build(BuildContext context) {
-
-  final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     String status;
     if (_isScanning) {
@@ -195,65 +194,93 @@ class _ScanScreenState extends State<ScanScreen> {
 
     return Scaffold(
       body: SafeArea(
-        child: SizedBox(
-          width: double.infinity,
-          height: double.infinity,
-          child: Column(
-            children: [
+        child: Stack(
+          children: [
+            // Main content
+            SizedBox(
+              width: double.infinity,
+              height: double.infinity,
+              child: Column(
+                children: [
+                  // Centered text and icon
+                  Expanded(
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SvgPicture.asset(
+                            'assets/icons/glasses.svg',
+                            width: 200,
+                            height: 200,
+                            colorFilter: ColorFilter.mode(
+                              isDarkMode ? Colors.white : Colors.black,
+                              BlendMode.srcIn,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            status,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: AppConstants.titleFontSize,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
 
-              // Centered text and icon in available space
-              Expanded(
-                child: Center(
-                  child: Column(
+                  // Bottom-aligned onboarding buttons
+                  Column(
                     mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      SvgPicture.asset(
-                        'assets/icons/glasses.svg',
-                        width: 200,
-                        height: 200,
-                        colorFilter: ColorFilter.mode(
-                          isDarkMode ? Colors.white : Colors.black,
-                          BlendMode.srcIn,
+                      if (_solariDevice != null)
+                        OnboardingButton(
+                          label: AppStrings.connectButtonLabel,
+                          onPressed: () => onConnectPressed(_solariDevice!),
+                          height: 200,
+                          backgroundColor: Theme.of(context).primaryColor,
                         ),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        status,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: AppConstants.titleFontSize,
-                          fontWeight: FontWeight.bold,
+                      if (!_isScanning && _solariDevice == null)
+                        OnboardingButton(
+                          label: AppStrings.scanAgainButtonLabel,
+                          onPressed: _startSolariDeviceScan,
+                          height: 200,
+                          backgroundColor: Theme.of(context).primaryColor,
                         ),
-                      ),
                     ],
                   ),
-                )
-              ),
-
-
-              // Bottom-aligned onboarding buttons
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (_solariDevice != null)
-                    OnboardingButton(
-                      label: AppStrings.connectButtonLabel,
-                      onPressed: () => onConnectPressed(_solariDevice!),
-                      height: 200,
-                      backgroundColor: Theme.of(context).primaryColor,
-                    ),
-                  if (!_isScanning && _solariDevice == null)
-                    OnboardingButton(
-                      label: AppStrings.scanAgainButtonLabel,
-                      onPressed: _startSolariDeviceScan,
-                      height: 200,
-                      backgroundColor: Theme.of(context).primaryColor,
-                    ),
                 ],
               ),
-            ],
-          ),
+            ),
+
+            // Small bypass button on top-right (force SolariScreen with mock device)
+            Positioned(
+              top: 8,
+              left: 8,
+              child: IconButton(
+                icon: const Icon(Icons.bolt, size: 28),
+                tooltip: "Bypass to SolariScreen",
+                onPressed: () async {
+                  // stop scanning before navigating
+                  await _stopScan();
+
+                  // Use existing connected/found device if available, otherwise a fake one
+                  final deviceToUse = _solariDevice ??
+                      BluetoothDevice(
+                        remoteId: const DeviceIdentifier('00:11:22:33:44:55'), // Fake MAC
+                      );
+
+                  Navigator.of(context).push(MaterialPageRoute(
+                    builder: (context) => SolariScreen(device: deviceToUse, isMock: _solariDevice == null,),
+                    settings: const RouteSettings(name: '/SolariScreen'),
+                  ));
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );

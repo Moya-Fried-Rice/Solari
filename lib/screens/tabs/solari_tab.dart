@@ -7,20 +7,38 @@ class SolariTab extends StatelessWidget {
   final bool speaking;
   final bool processing;
   final Uint8List? image;
+  final bool downloadingModel;
+  final double? downloadProgress;
 
-  const SolariTab({Key? key, this.temperature, required this.speaking, required this.processing, this.image}) : super(key: key);
+  const SolariTab({
+    super.key,
+    this.temperature,
+    required this.speaking,
+    required this.processing,
+    this.image,
+    this.downloadingModel = false,
+    this.downloadProgress,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
       body: Stack(
         children: [
-          // Centered soundwave, full width
+          // Centered soundwave or donut progress
           Center(
-            child: SizedBox(
-              height: 60,
-              width: MediaQuery.of(context).size.width,
-              child: AnimatedSoundWave(speaking: speaking, processing: processing),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final width = constraints.maxWidth;
+                return SizedBox(
+                  width: width,
+                  height: 240,
+                  child: (downloadingModel && (downloadProgress ?? 0) < 1.0)
+                      ? _DonutProgress(progress: downloadProgress, size: width, color: theme.primaryColor)
+                      : AnimatedSoundWave(speaking: speaking, processing: processing, color: theme.primaryColor),
+                );
+              },
             ),
           ),
           // Small image in top right corner
@@ -32,7 +50,7 @@ class SolariTab extends StatelessWidget {
                 width: 64,
                 height: 64,
                 decoration: BoxDecoration(
-                  border: Border.all(color: Colors.deepOrange, width: 2),
+                  border: Border.all(color: theme.primaryColor, width: 2),
                   borderRadius: BorderRadius.circular(12),
                   color: Colors.white,
                   boxShadow: [
@@ -69,11 +87,46 @@ class SolariTab extends StatelessWidget {
   }
 }
 
+class _DonutProgress extends StatelessWidget {
+  final double? progress;
+  final double size;
+  final Color color;
+  const _DonutProgress({this.progress, required this.size, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: 240,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          SizedBox(
+            width: size * 0.7,
+            height: size * 0.7,
+            child: CircularProgressIndicator(
+              value: progress,
+              strokeWidth: 18,
+              backgroundColor: color.withOpacity(0.2),
+              color: color,
+            ),
+          ),
+          Text(
+            progress != null ? '${((progress ?? 0) * 100).toInt()}%' : '',
+            style: TextStyle(fontSize: 38, fontWeight: FontWeight.bold, color: color),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Animated widget for the sound wave
 class AnimatedSoundWave extends StatefulWidget {
   final bool speaking;
   final bool processing;
-  const AnimatedSoundWave({Key? key, required this.speaking, required this.processing}) : super(key: key);
+  final Color color;
+  const AnimatedSoundWave({Key? key, required this.speaking, required this.processing, required this.color}) : super(key: key);
 
   @override
   State<AnimatedSoundWave> createState() => AnimatedSoundWaveState();
@@ -128,13 +181,12 @@ class AnimatedSoundWaveState extends State<AnimatedSoundWave> with SingleTickerP
           flat = true;
         }
         return CustomPaint(
-          painter: SoundWavePainter(progress, flat: flat),
+          painter: SoundWavePainter(progress, flat: flat, color: widget.color),
         );
       },
     );
   }
 }
-
 
 /// Custom painter that draws animated sound waves
 class SoundWavePainter extends CustomPainter {
@@ -146,7 +198,7 @@ class SoundWavePainter extends CustomPainter {
   final Color color;
 
   /// Creates a sound wave painter
-  SoundWavePainter(this.progress, {this.flat = false, this.color = Colors.deepOrange});
+  SoundWavePainter(this.progress, {this.flat = false, required this.color});
 
   @override
   void paint(Canvas canvas, Size size) {

@@ -6,8 +6,7 @@ import 'package:flutter/foundation.dart';
 class VlmService {
   CactusVLM? _vlm;
 
-  /// Downloads the model and mmproj files. Returns true if successful.
-  Future<bool> downloadModel({
+  Future<void> initModel({
     void Function(double? progress, String status, bool isError)? onProgress,
   }) async {
     try {
@@ -24,38 +23,19 @@ class VlmService {
       if (!downloadSuccess) {
         throw Exception('Model download failed - check internet connection');
       }
-      _vlm = vlm;
-      return true;
-    } catch (e) {
-      debugPrint('Error downloading model: $e');
-      rethrow;
-    }
-  }
-
-  /// Loads the model into memory. Assumes model files are already downloaded.
-  Future<void> loadModel() async {
-    try {
-      _vlm ??= CactusVLM();
-      await _vlm!.init(
+      await vlm.init(
         contextSize: 2048,
         modelFilename: 'SmolVLM-500M-Instruct-Q8_0.gguf',
         mmprojFilename: 'mmproj-SmolVLM-500M-Instruct-Q8_0.gguf',
       );
+      _vlm = vlm;
     } catch (e) {
-      debugPrint('Error loading model: $e');
+      debugPrint('Error initializing model: $e');
       rethrow;
     }
   }
 
-  /// For backward compatibility: downloads and loads the model.
-  // Future<void> initModel({
-  //   void Function(double? progress, String status, bool isError)? onProgress,
-  // }) async {
-  //   await downloadModel(onProgress: onProgress);
-  //   await loadModel();
-  // }
-
-  Future<String?> processImage(Uint8List imageData) async {
+  Future<String?> processImage(Uint8List imageData, {required String prompt}) async {
     if (_vlm == null) {
       debugPrint('[AI] Model not initialized, skipping image processing.');
       return null;
@@ -66,7 +46,7 @@ class VlmService {
       await tempFile.writeAsBytes(imageData, flush: true);
       String response = '';
       await _vlm!.completion(
-        [ChatMessage(role: 'user', content: 'Describe this image.')],
+        [ChatMessage(role: 'user', content: prompt)],
         imagePaths: [tempFile.path],
         maxTokens: 200,
         onToken: (token) {
