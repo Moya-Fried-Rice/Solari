@@ -6,7 +6,8 @@ import 'package:flutter/foundation.dart';
 class VlmService {
   CactusVLM? _vlm;
 
-  Future<void> initModel({
+  /// Downloads the model and mmproj files. Returns true if successful.
+  Future<bool> downloadModel({
     void Function(double? progress, String status, bool isError)? onProgress,
   }) async {
     try {
@@ -23,16 +24,35 @@ class VlmService {
       if (!downloadSuccess) {
         throw Exception('Model download failed - check internet connection');
       }
-      await vlm.init(
+      _vlm = vlm;
+      return true;
+    } catch (e) {
+      debugPrint('Error downloading model: $e');
+      rethrow;
+    }
+  }
+
+  /// Loads the model into memory. Assumes model files are already downloaded.
+  Future<void> loadModel() async {
+    try {
+      _vlm ??= CactusVLM();
+      await _vlm!.init(
         contextSize: 2048,
         modelFilename: 'SmolVLM-500M-Instruct-Q8_0.gguf',
         mmprojFilename: 'mmproj-SmolVLM-500M-Instruct-Q8_0.gguf',
       );
-      _vlm = vlm;
     } catch (e) {
-      debugPrint('Error initializing model: $e');
+      debugPrint('Error loading model: $e');
       rethrow;
     }
+  }
+
+  /// For backward compatibility: downloads and loads the model.
+  Future<void> initModel({
+    void Function(double? progress, String status, bool isError)? onProgress,
+  }) async {
+    await downloadModel(onProgress: onProgress);
+    await loadModel();
   }
 
   Future<String?> processImage(Uint8List imageData) async {
