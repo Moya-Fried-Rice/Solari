@@ -1,27 +1,28 @@
-// Dart imports
 import 'dart:async';
-import 'dart:io';
 import 'dart:typed_data';
 
 // Flutter imports
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
-// Third-party packages
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
-import 'package:cactus/cactus.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 
-// Project imports
+// Providers
 import '../core/providers/history_provider.dart';
 import '../core/providers/theme_provider.dart';
-import '../utils/extra.dart';
+
+// Tabs
 import 'tabs/history_tab.dart';
 import 'tabs/settings_tab.dart';
 import 'tabs/solari_tab.dart';
+
+// Services
 import '../core/services/vibration_service.dart';
+import '../core/services/vlm_service.dart';
+
+// Other
+import '../utils/extra.dart';
 
 class SolariScreen extends StatefulWidget {
   final BluetoothDevice device;
@@ -60,8 +61,8 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
   // Temperature received
   double? _currentTemp;
 
-  // Cactus VLM model
-  CactusVLM? _vlm;
+  // VLM Service
+  final VlmService _vlmService = VlmService();
 
   // TTS
   final FlutterTts _flutterTts = FlutterTts();
@@ -75,7 +76,7 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
   void initState() {
     super.initState();
       
-    // 1. Listen for disconnection events (keep this!)
+    // 1. Listen for disconnection events
     _connectionStateSubscription = widget.device.connectionState.listen((state) {
       if (state == BluetoothConnectionState.disconnected) {
         if (mounted && Navigator.of(context).canPop()) {
@@ -89,10 +90,10 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
       (state) => state == BluetoothConnectionState.connected,
     ).then((_) {
       if (!mounted) return;
-      _requestMtu();
-      _subscribeToService();
-      _initModel();
-      _initializeTts();
+  _requestMtu();
+  _subscribeToService();
+  _initModel();
+  _initializeTts();
     });
   }
 
@@ -106,7 +107,7 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
     _charSubscriptions.clear();
     _audioBuffer.clear();
     _imageBuffer.clear();
-    _vlm?.dispose();
+    _vlmService.dispose();
     _flutterTts.stop();
     super.dispose();
   }
@@ -116,39 +117,15 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
   
 
   // =================================================================================================================================
-  // Initialize the Cactus VLM model
+  // Initialize the VLM model using the service
   Future<void> _initModel() async {
     try {
-      final vlm = CactusVLM();
-
-      // Download the smaller 500M model (faster, less memory)
-      bool downloadSuccess = await vlm.download(
-        modelUrl:
-            'https://huggingface.co/ggml-org/SmolVLM-500M-Instruct-GGUF/resolve/main/SmolVLM-500M-Instruct-Q8_0.gguf',
-        mmprojUrl:
-            'https://huggingface.co/ggml-org/SmolVLM-500M-Instruct-GGUF/resolve/main/mmproj-SmolVLM-500M-Instruct-Q8_0.gguf',
-        modelFilename: 'SmolVLM-500M-Instruct-Q8_0.gguf',
-        mmprojFilename: 'mmproj-SmolVLM-500M-Instruct-Q8_0.gguf',
+      await _vlmService.initModel(
         onProgress: (progress, status, isError) {
           debugPrint('$status ${progress != null ? '${(progress * 100).toInt()}%' : ''}');
           if (isError) debugPrint('Download error: $status');
         },
       );
-
-      if (!downloadSuccess) {
-        throw Exception('Model download failed - check internet connection');
-      }
-
-      // Initialize the model
-      await vlm.init(
-        contextSize: 2048,
-        modelFilename: 'SmolVLM-500M-Instruct-Q8_0.gguf',
-        mmprojFilename: 'mmproj-SmolVLM-500M-Instruct-Q8_0.gguf',
-      );
-
-      // Store the instance for later use
-      _vlm = vlm;
-
     } catch (e) {
       debugPrint('Error initializing model: $e');
     }
@@ -231,7 +208,7 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Successfully subscribed to service')),
           );
-        }
+        } 
       }
     } catch (e) {
       debugPrint("Error subscribing: $e");
@@ -374,11 +351,6 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
   // ================================================================================================================================
   // Process the received image with the Cactus VLM model
   Future<void> _processReceivedImage(Uint8List imageData) async {
-    if (_vlm == null) {
-      debugPrint('[AI] Model not initialized, skipping image processing.');
-      return;
-    }
-
     // ✅ Validate image size before processing
     if (_imageBuffer.length < _expectedImageSize) {
       debugPrint("[AI] ⚠️ Incomplete image received. Expected $_expectedImageSize bytes, got ${_imageBuffer.length} bytes.");
@@ -390,27 +362,9 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
     });
 
     try {
-      debugPrint('[AI] Writing received image to temp file for model input...');
-      final tempDir = await getTemporaryDirectory();
-      final tempFile = File('${tempDir.path}/temp_image.jpg');
-      await tempFile.writeAsBytes(imageData, flush: true);
-
-      String response = '';
-      debugPrint('[AI] Running VLM model completion on image...');
-      await _vlm!.completion(
-        [ChatMessage(role: 'user', content: 'Describe this image.')],
-        imagePaths: [tempFile.path],
-        maxTokens: 200,
-        onToken: (token) {
-          response += token;
-          debugPrint('[AI] Model token: $token');
-          return true;
-        },
-      );
-
-      await tempFile.delete();
-
-      if (mounted) {
+      debugPrint('[AI] Passing image to VlmService for processing...');
+      final response = await _vlmService.processImage(imageData);
+      if (response != null && mounted) {
         debugPrint('[AI] Image description complete: $response');
         _speakText(response);
         // Add to history
