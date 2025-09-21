@@ -21,6 +21,7 @@ import '../utils/extra.dart';
 import 'tabs/history_tab.dart';
 import 'tabs/settings_tab.dart';
 import 'tabs/solari_tab.dart';
+import '../core/services/vibration_service.dart';
 
 class SolariScreen extends StatefulWidget {
   final BluetoothDevice device;
@@ -73,10 +74,7 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
   @override
   void initState() {
     super.initState();
-_requestMtu();
-      _subscribeToService();
-      _initModel();
-      _initializeTts();
+      
     // 1. Listen for disconnection events (keep this!)
     _connectionStateSubscription = widget.device.connectionState.listen((state) {
       if (state == BluetoothConnectionState.disconnected) {
@@ -87,15 +85,15 @@ _requestMtu();
     });
 
     // 2. Wait until connected before subscribing
-    // widget.device.connectionState.firstWhere(
-    //   (state) => state == BluetoothConnectionState.connected,
-    // ).then((_) {
-    //   if (!mounted) return;
-    //   _requestMtu();
-    //   _subscribeToService();
-    //   _initModel();
-    //   _initializeTts();
-    // });
+    widget.device.connectionState.firstWhere(
+      (state) => state == BluetoothConnectionState.connected,
+    ).then((_) {
+      if (!mounted) return;
+      _requestMtu();
+      _subscribeToService();
+      _initModel();
+      _initializeTts();
+    });
   }
 
 
@@ -468,46 +466,49 @@ _requestMtu();
       ),
 
       // BOTTOM NAVIGATION BAR
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
-        iconSize: 60,
-        selectedItemColor: theme.iconColor,
-        unselectedItemColor: theme.unselectedColor,
-        backgroundColor: theme.primaryColor,
-        selectedLabelStyle: theme.labelStyle.copyWith(
-          fontSize: 20,
-          fontWeight: FontWeight.bold,
-        ),
-        unselectedLabelStyle: theme.labelStyle.copyWith(
-          fontSize: 20,
-          color: theme.unselectedColor,
-          fontWeight: FontWeight.normal,
-        ),
-        items: [
-          BottomNavigationBarItem(
-            icon: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8.0),
-              child: const FaIcon(FontAwesomeIcons.eyeLowVision),
-            ),
-            label: 'Solari',
+        bottomNavigationBar: BottomNavigationBar(
+          currentIndex: _currentIndex,
+          onTap: (index) {
+            VibrationService.mediumFeedback();
+            setState(() => _currentIndex = index);
+          },
+          iconSize: 60,
+          selectedItemColor: theme.iconColor,
+          unselectedItemColor: theme.unselectedColor,
+          backgroundColor: theme.primaryColor,
+          selectedLabelStyle: theme.labelStyle.copyWith(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
           ),
-          BottomNavigationBarItem(
-            icon: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8.0),
-              child: const FaIcon(FontAwesomeIcons.gear),
-            ),
-            label: 'Settings',
+          unselectedLabelStyle: theme.labelStyle.copyWith(
+            fontSize: 20,
+            color: theme.unselectedColor,
+            fontWeight: FontWeight.normal,
           ),
-          BottomNavigationBarItem(
-            icon: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8.0),
-              child: const FaIcon(FontAwesomeIcons.clockRotateLeft),
+          items: [
+            BottomNavigationBarItem(
+              icon: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                child: const FaIcon(FontAwesomeIcons.eyeLowVision),
+              ),
+              label: 'Solari',
             ),
-            label: 'History',
-          ),
-        ],
-      )
+            BottomNavigationBarItem(
+              icon: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                child: const FaIcon(FontAwesomeIcons.gear),
+              ),
+              label: 'Settings',
+            ),
+            BottomNavigationBarItem(
+              icon: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                child: const FaIcon(FontAwesomeIcons.clockRotateLeft),
+              ),
+              label: 'History',
+            ),
+          ],
+        )
       
     );
   }
