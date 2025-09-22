@@ -490,22 +490,27 @@ Widget build(BuildContext context) {
                       if (pickedFile != null) {
                         final bytes = await pickedFile.readAsBytes();
 
-                        // Prompt user for a question
                         String? prompt = await showDialog<String>(
                           context: context,
                           builder: (context) {
-                            String input = '';
+                            final controller = TextEditingController();
+
                             return AlertDialog(
                               title: const Text('Ask a question about the image'),
                               content: TextField(
+                                controller: controller,
                                 autofocus: true,
                                 decoration: const InputDecoration(hintText: 'Describe this image.'),
-                                onChanged: (value) => input = value,
-                                onSubmitted: (value) => Navigator.of(context).pop(value),
+                                onSubmitted: (value) {
+                                  Navigator.of(context).pop(value.trim().isNotEmpty ? value : 'Describe this image.');
+                                },
                               ),
                               actions: [
                                 TextButton(
-                                  onPressed: () => Navigator.of(context).pop(input.isNotEmpty ? input : 'Describe this image.'),
+                                  onPressed: () {
+                                    final text = controller.text.trim();
+                                    Navigator.of(context).pop(text.isNotEmpty ? text : 'Describe this image.');
+                                  },
                                   child: const Text('OK'),
                                 ),
                               ],
@@ -513,11 +518,12 @@ Widget build(BuildContext context) {
                           },
                         );
 
+                        // Fallback safeguard if dialog was closed with back button or tap outside
                         if (prompt == null || prompt.trim().isEmpty) {
                           prompt = 'Describe this image.';
                         }
 
-                        _processReceivedImage(bytes, prompt: prompt);
+                        await _processReceivedImage(bytes, prompt: prompt);
                       }
                     },
                     tooltip: 'Pick an image',
@@ -527,6 +533,8 @@ Widget build(BuildContext context) {
             ),
           ),
       ],
+
+      
     ),
     // BOTTOM NAVIGATION BAR
     bottomNavigationBar: BottomNavigationBar(
