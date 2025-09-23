@@ -290,6 +290,9 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
     if (value.isEmpty) return;
 
     String asString = String.fromCharCodes(value);
+
+
+    
     if (asString.startsWith("T:")) {
       final tempString = asString.substring(2);
       final tempValue = double.tryParse(tempString);
