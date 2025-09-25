@@ -77,16 +77,18 @@ class _DeviceStatusPageState extends State<DeviceStatusPage> {
                             color: info.isConnected ? Colors.green : Colors.red,
                           ),
                         ),
-                        const SizedBox(height: 20),
-                        Divider(color: theme.dividerColor, thickness: 10),
-                        const SizedBox(height: 20),
+
+                        _buildDivider(theme),
 
                         // Battery Life (placeholder, as in reference)
-                        Text(
-                          "Battery Life",
-                          style: TextStyle(
-                            fontSize: theme.fontSize,
-                            fontWeight: FontWeight.bold,
+                        Semantics(
+                          header: true,
+                          child: Text(
+                            "Battery Life",
+                            style: TextStyle(
+                              fontSize: theme.fontSize,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                         const SizedBox(height: 15),
@@ -100,9 +102,8 @@ class _DeviceStatusPageState extends State<DeviceStatusPage> {
                             ),
                           ),
                         ),
-                        const SizedBox(height: 20),
-                        Divider(color: theme.dividerColor, thickness: 10),
-                        const SizedBox(height: 20),
+
+                        _buildDivider(theme),
 
                         // Device Info Section (Show button)
                         InkWell(
@@ -187,9 +188,8 @@ class _DeviceStatusPageState extends State<DeviceStatusPage> {
                               ),
                             ),
                           ),
-                        const SizedBox(height: 20),
-                        Divider(color: theme.dividerColor, thickness: 10),
-                        const SizedBox(height: 20),
+
+                        _buildDivider(theme),
 
                         // Disconnect Section Title
                         Text(
@@ -231,4 +231,18 @@ class _DeviceStatusPageState extends State<DeviceStatusPage> {
       ),
     );
   }
+
+  Widget _buildDivider(ThemeProvider theme) => Column(
+        children: [
+          const SizedBox(height: 20),
+          Container(
+            height: 10,
+            decoration: BoxDecoration(
+              color: theme.dividerColor,
+              borderRadius: BorderRadius.circular(5),
+            ),
+          ),
+          const SizedBox(height: 20),
+        ],
+      );
 }

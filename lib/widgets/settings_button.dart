@@ -71,8 +71,10 @@ class _CustomButtonState extends State<CustomButton> {
   @override
   Widget build(BuildContext context) {
     final theme = Provider.of<ThemeProvider>(context);
-    final buttonTextStyle = theme.buttonTextStyle.copyWith(
+    final buttonTextStyle = TextStyle(
       fontSize: widget.fontSize,
+      fontWeight: FontWeight.w800,
+      color: theme.buttonTextColor,
     );
 
     Widget content;

@@ -100,10 +100,4 @@ class PreferencesService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
   }
-
-  /// Reset onboarding status
-  static Future<void> resetOnboarding() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_onboardingCompletedKey);
-  }
 }

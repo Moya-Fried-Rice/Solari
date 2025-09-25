@@ -1,5 +1,5 @@
 name: solari
-description: "A new Flutter project."
+description: "Accompanying mobile application for Solari smart glasses."
 publish_to: 'none'
 version: 0.1.0
 
@@ -30,4 +30,5 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/icons/glasses.svg
+    - assets/icons/
+    - assets/images/

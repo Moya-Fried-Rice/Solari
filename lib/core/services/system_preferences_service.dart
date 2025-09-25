@@ -27,6 +27,18 @@ class SystemPreferencesService extends ChangeNotifier {
     return brightness == Brightness.dark;
   }
 
+  /// Get current system theme
+  Future<bool> getSystemTheme() async {
+    try {
+      final window = WidgetsBinding.instance.window;
+      final brightness = window.platformBrightness;
+      return brightness == Brightness.dark;
+    } catch (e) {
+      debugPrint('Error getting system theme: $e');
+      return false;
+    }
+  }
+
   /// Get system font scale
   double getSystemFontScale(BuildContext context) {
     return MediaQuery.of(context).textScaleFactor;
@@ -72,27 +84,15 @@ class SystemPreferencesService extends ChangeNotifier {
 
   /// Update app preferences based on system changes
   Future<void> handleSystemPreferencesChanged(BuildContext context) async {
-    final useSystemTheme = await PreferencesService.getUseSystemTheme();
-    final useSystemFontSize = await PreferencesService.getUseSystemFontSize();
-    final useSystemAccessibility = await PreferencesService.getUseSystemAccessibility();
+    try {
+      final useSystemTheme = await PreferencesService.getUseSystemTheme();
 
-    if (useSystemTheme) {
-      final isDarkMode = getSystemDarkMode(context);
-      _themeController.add(isDarkMode);
-      await PreferencesService.setIsDarkMode(isDarkMode);
-    }
-
-    if (useSystemFontSize) {
-      final scale = getSystemFontScale(context);
-      final fontSize = mapSystemScaleToFontSize(scale);
-      _fontScaleController.add(fontSize);
-      await PreferencesService.setFontSize(fontSize);
-    }
-
-    if (useSystemAccessibility) {
-      final screenReaderEnabled = getSystemScreenReaderEnabled(context);
-      _accessibilityController.add(screenReaderEnabled);
-      await PreferencesService.setScreenReaderEnabled(screenReaderEnabled);
+      if (useSystemTheme) {
+        final isDarkMode = await getSystemTheme();
+        _themeController.add(isDarkMode);
+      }
+    } catch (e) {
+      debugPrint('Error updating system preferences: $e');
     }
   }
 

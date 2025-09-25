@@ -29,27 +29,29 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
       automaticallyImplyLeading: showBackButton,
       centerTitle: true,
       leading: showBackButton
-        ? IconButton(
-            icon: FaIcon(
-              FontAwesomeIcons.caretLeft,
-              size: AppConstants.largeIconSize,
-              color: theme.iconColor,
+        ? Semantics(
+            label: 'Back button. Double tap to return.',
+            excludeSemantics: true,
+            child: IconButton(
+              icon: FaIcon(
+                FontAwesomeIcons.caretLeft,
+                size: AppConstants.largeIconSize,
+                color: theme.iconColor,
+              ),
+              padding: const EdgeInsets.only(left: 16.0),
+              onPressed: () {
+                // VibrationService.mediumFeedback();
+                Navigator.pop(context);
+              },
             ),
-            padding: const EdgeInsets.only(left: 16.0),
-            onPressed: () {
-              // VibrationService.mediumFeedback();
-              Navigator.pop(context);
-            },
           )
         : null,
 
       title: Semantics(
-        header: true,
-        label: title,
         child: Text(
           title,
           style: TextStyle(
-            fontSize: theme.fontSize,
+            fontSize: 28.0,
             fontWeight: FontWeight.bold,
             color: theme.labelColor,
           ),

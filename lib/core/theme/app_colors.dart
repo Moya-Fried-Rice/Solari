@@ -3,16 +3,16 @@ import 'package:flutter/material.dart';
 /// App-wide color constants
 class AppColors {
   // Light theme colors
-  static const Color lightPrimary = Color(0xFFA54607);
+  static const Color lightPrimary = Color(0xFF015c8f);
   static const Color lightText = Colors.black;
   static const Color lightBackground = Colors.white;
   static const Color lightButtonText = Colors.white;
-  static const Color lightUnselectedColor = Color.fromARGB(255, 189, 125, 80); // Grey400
+  static const Color lightUnselectedColor = Color(0xFF64b5f6);
   
   // Dark theme colors
-  static const Color darkPrimary = Color(0xFFF57600);
+  static const Color darkPrimary = Color(0xFF00a3ff);
   static const Color darkText = Colors.white;
   static const Color darkBackground = Color(0xFF121212);
   static const Color darkButtonText = Colors.black;
-  static const Color darkUnselectedColor = Color.fromARGB(255, 172, 86, 5); // Brown600
+  static const Color darkUnselectedColor = Color(0xFF80CFFF);
 }

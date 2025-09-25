@@ -42,7 +42,8 @@ class SolariScreen extends StatefulWidget {
   State<SolariScreen> createState() => _SolariScreenState();
 }
 
-class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderStateMixin {
+class _SolariScreenState extends State<SolariScreen>
+    with SingleTickerProviderStateMixin {
   final ImagePicker _picker = ImagePicker();
   // Track if TTS is currently speaking
   bool _isSpeaking = false;
@@ -51,7 +52,7 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
 
   // =================================================================================================================================
   // Variables
-  
+
   // Bluetooth service and characteristics
   BluetoothService? _targetService;
   final List<BluetoothCharacteristic> _subscribedCharacteristics = [];
@@ -82,8 +83,6 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
   double? _downloadProgress;
   // =================================================================================================================================
 
-
-
   // =================================================================================================================================
   // Initialize and dispose
   @override
@@ -92,7 +91,9 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
 
     // ⚠️ REMOVE SOON - FOR TESTING ONLY ⚠️
     if (widget.isMock) {
-      debugPrint("⚠️ SolariScreen running in MOCK MODE — skipping BLE connect.");
+      debugPrint(
+        "⚠️ SolariScreen running in MOCK MODE — skipping BLE connect.",
+      );
       _initModel();
       _initializeTts();
       // Optionally set mock values so UI looks alive
@@ -105,7 +106,9 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
     // ⚠️--------------------------------⚠️
 
     // 1. Listen for disconnection events
-    _connectionStateSubscription = widget.device.connectionState.listen((state) {
+    _connectionStateSubscription = widget.device.connectionState.listen((
+      state,
+    ) {
       if (state == BluetoothConnectionState.disconnected) {
         if (mounted && Navigator.of(context).canPop()) {
           Navigator.of(context).pop();
@@ -114,18 +117,16 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
     });
 
     // 2. Wait until connected before subscribing
-    widget.device.connectionState.firstWhere(
-      (state) => state == BluetoothConnectionState.connected,
-    ).then((_) {
-      if (!mounted) return;
-      _requestMtu();
-      _subscribeToService();
-      _initModel();
-      _initializeTts();
-    });
+    widget.device.connectionState
+        .firstWhere((state) => state == BluetoothConnectionState.connected)
+        .then((_) {
+          if (!mounted) return;
+          _requestMtu();
+          _subscribeToService();
+          _initModel();
+          _initializeTts();
+        });
   }
-
-
 
   @override
   void dispose() {
@@ -142,8 +143,6 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
   }
   // ================================================================================================================================
 
-  
-
   // =================================================================================================================================
   // Initialize the VLM model using the service
   Future<void> _initModel() async {
@@ -159,7 +158,9 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
             _downloadProgress = progress;
             if (isError) _downloadingModel = false;
           });
-          debugPrint('$status ${progress != null ? '${(progress * 100).toInt()}%' : ''}');
+          debugPrint(
+            '$status ${progress != null ? '${(progress * 100).toInt()}%' : ''}',
+          );
         },
       );
       setState(() {
@@ -178,8 +179,6 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
 
   // =================================================================================================================================
 
-
-  
   // =================================================================================================================================
   // Initialize TTS
   void _initializeTts() {
@@ -220,8 +219,6 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
     }
   }
   // =================================================================================================================================
-  
-  
 
   // =================================================================================================================================
   // Subscribe to the Solari service and its characteristics
@@ -253,24 +250,22 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Successfully subscribed to service')),
           );
-        } 
+        }
       }
     } catch (e) {
       debugPrint("Error subscribing: $e");
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error subscribing: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error subscribing: $e')));
       }
     }
   }
   // =================================================================================================================================
 
-
-
   // =================================================================================================================================
   // Handle device disconnection
-    Future<void> _handleDisconnect() async {
+  Future<void> _handleDisconnect() async {
     try {
       await widget.device.disconnectAndUpdateStream();
     } catch (e) {
@@ -281,9 +276,7 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
     }
   }
   // ================================================================================================================================
-  
-  
-  
+
   // =================================================================================================================================
   // Handle incoming data from characteristics
   void _handleIncomingData(List<int> value) {
@@ -291,8 +284,6 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
 
     String asString = String.fromCharCodes(value);
 
-
-    
     if (asString.startsWith("T:")) {
       final tempString = asString.substring(2);
       final tempValue = double.tryParse(tempString);
@@ -333,14 +324,18 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
     if (asString.startsWith("I:")) {
       // Image header with size
       _expectedImageSize = int.tryParse(asString.split(":")[1]) ?? 0;
-      debugPrint("[BLE] Image incoming header received, expected size: $_expectedImageSize bytes");
+      debugPrint(
+        "[BLE] Image incoming header received, expected size: $_expectedImageSize bytes",
+      );
       _imageBuffer.clear();
       _receivingImage = true;
       return;
     }
 
     if (asString.startsWith("I_END")) {
-      debugPrint("[BLE] Image transfer complete. Received: ${_imageBuffer.length} bytes");
+      debugPrint(
+        "[BLE] Image transfer complete. Received: ${_imageBuffer.length} bytes",
+      );
       _receivingImage = false;
 
       setState(() {
@@ -364,13 +359,13 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
       debugPrint("[BLE] Audio data chunk received: ${value.length} bytes");
       _audioBuffer.addAll(value);
     } else if (_receivingImage) {
-      debugPrint("[BLE] Image data chunk received: ${value.length} bytes (total: ${_imageBuffer.length + value.length}/${_expectedImageSize})");
+      debugPrint(
+        "[BLE] Image data chunk received: ${value.length} bytes (total: ${_imageBuffer.length + value.length}/${_expectedImageSize})",
+      );
       _imageBuffer.addAll(value);
     }
   }
   // =================================================================================================================================
-
-
 
   // ================================================================================================================================
   // Request a larger MTU for better performance
@@ -379,29 +374,32 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
       int mtu = await widget.device.requestMtu(517);
       debugPrint("MTU negotiated: $mtu");
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('MTU negotiated: $mtu')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('MTU negotiated: $mtu')));
       }
     } catch (e) {
       debugPrint("MTU request failed: $e");
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('MTU request failed: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('MTU request failed: $e')));
       }
-    } 
+    }
   }
   // ================================================================================================================================
 
-
-
   // ================================================================================================================================
   // Process the received image with the Cactus VLM model
-  Future<void> _processReceivedImage(Uint8List imageData, {required String prompt}) async {
+  Future<void> _processReceivedImage(
+    Uint8List imageData, {
+    required String prompt,
+  }) async {
     // ✅ Validate image size before processing
     if (_imageBuffer.length < _expectedImageSize) {
-      debugPrint("[AI] ⚠️ Incomplete image received. Expected $_expectedImageSize bytes, got \\${_imageBuffer.length} bytes.");
+      debugPrint(
+        "[AI] ⚠️ Incomplete image received. Expected $_expectedImageSize bytes, got \\${_imageBuffer.length} bytes.",
+      );
       return;
     }
 
@@ -411,12 +409,18 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
 
     try {
       debugPrint('[AI] Passing image to VlmService for processing...');
-      final response = await _vlmService.processImage(imageData, prompt: prompt);
+      final response = await _vlmService.processImage(
+        imageData,
+        prompt: prompt,
+      );
       if (response != null && mounted) {
         debugPrint('[AI] Image description complete: $response');
         _speakText(response);
         // Add to history
-        final historyProvider = Provider.of<HistoryProvider>(context, listen: false);
+        final historyProvider = Provider.of<HistoryProvider>(
+          context,
+          listen: false,
+        );
         historyProvider.addEntry(imageData, response);
       }
     } catch (e) {
@@ -430,8 +434,6 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
     }
   }
   // ================================================================================================================================
-
-
 
   // =================================================================================================================================
   // Build the UI
@@ -451,140 +453,157 @@ class _SolariScreenState extends State<SolariScreen> with SingleTickerProviderSt
   ];
 
   @override
-Widget build(BuildContext context) {
-  final theme = Provider.of<ThemeProvider>(context);
+  Widget build(BuildContext context) {
+    final theme = Provider.of<ThemeProvider>(context);
 
-  return Scaffold(
-    body: Stack(
-      children: [
-        // Main content with fade animation
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 300),
-          transitionBuilder: (Widget child, Animation<double> animation) {
-            return FadeTransition(opacity: animation, child: child);
-          },
-          child: IndexedStack(
-            key: ValueKey<int>(_currentIndex),
-            index: _currentIndex,
-            children: _tabs,
-          ),
-        ),
+    return Scaffold(
+      body: SafeArea(
+        child: Stack(
+          children: [
+            // Main content with fade animation
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              transitionBuilder: (Widget child, Animation<double> animation) {
+                return FadeTransition(opacity: animation, child: child);
+              },
+              child: IndexedStack(
+                key: ValueKey<int>(_currentIndex),
+                index: _currentIndex,
+                children: _tabs,
+              ),
+            ),
 
-        // Camera button as box, positioned just above bottom nav bar
-        if (widget.isMock)
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0, // <-- Adjust spacing so it rests above bottom navbar
-            child: Align(
-              alignment: Alignment.bottomLeft,
-              child: Opacity(
-                opacity: 0.6, // Lower opacity
-                child: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: theme.primaryColor,
-                  ),
-                  child: IconButton(
-                    icon: const Icon(Icons.camera_alt, color: Colors.white, size: 20),
-                    onPressed: () async {
-                      final XFile? pickedFile = await _picker.pickImage(source: ImageSource.gallery);
-                      if (pickedFile != null) {
-                        final bytes = await pickedFile.readAsBytes();
+            // Camera button as box, positioned just above bottom nav bar
+            if (widget.isMock)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: Align(
+                  alignment: Alignment.bottomLeft,
+                  child: Opacity(
+                    opacity: 0.6, // Lower opacity
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(color: theme.primaryColor),
+                      child: IconButton(
+                        icon: const Icon(
+                          Icons.camera_alt,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                        onPressed: () async {
+                          final XFile? pickedFile = await _picker.pickImage(
+                            source: ImageSource.gallery,
+                          );
+                          if (pickedFile != null) {
+                            final bytes = await pickedFile.readAsBytes();
 
-                        String? prompt = await showDialog<String>(
-                          context: context,
-                          builder: (context) {
-                            final controller = TextEditingController();
+                            String? prompt = await showDialog<String>(
+                              context: context,
+                              builder: (context) {
+                                final controller = TextEditingController();
 
-                            return AlertDialog(
-                              title: const Text('Ask a question about the image'),
-                              content: TextField(
-                                controller: controller,
-                                autofocus: true,
-                                decoration: const InputDecoration(hintText: 'Describe this image.'),
-                                onSubmitted: (value) {
-                                  Navigator.of(context).pop(value.trim().isNotEmpty ? value : 'Describe this image.');
-                                },
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () {
-                                    final text = controller.text.trim();
-                                    Navigator.of(context).pop(text.isNotEmpty ? text : 'Describe this image.');
-                                  },
-                                  child: const Text('OK'),
-                                ),
-                              ],
+                                return AlertDialog(
+                                  title: const Text(
+                                    'Ask a question about the image',
+                                  ),
+                                  content: TextField(
+                                    controller: controller,
+                                    autofocus: true,
+                                    decoration: const InputDecoration(
+                                      hintText: 'Describe this image.',
+                                    ),
+                                    onSubmitted: (value) {
+                                      Navigator.of(context).pop(
+                                        value.trim().isNotEmpty
+                                            ? value
+                                            : 'Describe this image.',
+                                      );
+                                    },
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () {
+                                        final text = controller.text.trim();
+                                        Navigator.of(context).pop(
+                                          text.isNotEmpty
+                                              ? text
+                                              : 'Describe this image.',
+                                        );
+                                      },
+                                      child: const Text('OK'),
+                                    ),
+                                  ],
+                                );
+                              },
                             );
-                          },
-                        );
 
-                        // Fallback safeguard if dialog was closed with back button or tap outside
-                        if (prompt == null || prompt.trim().isEmpty) {
-                          prompt = 'Describe this image.';
-                        }
+                            // Fallback safeguard if dialog was closed with back button or tap outside
+                            if (prompt == null || prompt.trim().isEmpty) {
+                              prompt = 'Describe this image.';
+                            }
 
-                        await _processReceivedImage(bytes, prompt: prompt);
-                      }
-                    },
-                    tooltip: 'Pick an image',
+                            await _processReceivedImage(bytes, prompt: prompt);
+                          }
+                        },
+                        tooltip: 'Pick an image',
+                      ),
+                    ),
                   ),
                 ),
               ),
+          ],
+        ),
+      ),
+      // BOTTOM NAVIGATION BAR
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        onTap: (index) {
+          VibrationService.mediumFeedback();
+          setState(() => _currentIndex = index);
+        },
+        iconSize: 64,
+        selectedItemColor: theme.iconColor,
+        unselectedItemColor: theme.unselectedColor,
+        backgroundColor: theme.primaryColor,
+        elevation: 0,
+        selectedLabelStyle: theme.labelStyle.copyWith(
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+        ),
+        unselectedLabelStyle: theme.labelStyle.copyWith(
+          fontSize: 20,
+          color: theme.unselectedColor,
+          fontWeight: FontWeight.normal,
+        ),
+        items: const [
+          BottomNavigationBarItem(
+            icon: Padding(
+              padding: EdgeInsets.symmetric(vertical: 8.0),
+              child: FaIcon(FontAwesomeIcons.eyeLowVision),
             ),
+            label: 'Solari',
           ),
-      ],
-
-      
-    ),
-    // BOTTOM NAVIGATION BAR
-    bottomNavigationBar: BottomNavigationBar(
-      currentIndex: _currentIndex,
-      onTap: (index) {
-        VibrationService.mediumFeedback();
-        setState(() => _currentIndex = index);
-      },
-      iconSize: 60,
-      selectedItemColor: theme.iconColor,
-      unselectedItemColor: theme.unselectedColor,
-      backgroundColor: theme.primaryColor,
-      selectedLabelStyle: theme.labelStyle.copyWith(
-        fontSize: 20,
-        fontWeight: FontWeight.bold,
+          BottomNavigationBarItem(
+            icon: Padding(
+              padding: EdgeInsets.symmetric(vertical: 8.0),
+              child: FaIcon(FontAwesomeIcons.gear),
+            ),
+            label: 'Settings',
+          ),
+          BottomNavigationBarItem(
+            icon: Padding(
+              padding: EdgeInsets.symmetric(vertical: 8.0),
+              child: FaIcon(FontAwesomeIcons.clockRotateLeft),
+            ),
+            label: 'History',
+          ),
+        ],
       ),
-      unselectedLabelStyle: theme.labelStyle.copyWith(
-        fontSize: 20,
-        color: theme.unselectedColor,
-        fontWeight: FontWeight.normal,
-      ),
-      items: const [
-        BottomNavigationBarItem(
-          icon: Padding(
-            padding: EdgeInsets.symmetric(vertical: 8.0),
-            child: FaIcon(FontAwesomeIcons.eyeLowVision),
-          ),
-          label: 'Solari',
-        ),
-        BottomNavigationBarItem(
-          icon: Padding(
-            padding: EdgeInsets.symmetric(vertical: 8.0),
-            child: FaIcon(FontAwesomeIcons.gear),
-          ),
-          label: 'Settings',
-        ),
-        BottomNavigationBarItem(
-          icon: Padding(
-            padding: EdgeInsets.symmetric(vertical: 8.0),
-            child: FaIcon(FontAwesomeIcons.clockRotateLeft),
-          ),
-          label: 'History',
-        ),
-      ],
-    ),
-  );
-}
+    );
+  }
 
   // ================================================================================================================================
 }

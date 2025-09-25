@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/constants/app_constants.dart';
 import '../../core/providers/theme_provider.dart';
-// import '../../core/services/vibration_service.dart';
+import '../../core/services/vibration_service.dart';
 
 /// Custom toggle switch with label
 class Toggle extends StatelessWidget {
@@ -19,13 +19,6 @@ class Toggle extends StatelessWidget {
   /// Custom font size for the label
   final double? fontSize;
   
-
-  /// Optional color for the label text
-  final Color? labelColor;
-
-  /// Optional font weight for the label text
-  final FontWeight? labelFontWeight;
-
   /// Creates a toggle switch
   const Toggle({
     super.key,
@@ -33,49 +26,69 @@ class Toggle extends StatelessWidget {
     required this.value,
     required this.onChanged,
     this.fontSize,
-    this.labelColor,
-    this.labelFontWeight,
   });
+
+  String get semanticLabel {
+    // Special handling for theme toggle
+    if (label.contains('Mode')) {
+      final bool isDarkMode = value;
+      return isDarkMode
+          ? 'Dark Mode enabled. Double tap to enable Light Mode'
+          : 'Light Mode enabled. Double tap to enable Dark Mode';
+    }
+
+    // For Screen Reader and Haptic Feedback toggles
+    final String baseLabel = label;
+    final String currentState = value ? 'enabled' : 'disabled';
+    final String targetState = value ? 'disable' : 'enable';
+
+    return '$baseLabel toggle... $currentState... Double tap to $targetState';
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Provider.of<ThemeProvider>(context);
-    
-    // Always use row layout with text wrapping
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        // Flexible text that can wrap
-        Expanded(
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: fontSize ?? AppConstants.bodyFontSize,
-              color: labelColor,
-              fontWeight: labelFontWeight,
+    return Semantics(
+      label: semanticLabel,
+      excludeSemantics: true,
+      child: MergeSemantics(
+        child: InkWell(
+          onTap: () => onChanged(!value),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: fontSize ?? AppConstants.bodyFontSize,
+                    ),
+                    softWrap: true,
+                    overflow: TextOverflow.visible,
+                  ),
+                ),
+                ExcludeSemantics(
+                  child: Switch(
+                    value: value,
+                    onChanged: (newValue) {
+                      if (newValue != value) {
+                        VibrationService.mediumFeedback();
+                      }
+                      onChanged(newValue);
+                    },
+                    activeColor: theme.primaryColor,
+                    inactiveThumbColor: theme.unselectedColor,
+                    activeTrackColor: theme.primaryColor.withOpacity(0.4),
+                    inactiveTrackColor: theme.unselectedColor.withOpacity(0.4),
+                  ),
+                ),
+              ],
             ),
-            softWrap: true,
-            overflow: TextOverflow.visible,
           ),
         ),
-        // Fixed spacing
-        const SizedBox(width: 16),
-        // Switch is not flexible - always stays at its natural size
-        Switch(
-          value: value,
-          onChanged: (newValue) {
-            // Add vibration feedback when toggle changes
-            if (newValue != value) {
-              // VibrationService.mediumFeedback();
-            }
-            onChanged(newValue);
-          },
-          activeColor: theme.primaryColor,
-          inactiveThumbColor: theme.unselectedColor,
-          activeTrackColor: theme.primaryColor.withOpacity(0.4),
-          inactiveTrackColor: theme.unselectedColor.withOpacity(0.4),
-        ),
-      ],
+      ),
     );
   }
 }

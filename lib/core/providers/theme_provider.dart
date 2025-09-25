@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../constants/app_constants.dart';
 import '../services/system_preferences_service.dart';
+import '../services/user_preferences_service.dart';
 import '../theme/app_colors.dart';
 
 /// Provider for managing theme state throughout the app
@@ -34,38 +35,53 @@ class ThemeProvider extends ChangeNotifier {
     _setupSystemListeners();
   }
 
-  /// Set up system preference listeners
+  /// Set up system theme listener
   void _setupSystemListeners() {
-    // Listen for system theme changes
-    SystemPreferencesService.instance.onThemeChange.listen((isDark) {
-      if (!_hasUserSetTheme) {
+    // Listen for system theme changes only
+    SystemPreferencesService.instance.onThemeChange.listen((isDark) async {
+      final useSystemTheme = await PreferencesService.getUseSystemTheme();
+      if (useSystemTheme && !_hasUserSetTheme) {
         _isDarkMode = isDark;
-        _saveTheme();
+        await _saveTheme();
         notifyListeners();
       }
     });
-
-    // Listen for system font scale changes
-    SystemPreferencesService.instance.onFontScaleChange.listen((fontSize) {
-      if (!_hasUserSetFontSize) {
-        setSystemFontSize(fontSize);
-      }
-    });
   }
 
-  /// Toggle between light and dark mode
-  void toggleTheme() {
+  /// Toggle between light and dark mode and handle system sync state
+  Future<void> toggleTheme() async {
     _isDarkMode = !_isDarkMode;
     _hasUserSetTheme = true;
-    _saveTheme();
+    await _saveTheme();
+    // When manually toggling theme, disable system sync
+    await PreferencesService.setUseSystemTheme(false);
     notifyListeners();
+  }
+
+  /// Set whether to use system theme and update theme accordingly
+  Future<void> setUseSystemTheme(bool value) async {
+    if (value != await PreferencesService.getUseSystemTheme()) {
+      await PreferencesService.setUseSystemTheme(value);
+      if (value) {
+        // When enabling system sync, update theme to match system
+        final systemTheme = await SystemPreferencesService.instance.getSystemTheme();
+        if (_isDarkMode != systemTheme) {
+          _isDarkMode = systemTheme;
+          _hasUserSetTheme = false;
+          await _saveTheme();
+        }
+      }
+      notifyListeners();
+    }
   }
 
   /// Set dark mode from system preference
-  void setDarkMode(bool isDark) {
-    _isDarkMode = isDark;
-    _saveTheme();
-    notifyListeners();
+  void setDarkMode(bool isDark) async {
+    if (!_hasUserSetTheme) {
+      _isDarkMode = isDark;
+      await _saveTheme();
+      notifyListeners();
+    }
   }
 
   /// Set font size with constraints

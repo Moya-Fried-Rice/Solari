@@ -1,19 +1,44 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../../../../core/constants/app_constants.dart';
+import '../../../../core/providers/theme_provider.dart';
 import '../../../widgets/app_bar.dart';
 
+/// About screen with information about Solari
 class AboutPage extends StatelessWidget {
+  /// Creates an about screen
   const AboutPage({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final theme = Provider.of<ThemeProvider>(context);
+    
     return Scaffold(
       appBar: const CustomAppBar(
-        title: 'About',
+        title: 'About Solari',
         showBackButton: true,
       ),
-      body: const Center(
-        child: Text('About this app.'),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: MediaQuery.of(context).size.height - kToolbarHeight - 80,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(AppConstants.largePadding),
+              child: Text(
+                "Solari is an AI-powered pair of smart glasses designed to support visually impaired individuals by transforming how they perceive the world. It describes what's happening around the user in real time, such as spotting obstacles, finding paths, or pointing out landmarks. Whether you're at school or exploring a new place, Solari is like having a helpful guide by your side, making daily lives easier and safer.",
+                style: TextStyle(
+                  fontSize: theme.fontSize + 4,
+                  color: theme.textColor,
+                  height: theme.lineHeight,
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
