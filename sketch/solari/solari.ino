@@ -72,18 +72,6 @@
   };
   VQAState vqaState;
 
-  // ============================================================================
-  // Audio Playback Globals (for received audio from Flutter)
-  // ============================================================================
-  struct AudioPlaybackState {
-    bool isReceiving = false;
-    bool isPlaying = false;
-    size_t totalAudioReceived = 0;
-    unsigned long receiveStartTime = 0;
-    TaskHandle_t playbackTaskHandle = nullptr;
-  };
-  AudioPlaybackState audioPlaybackState;
-
 
 
   // ============================================================================
@@ -228,55 +216,7 @@
       uint8_t* data = pCharacteristic->getData();
       size_t length = pCharacteristic->getLength();
       
-      // Check for audio streaming commands
-      if (value.startsWith("AUDIO_START")) {
-        logInfo("BLE", "Audio playback from Flutter started");
-        audioPlaybackState.isReceiving = true;
-        audioPlaybackState.totalAudioReceived = 0;
-        audioPlaybackState.receiveStartTime = millis();
-        // Turn on LED to indicate audio reception
-        digitalWrite(led_pin, HIGH);
-        ledState = true;
-        return;
-      }
-      
-      if (value.startsWith("AUDIO_END")) {
-        logInfo("BLE", "Audio playback from Flutter ended");
-        audioPlaybackState.isReceiving = false;
-        float totalTime = (millis() - audioPlaybackState.receiveStartTime) / 1000.0;
-        float avgRate = (audioPlaybackState.totalAudioReceived / 1024.0) / totalTime;
-        logInfo("AUDIO", "Received " + String(audioPlaybackState.totalAudioReceived) + 
-                " bytes (" + String(audioPlaybackState.totalAudioReceived/1024.0, 1) + 
-                " KB) in " + String(totalTime, 1) + "s (" + String(avgRate, 1) + " KB/s)");
-        
-        // Turn off LED
-        digitalWrite(led_pin, LOW);
-        ledState = false;
-        return;
-      }
-      
-      if (value.startsWith("AUDIO_DATA")) {
-        if (audioPlaybackState.isReceiving) {
-          // Extract audio data (skip the "AUDIO_DATA" header)
-          size_t headerLength = 10; // "AUDIO_DATA" is 10 characters
-          size_t audioDataLength = length - headerLength;
-          
-          if (audioDataLength > 0) {
-            audioPlaybackState.totalAudioReceived += audioDataLength;
-            logDebug("AUDIO", "Audio chunk: " + String(audioDataLength) + " bytes, total: " + 
-                    String(audioPlaybackState.totalAudioReceived) + " bytes");
-            
-            // Here you could feed the audio data to a DAC or I2S speaker
-            // For now, we just log it and simulate processing
-            
-            // Simulate some audio processing delay
-            vTaskDelay(pdMS_TO_TICKS(1));
-          }
-        }
-        return;
-      }
-      
-      // Output raw data to serial for other commands
+      // Output raw data to serial
       Serial.print("BLE Data Received: ");
       for (size_t i = 0; i < length; i++) {
         Serial.print("0x");
@@ -342,12 +282,6 @@
     vqaState.audioStreamingActive = false;
     vqaState.totalAudioStreamed = 0;
     vqaState.audioRecordingStartTime = 0;
-    
-    // Reset audio playback state
-    audioPlaybackState.isReceiving = false;
-    audioPlaybackState.isPlaying = false;
-    audioPlaybackState.totalAudioReceived = 0;
-    audioPlaybackState.receiveStartTime = 0;
     
     // Deinitialize camera
     esp_camera_deinit();
