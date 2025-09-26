@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:audioplayers/audioplayers.dart';
 
 // Providers
 import '../core/providers/history_provider.dart';
@@ -210,33 +211,25 @@ class _SolariScreenState extends State<SolariScreen>
         text,
         onStart: () {
           if (mounted) {
-            setState(() {
-              _isSpeaking = true; // Explicitly track speaking state
-            });
+            setState(() {}); // Trigger rebuild to update UI
           }
         },
         onComplete: () {
           if (mounted) {
-            setState(() {
-              _isSpeaking = false;
-            });
+            setState(() {}); // Trigger rebuild to update UI
           }
         },
         onError: (error) {
           debugPrint('Error speaking text: $error');
           if (mounted) {
-            setState(() {
-              _isSpeaking = false;
-            });
+            setState(() {}); // Trigger rebuild to update UI
           }
         },
       );
     } catch (e) {
       debugPrint('Error in _speakText: $e');
       if (mounted) {
-        setState(() {
-          _isSpeaking = false;
-        });
+        setState(() {}); // Trigger rebuild to update UI
       }
     }
   }
