@@ -82,9 +82,11 @@
     bool receivingAudio = false;
     bool audioLoadingComplete = false;
     bool isPlaying = false;
+    bool streamingEnabled = false;  // New: Enable real-time streaming
     size_t expectedAudioSize = 0;
     size_t receivedAudioSize = 0;
     size_t playPosition = 0;
+    size_t streamThreshold = 1024;  // Start playing after 1KB buffer
     unsigned long audioReceiveStartTime = 0;
     unsigned long lastSampleTime = 0;
     std::vector<uint8_t> audioBuffer;
@@ -268,6 +270,7 @@
         speakerAudioState.expectedAudioSize = value.substring(8).toInt();
         speakerAudioState.receivingAudio = true;
         speakerAudioState.audioLoadingComplete = false;
+        speakerAudioState.streamingEnabled = false;
         speakerAudioState.receivedAudioSize = 0;
         speakerAudioState.playPosition = 0;
         speakerAudioState.isPlaying = false;
@@ -275,7 +278,13 @@
         speakerAudioState.audioBuffer.clear();
         speakerAudioState.audioBuffer.reserve(speakerAudioState.expectedAudioSize);
         
-        logInfo("SPEAKER", "Audio loading started - Expected size: " + String(speakerAudioState.expectedAudioSize) + " bytes");
+        // Clean up any existing streaming task
+        if (speakerAudioState.audioPlaybackTaskHandle != nullptr) {
+          vTaskDelete(speakerAudioState.audioPlaybackTaskHandle);
+          speakerAudioState.audioPlaybackTaskHandle = nullptr;
+        }
+        
+        logInfo("SPEAKER", "Real-time audio streaming started - Expected size: " + String(speakerAudioState.expectedAudioSize) + " bytes");
         
         // Turn on LED to indicate audio loading
         digitalWrite(led_pin, HIGH);
@@ -290,18 +299,22 @@
         unsigned long loadTime = millis() - speakerAudioState.audioReceiveStartTime;
         float loadRate = (speakerAudioState.receivedAudioSize / 1024.0) / (loadTime / 1000.0);
         
-        logInfo("SPEAKER", "Audio loading complete - Received: " + String(speakerAudioState.receivedAudioSize) + 
+        logInfo("SPEAKER", "Audio streaming complete - Received: " + String(speakerAudioState.receivedAudioSize) + 
                 " bytes in " + String(loadTime) + "ms (" + String(loadRate, 1) + " KB/s)");
         
-        // Start playback after complete transmission (like reference)
-        logInfo("SPEAKER", "Starting high-quality PCM audio playback...");
-        playAudioBuffer();
-        
-        // Turn off LED after playback completes
-        digitalWrite(led_pin, LOW);
-        ledState = false;
-        
-        logInfo("SPEAKER", "Audio playback complete");
+        if (!speakerAudioState.isPlaying) {
+          // If streaming didn't start (very small audio), play normally
+          logInfo("SPEAKER", "Starting high-quality PCM audio playback...");
+          playAudioBuffer();
+          
+          // Turn off LED after playback completes
+          digitalWrite(led_pin, LOW);
+          ledState = false;
+          
+          logInfo("SPEAKER", "Audio playback complete");
+        } else {
+          logInfo("SPEAKER", "Audio transmission complete, streaming will finish automatically");
+        }
         return;
       }
       
@@ -312,6 +325,19 @@
           speakerAudioState.audioBuffer.push_back(data[i]);
         }
         speakerAudioState.receivedAudioSize += length;
+        
+        // Start streaming playback once we have enough buffer
+        if (!speakerAudioState.isPlaying && 
+            speakerAudioState.receivedAudioSize >= speakerAudioState.streamThreshold) {
+          logInfo("SPEAKER", "Starting real-time audio streaming with " + 
+                  String(speakerAudioState.receivedAudioSize) + " bytes buffered");
+          speakerAudioState.streamingEnabled = true;
+          speakerAudioState.isPlaying = true;
+          
+          // Create streaming playback task
+          xTaskCreate(streamingAudioTask, "StreamAudio", 8192, NULL, 1, 
+                     &speakerAudioState.audioPlaybackTaskHandle);
+        }
         
         // Show progress for every MTU chunk received (each BLE packet)
         logProgressRate("SPEAKER", speakerAudioState.receivedAudioSize, 
@@ -837,6 +863,102 @@
     
     // Task auto-cleanup
     vTaskDelete(NULL);
+  }
+
+  // Real-time Audio Streaming Task for immediate playback
+  void streamingAudioTask(void *param) {
+    logInfo("STREAM", "Starting real-time audio streaming task");
+    
+    const size_t chunkSize = 512;  // Process in 512-byte chunks for 16kHz PCM
+    const unsigned long targetDelayMs = 16;  // ~16ms between chunks for smooth playback
+    
+    while (true) {
+      // Check if we have enough data to play
+      size_t availableData = speakerAudioState.receivedAudioSize - speakerAudioState.playPosition;
+      
+      if (availableData >= chunkSize || 
+          (speakerAudioState.audioLoadingComplete && availableData > 0)) {
+        
+        size_t bytesToPlay = min(chunkSize, availableData);
+        
+        // Ensure we don't split 16-bit samples
+        if (bytesToPlay % 2 == 1) {
+          bytesToPlay--;
+        }
+        
+        if (bytesToPlay > 0) {
+          // Process and play chunk with volume control and filtering
+          std::vector<uint8_t> processedChunk(bytesToPlay);
+          
+          for (size_t i = 0; i < bytesToPlay; i += 2) {
+            size_t bufferIndex = speakerAudioState.playPosition + i;
+            
+            // Extract 16-bit sample (little-endian)
+            int16_t sample = speakerAudioState.audioBuffer[bufferIndex] | 
+                            (speakerAudioState.audioBuffer[bufferIndex + 1] << 8);
+            
+            // Apply volume control
+            sample = (int16_t)((int32_t)sample * speakerAudioState.amplitude / 32767);
+            
+            // Apply simple high-pass filter
+            static int16_t lastSample = 0;
+            int16_t filtered = sample - (lastSample >> 4);
+            lastSample = sample;
+            
+            // Store back as little-endian
+            processedChunk[i] = filtered & 0xFF;
+            processedChunk[i + 1] = (filtered >> 8) & 0xFF;
+          }
+          
+          // Send chunk to I2S
+          size_t bytesWritten = 0;
+          while (bytesWritten < bytesToPlay) {
+            size_t written = i2s_speaker.write(processedChunk.data() + bytesWritten, 
+                                             bytesToPlay - bytesWritten);
+            bytesWritten += written;
+            
+            if (written == 0) {
+              vTaskDelay(pdMS_TO_TICKS(1));
+            }
+          }
+          
+          speakerAudioState.playPosition += bytesToPlay;
+          
+          // Log progress every 2KB
+          if (speakerAudioState.playPosition % 2048 == 0) {
+            float playedSeconds = (float)(speakerAudioState.playPosition / 2) / 16000.0;
+            logDebug("STREAM", "Streamed " + String(playedSeconds, 1) + "s (" + 
+                    String(speakerAudioState.playPosition) + "/" + 
+                    String(speakerAudioState.receivedAudioSize) + " bytes)");
+          }
+        }
+      }
+      
+      // Check if streaming is complete
+      if (speakerAudioState.audioLoadingComplete && 
+          speakerAudioState.playPosition >= speakerAudioState.receivedAudioSize) {
+        
+        float totalDuration = (float)(speakerAudioState.playPosition / 2) / 16000.0;
+        logInfo("STREAM", "Real-time streaming complete - played " + String(totalDuration, 1) + 
+                " seconds (" + String(speakerAudioState.playPosition) + " bytes)");
+        
+        // Turn off LED and reset state
+        digitalWrite(led_pin, LOW);
+        ledState = false;
+        speakerAudioState.isPlaying = false;
+        speakerAudioState.streamingEnabled = false;
+        speakerAudioState.playPosition = 0;
+        speakerAudioState.audioBuffer.clear();
+        
+        // Delete this task
+        speakerAudioState.audioPlaybackTaskHandle = nullptr;
+        vTaskDelete(NULL);
+        return;
+      }
+      
+      // Wait for next chunk interval
+      vTaskDelay(pdMS_TO_TICKS(targetDelayMs));
+    }
   }
 
   // High-Quality Audio Playback Function with 16-bit PCM
