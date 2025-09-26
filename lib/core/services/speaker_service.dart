@@ -69,6 +69,30 @@ class SpeakerService {
     debugPrint('BLE transmission disabled');
   }
 
+  /// Set volume on connected smart glasses (0-32767, where 16384 = normal, 32767 = 2x amplified)
+  Future<void> setVolume(int volume) async {
+    if (!_useBleTransmission || !_bleService.isReady) {
+      debugPrint('Cannot set volume: BLE not connected');
+      return;
+    }
+
+    // Clamp volume to valid range
+    int clampedVolume = volume.clamp(0, 32767);
+    
+    try {
+      await _bleService.sendCommand('VOL $clampedVolume');
+      debugPrint('Volume set to $clampedVolume (${(clampedVolume / 16384.0 * 100).round()}% of normal level)');
+    } catch (e) {
+      debugPrint('Error setting volume: $e');
+    }
+  }
+
+  /// Convenience methods for common volume levels
+  Future<void> setVolumeQuiet() => setVolume(8192);    // 50% of normal
+  Future<void> setVolumeNormal() => setVolume(16384);  // Normal level  
+  Future<void> setVolumeLoud() => setVolume(24576);    // 150% of normal
+  Future<void> setVolumeMax() => setVolume(32767);     // 200% of normal (maximum)
+
   /// Convert text to high-quality WAV and play it
   /// Uses 16kHz 16-bit PCM optimized for superior smart glasses audio
   Future<void> speakText(String text, {

@@ -89,7 +89,7 @@
     unsigned long lastSampleTime = 0;
     std::vector<uint8_t> audioBuffer;
     TaskHandle_t audioPlaybackTaskHandle = nullptr;
-    int16_t amplitude = 30000;  // Volume control
+    int16_t amplitude = 32767;  // Maximum volume control for louder audio
   };
   SpeakerAudioState speakerAudioState;
 
@@ -872,8 +872,9 @@
         int16_t sample = speakerAudioState.audioBuffer[totalBytesPlayed + i] | 
                         (speakerAudioState.audioBuffer[totalBytesPlayed + i + 1] << 8);
         
-        // Apply volume control with better precision
-        sample = (int16_t)((int32_t)sample * speakerAudioState.amplitude / 32767);
+        // Apply volume control with amplification capability
+        int32_t amplified = ((int32_t)sample * speakerAudioState.amplitude) / 16384;  // Allow 2x amplification
+        sample = (int16_t)constrain(amplified, -32767, 32767);  // Prevent overflow
         
         // Apply simple high-pass filter to reduce DC offset and improve clarity
         static int16_t lastSample = 0;
