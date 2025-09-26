@@ -1,21 +1,87 @@
 #!/usr/bin/env python3
 """
-Generate clean, static-free 8kHz 8-bit WAV file for smart glasses
-Focus on smooth waveforms and proper amplitude scaling
+Generate clean, static-free 8kHz A-Law compressed WAV file for smart glasses
+Focus on smooth waveforms and proper A-Law compression
 """
 
 import wave
 import numpy as np
+import struct
 
-def create_clean_8bit_wav(filename="clean_8bit.wav", duration=3.0):
+def linear_to_alaw(sample):
     """
-    Create a very clean 8kHz, 8-bit, mono WAV file with no static
+    Convert a 16-bit linear PCM sample to A-Law compressed format
+    """
+    # Clamp to 16-bit range
+    sample = max(-32768, min(32767, int(sample)))
     
-    Improvements for static reduction:
-    - Smoother waveform transitions
-    - Proper amplitude scaling
-    - No harsh frequency jumps
-    - Clean sine wave generation
+    # Get sign and magnitude
+    sign = 0 if sample >= 0 else 0x80
+    if sample < 0:
+        sample = -sample
+    
+    # Find the segment and quantization interval
+    if sample >= 32635:
+        return sign | 0x7F
+    elif sample >= 16318:
+        seg = 7
+    elif sample >= 8159:
+        seg = 6
+    elif sample >= 4079:
+        seg = 5
+    elif sample >= 2039:
+        seg = 4
+    elif sample >= 1019:
+        seg = 3
+    elif sample >= 509:
+        seg = 2
+    elif sample >= 254:
+        seg = 1
+    else:
+        seg = 0
+    
+    if seg >= 1:
+        sample = (sample >> (seg + 3)) & 0x0F
+    else:
+        sample = sample >> 4
+    
+    return sign | (seg << 4) | sample
+
+def create_alaw_wav_header(sample_rate, num_samples):
+    """
+    Create a proper WAV header for A-Law compressed audio
+    """
+    # WAV header structure for A-Law
+    header = bytearray()
+    
+    # RIFF header
+    header.extend(b'RIFF')
+    header.extend(struct.pack('<I', 36 + num_samples))  # File size - 8
+    header.extend(b'WAVE')
+    
+    # Format chunk
+    header.extend(b'fmt ')
+    header.extend(struct.pack('<I', 18))  # Format chunk size (18 for A-Law)
+    header.extend(struct.pack('<H', 6))   # Format code: 6 = A-Law
+    header.extend(struct.pack('<H', 1))   # Channels: 1 (mono)
+    header.extend(struct.pack('<I', sample_rate))  # Sample rate
+    header.extend(struct.pack('<I', sample_rate))  # Byte rate (same as sample rate for A-Law)
+    header.extend(struct.pack('<H', 1))   # Block align: 1 byte per sample
+    header.extend(struct.pack('<H', 8))   # Bits per sample: 8
+    header.extend(struct.pack('<H', 0))   # Extra format bytes
+    
+    # Data chunk
+    header.extend(b'data')
+    header.extend(struct.pack('<I', num_samples))  # Data size
+    
+    return header
+
+def create_clean_alaw_wav(filename="clean_alaw.wav", duration=3.0):
+    """
+    Create a very clean 8kHz, A-Law compressed, mono WAV file
+    
+    A-Law provides better dynamic range than 8-bit PCM and is optimized
+    for voice applications like smart glasses
     """
     
     sample_rate = 8000  # 8kHz
@@ -56,30 +122,38 @@ def create_clean_8bit_wav(filename="clean_8bit.wav", duration=3.0):
     if max_amplitude > 0:
         audio = audio / max_amplitude * 0.8  # Leave some headroom
     
-    # Convert to 8-bit unsigned with proper rounding
-    # This is critical for avoiding static
-    audio_8bit = np.clip((audio + 1.0) * 127.5 + 0.5, 0, 255).astype(np.uint8)
+    # Convert to 16-bit signed for A-Law conversion
+    audio_16bit = (audio * 32767).astype(np.int16)
     
-    # Create WAV file
-    with wave.open(filename, 'w') as wav_file:
-        wav_file.setparams((1, 1, sample_rate, len(audio_8bit), 'NONE', 'not compressed'))
-        wav_file.writeframes(audio_8bit.tobytes())
+    # Convert each sample to A-Law
+    alaw_data = bytearray()
+    for sample in audio_16bit:
+        alaw_sample = linear_to_alaw(sample)
+        alaw_data.append(alaw_sample)
     
-    file_size = len(audio_8bit)
-    print(f"Created CLEAN {filename}:")
+    # Create A-Law WAV file with proper header
+    header = create_alaw_wav_header(sample_rate, len(alaw_data))
+    
+    with open(filename, 'wb') as f:
+        f.write(header)
+        f.write(alaw_data)
+    
+    file_size = len(header) + len(alaw_data)
+    print(f"Created CLEAN A-LAW {filename}:")
     print(f"  Sample Rate: {sample_rate} Hz")
-    print(f"  Bit Depth: 8-bit unsigned")
+    print(f"  Format: A-Law compressed (8-bit logarithmic)")
     print(f"  Channels: 1 (mono)")
     print(f"  Duration: {duration_sec:.1f} seconds")
     print(f"  File Size: {file_size} bytes ({file_size/1024:.1f} KB)")
+    print(f"  Data Size: {len(alaw_data)} bytes")
     print(f"  Frequency: {fundamental} Hz (A3 note)")
-    print(f"  ✅ Optimized for no static or distortion")
+    print(f"  ✅ A-Law optimized for smart glasses")
     
     return filename
 
-def create_speech_like_clean_wav(filename="speech_clean_8bit.wav", duration=3.0):
+def create_speech_like_alaw_wav(filename="speech_clean_alaw.wav", duration=3.0):
     """
-    Create a speech-like clean audio for better smart glasses testing
+    Create a speech-like clean A-Law audio for better smart glasses testing
     """
     
     sample_rate = 8000
@@ -118,32 +192,49 @@ def create_speech_like_clean_wav(filename="speech_clean_8bit.wav", duration=3.0)
     if max_amplitude > 0:
         audio = audio / max_amplitude * 0.75
     
-    # High-quality 8-bit conversion
-    audio_8bit = np.clip((audio + 1.0) * 127.5 + 0.5, 0, 255).astype(np.uint8)
+    # Convert to 16-bit signed for A-Law conversion
+    audio_16bit = (audio * 32767).astype(np.int16)
     
-    with wave.open(filename, 'w') as wav_file:
-        wav_file.setparams((1, 1, sample_rate, len(audio_8bit), 'NONE', 'not compressed'))
-        wav_file.writeframes(audio_8bit.tobytes())
+    # Convert each sample to A-Law
+    alaw_data = bytearray()
+    for sample in audio_16bit:
+        alaw_sample = linear_to_alaw(sample)
+        alaw_data.append(alaw_sample)
     
-    file_size = len(audio_8bit)
-    print(f"\nCreated SPEECH-LIKE {filename}:")
+    # Create A-Law WAV file with proper header
+    header = create_alaw_wav_header(sample_rate, len(alaw_data))
+    
+    with open(filename, 'wb') as f:
+        f.write(header)
+        f.write(alaw_data)
+    
+    file_size = len(header) + len(alaw_data)
+    print(f"\nCreated SPEECH-LIKE A-LAW {filename}:")
     print(f"  Sample Rate: {sample_rate} Hz")
+    print(f"  Format: A-Law compressed")
     print(f"  Duration: {duration_sec:.1f} seconds")
     print(f"  File Size: {file_size} bytes ({file_size/1024:.1f} KB)")
-    print(f"  ✅ Speech-like formants for smart glasses testing")
+    print(f"  Data Size: {len(alaw_data)} bytes")
+    print(f"  ✅ Speech-like formants with A-Law compression")
     
     return filename
 
 if __name__ == "__main__":
-    print("Creating clean, static-free 8-bit WAV files...\n")
+    print("Creating clean, static-free A-Law compressed WAV files...\n")
     
-    # Create a clean musical tone
-    clean_file = create_clean_8bit_wav("clean_8bit.wav", duration=3.0)
+    # Create a clean musical tone with A-Law compression
+    clean_file = create_clean_alaw_wav("clean_alaw.wav", duration=3.0)
     
-    # Create a speech-like test file
-    speech_file = create_speech_like_clean_wav("speech_clean_8bit.wav", duration=3.0)
+    # Create a speech-like test file with A-Law compression
+    speech_file = create_speech_like_alaw_wav("speech_clean_alaw.wav", duration=3.0)
     
-    print(f"\n✅ Created both files!")
-    print(f"📁 Copy either file to SD card as 'test.wav'")
-    print(f"🎵 {clean_file} - Clean musical tone")
-    print(f"🗣️  {speech_file} - Speech-like audio")
+    # Also create a test.wav file (copy of the clean one for direct testing)
+    test_file = create_clean_alaw_wav("test.wav", duration=2.0)
+    
+    print(f"\n✅ Created A-Law compressed files!")
+    print(f"📁 Copy 'test.wav' to SD card for immediate testing")
+    print(f"🎵 {clean_file} - Clean musical tone (A-Law)")
+    print(f"🗣️  {speech_file} - Speech-like audio (A-Law)")
+    print(f"🧪 {test_file} - Ready to test (A-Law)")
+    print(f"\n🔊 Format: 8kHz, A-Law compressed, mono")
+    print(f"📱 Compatible with updated Arduino smart glasses code")
