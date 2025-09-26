@@ -309,29 +309,11 @@
         speakerAudioState.audioBuffer.clear();
         speakerAudioState.audioBuffer.reserve(speakerAudioState.expectedAudioSize);
         
-        logInfo("SPEAKER", "Audio streaming started - Expected size: " + String(speakerAudioState.expectedAudioSize) + " bytes");
+        logInfo("SPEAKER", "Audio loading started - Expected size: " + String(speakerAudioState.expectedAudioSize) + " bytes");
         
-        // Turn on LED to indicate audio streaming
+        // Turn on LED to indicate audio loading
         digitalWrite(led_pin, HIGH);
         ledState = true;
-        
-        // Start real-time audio playback task
-        if (speakerAudioState.audioPlaybackTaskHandle == nullptr) {
-          BaseType_t result = xTaskCreatePinnedToCore(
-            audioPlaybackTask, 
-            "AudioPlaybackTask", 
-            8192, 
-            nullptr, 
-            2, // Higher priority for real-time audio
-            &speakerAudioState.audioPlaybackTaskHandle, 
-            1  // Core 1
-          );
-          if (result == pdPASS) {
-            logInfo("SPEAKER", "Real-time audio playback task created");
-          } else {
-            logError("SPEAKER", "Failed to create audio playback task");
-          }
-        }
         return;
       }
       
@@ -342,11 +324,18 @@
         unsigned long loadTime = millis() - speakerAudioState.audioReceiveStartTime;
         float loadRate = (speakerAudioState.receivedAudioSize / 1024.0) / (loadTime / 1000.0);
         
-        logInfo("SPEAKER", "Audio streaming complete - Received: " + String(speakerAudioState.receivedAudioSize) + 
+        logInfo("SPEAKER", "Audio loading complete - Received: " + String(speakerAudioState.receivedAudioSize) + 
                 " bytes in " + String(loadTime) + "ms (" + String(loadRate, 1) + " KB/s)");
         
-        // LED will turn off when playback completes
-        logInfo("SPEAKER", "Real-time playback will continue until all samples are played");
+        // Start playback after complete transmission (like reference)
+        logInfo("SPEAKER", "Starting A-Law audio playback...");
+        playAudioBuffer();
+        
+        // Turn off LED after playback completes
+        digitalWrite(led_pin, LOW);
+        ledState = false;
+        
+        logInfo("SPEAKER", "Audio playback complete");
         return;
       }
       
@@ -437,17 +426,6 @@
     // Deinitialize camera
     esp_camera_deinit();
     logInfo("SYS", "Camera deinitialized");
-    
-    // Clean up audio playback task if running
-    if (speakerAudioState.audioPlaybackTaskHandle) {
-      speakerAudioState.isPlaying = false;
-      vTaskDelay(pdMS_TO_TICKS(100)); // Give time for graceful stop
-      if (speakerAudioState.audioPlaybackTaskHandle) {
-        vTaskDelete(speakerAudioState.audioPlaybackTaskHandle);
-        speakerAudioState.audioPlaybackTaskHandle = nullptr;
-      }
-      logInfo("SYS", "Audio playback task deleted");
-    }
     
     // Reset speaker audio state
     speakerAudioState.receivingAudio = false;
@@ -894,74 +872,43 @@
     vTaskDelete(NULL);
   }
 
-  // Real-time Audio Playback Task
-  void audioPlaybackTask(void *param) {
-    logInfo("AUDIO-PLAYBACK", "Audio playback task started");
-    
-    // Wait for sufficient buffer (500ms worth of data = 4000 bytes at 8kHz)
-    const size_t bufferThreshold = 4000;
-    
-    while (speakerAudioState.receivingAudio && speakerAudioState.audioBuffer.size() < bufferThreshold) {
-      vTaskDelay(pdMS_TO_TICKS(50)); // Wait for more data
-    }
-    
-    if (!speakerAudioState.receivingAudio && speakerAudioState.audioBuffer.size() < bufferThreshold) {
-      logWarn("AUDIO-PLAYBACK", "Insufficient audio data for playback");
-      speakerAudioState.audioPlaybackTaskHandle = nullptr;
-      vTaskDelete(NULL);
+  // Simple Audio Playback Function (based on reference)
+  void playAudioBuffer() {
+    if (speakerAudioState.audioBuffer.size() == 0) {
+      logWarn("SPEAKER", "No audio data to play");
       return;
     }
     
-    speakerAudioState.isPlaying = true;
-    speakerAudioState.playPosition = 0;
-    speakerAudioState.lastSampleTime = micros();
+    size_t audioDataSize = speakerAudioState.audioBuffer.size();
+    float duration = (float)audioDataSize / 8000.0;
+    logInfo("SPEAKER", "Playing A-Law audio: " + String(duration, 1) + " seconds, " + String(audioDataSize) + " bytes");
     
-    logInfo("AUDIO-PLAYBACK", "Starting real-time playback");
+    // Process audio in chunks like the reference
+    const size_t chunkSize = 128;
+    size_t totalBytesPlayed = 0;
     
-    // 8kHz = 125 microseconds per sample
-    const unsigned long sampleInterval = 125;
-    
-    while (speakerAudioState.isPlaying) {
-      unsigned long now = micros();
+    while (totalBytesPlayed < audioDataSize) {
+      size_t bytesToPlay = min(chunkSize, audioDataSize - totalBytesPlayed);
       
-      // Check if it's time for the next sample
-      if (now - speakerAudioState.lastSampleTime >= sampleInterval) {
-        // Check if we have data to play
-        if (speakerAudioState.playPosition < speakerAudioState.audioBuffer.size()) {
-          // Get A-Law compressed sample
-          uint8_t alawSample = speakerAudioState.audioBuffer[speakerAudioState.playPosition];
-          
-          // Decompress A-Law to 16-bit linear PCM using lookup table
-          int16_t sample = alaw_table[alawSample];
-          
-          // Apply volume control
-          sample = (int16_t)((int32_t)sample * speakerAudioState.amplitude / 32767);
-          
-          // Send to I2S speaker
-          i2s_speaker.write((uint8_t*)&sample, sizeof(int16_t));
-          
-          speakerAudioState.playPosition++;
-          speakerAudioState.lastSampleTime = now;
-          
-        } else if (!speakerAudioState.receivingAudio) {
-          // No more data and not receiving - playback complete
-          break;
-        } else {
-          // Waiting for more data - small delay
-          vTaskDelay(pdMS_TO_TICKS(1));
-        }
-      } else {
-        // Not time for next sample yet - yield CPU
-        vTaskDelay(pdMS_TO_TICKS(1));
+      // Convert A-Law compressed samples to 16-bit linear PCM and send to I2S
+      for (size_t i = 0; i < bytesToPlay; i++) {
+        // Get A-Law compressed sample from buffer
+        uint8_t alawSample = speakerAudioState.audioBuffer[totalBytesPlayed + i];
+        
+        // Decompress A-Law to 16-bit linear PCM using lookup table
+        int16_t sample = alaw_table[alawSample];
+        
+        // Apply volume control (same as reference)
+        sample = (int16_t)((int32_t)sample * speakerAudioState.amplitude / 32767);
+        
+        // Send to I2S speaker
+        i2s_speaker.write((uint8_t*)&sample, sizeof(int16_t));
       }
+      
+      totalBytesPlayed += bytesToPlay;
     }
     
-    speakerAudioState.isPlaying = false;
-    logInfo("AUDIO-PLAYBACK", "Playback complete - played " + String(speakerAudioState.playPosition) + " samples");
-    
-    // Task cleanup
-    speakerAudioState.audioPlaybackTaskHandle = nullptr;
-    vTaskDelete(NULL);
+    logInfo("SPEAKER", "Audio playback finished - played " + String(totalBytesPlayed) + " bytes");
   }
 
   // Temperature Task
