@@ -8,6 +8,9 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as path;
 
 // Providers
 import '../core/providers/history_provider.dart';
@@ -77,6 +80,9 @@ class _SolariScreenState extends State<SolariScreen>
 
   // TTS
   final FlutterTts _flutterTts = FlutterTts();
+  
+  // Audio player for playing saved TTS files
+  final AudioPlayer _audioPlayer = AudioPlayer();
 
   // Downloading state
   bool _downloadingModel = false;
@@ -139,6 +145,7 @@ class _SolariScreenState extends State<SolariScreen>
     _imageBuffer.clear();
     _vlmService.dispose();
     _flutterTts.stop();
+    _audioPlayer.dispose();
     super.dispose();
   }
   // ================================================================================================================================
@@ -186,6 +193,15 @@ class _SolariScreenState extends State<SolariScreen>
     _flutterTts.setSpeechRate(0.5);
     _flutterTts.setVolume(1.0);
     _flutterTts.setPitch(1.0);
+    
+    // Initialize audio player event listeners
+    _audioPlayer.onPlayerComplete.listen((event) {
+      if (mounted) {
+        setState(() {
+          _isSpeaking = false;
+        });
+      }
+    });
   }
 
   Future<void> _speakText(String text) async {
@@ -193,28 +209,51 @@ class _SolariScreenState extends State<SolariScreen>
       setState(() {
         _isSpeaking = true;
       });
-      await _flutterTts.speak(text);
-      // Optionally, listen for completion
-      _flutterTts.setCompletionHandler(() {
-        if (mounted) {
-          setState(() {
-            _isSpeaking = false;
-          });
-        }
-      });
-      _flutterTts.setCancelHandler(() {
-        if (mounted) {
-          setState(() {
-            _isSpeaking = false;
-          });
-        }
-      });
+
+      // Generate a unique filename based on timestamp
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final fileName = 'tts_audio_$timestamp.mp3';
+      
+      // Get the app's documents directory
+      final directory = await getApplicationDocumentsDirectory();
+      final audioFilePath = path.join(directory.path, fileName);
+      
+      debugPrint('Saving TTS audio to MP3: $audioFilePath');
+      
+      // Configure TTS to save to file instead of speaking directly
+      await _flutterTts.synthesizeToFile(text, audioFilePath);
+      
+      debugPrint('TTS audio saved successfully as MP3, now playing...');
+      
+      // Play the saved MP3 audio file
+      await _audioPlayer.play(DeviceFileSource(audioFilePath));
+      
     } catch (e) {
-      debugPrint('Error speaking text: $e');
+      debugPrint('Error converting TTS to MP3 file: $e');
       if (mounted) {
         setState(() {
           _isSpeaking = false;
         });
+      }
+      
+      // Fallback to direct TTS if file saving fails
+      try {
+        debugPrint('Falling back to direct TTS...');
+        await _flutterTts.speak(text);
+        _flutterTts.setCompletionHandler(() {
+          if (mounted) {
+            setState(() {
+              _isSpeaking = false;
+            });
+          }
+        });
+      } catch (fallbackError) {
+        debugPrint('Fallback TTS also failed: $fallbackError');
+        if (mounted) {
+          setState(() {
+            _isSpeaking = false;
+          });
+        }
       }
     }
   }
