@@ -103,13 +103,13 @@ class BleService {
         int endIndex = (i + chunkSize < audioData.length) ? i + chunkSize : audioData.length;
         Uint8List chunk = audioData.sublist(i, endIndex);
         
-        await _writeCharacteristic!.write(chunk, withoutResponse: false);
+        await _writeCharacteristic!.write(chunk, withoutResponse: true);
         totalSent += chunk.length;
         
         onProgress?.call(totalSent, audioData.length);
         
         // Small delay between chunks to prevent overwhelming the device
-        await Future.delayed(const Duration(milliseconds: 15));
+        await Future.delayed(const Duration(milliseconds: 5));
 
         // Check if device is still connected
         if (_connectedDevice?.isConnected != true) {

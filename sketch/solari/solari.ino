@@ -270,10 +270,8 @@
       
       // Handle binary audio data
       if (speakerAudioState.receivingAudio) {
-        // Append received data to audio buffer
-        for (size_t i = 0; i < length; i++) {
-          speakerAudioState.audioBuffer.push_back(data[i]);
-        }
+        // Append received data to audio buffer (more efficient batch insert)
+        speakerAudioState.audioBuffer.insert(speakerAudioState.audioBuffer.end(), data, data + length);
         speakerAudioState.receivedAudioSize += length;
         
         // Show progress every 1KB using the existing progress logger
