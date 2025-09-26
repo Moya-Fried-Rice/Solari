@@ -65,11 +65,20 @@ class SpeakerService {
       _isSpeaking = true;
       onStart?.call();
 
+      // Check text length and truncate if too long to prevent TTS corruption
+      String processedText = text;
+      const int maxTextLength = 500; // Limit to prevent TTS corruption with very long text
+      
+      if (text.length > maxTextLength) {
+        processedText = text.substring(0, maxTextLength);
+        debugPrint('⚠️ Text truncated from ${text.length} to $maxTextLength characters to prevent TTS corruption');
+      }
+
       // Generate unique filename to avoid conflicts
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final fileName = "tts_$timestamp";
 
-      await _synthesizeTextToCompressedWav(text, fileName);
+      await _synthesizeTextToCompressedWav(processedText, fileName);
       
       if (_currentFilePath.isNotEmpty) {
         await _playCompressedAudio();
@@ -103,27 +112,53 @@ class SpeakerService {
         throw Exception('WAV file does not exist: $filePath');
       }
 
-      // Read first 12 bytes to check WAV header
-      final bytes = await wavFile.openRead(0, 12).toList();
+      int fileSize = await wavFile.length();
+      debugPrint('WAV file size: $fileSize bytes');
+
+      // Check if file size is reasonable (not too large which indicates corruption)
+      if (fileSize > 5 * 1024 * 1024) { // 5MB limit
+        throw Exception('WAV file too large ($fileSize bytes) - likely corrupted by TTS');
+      }
+
+      // Read first 44 bytes to check complete WAV header
+      final bytes = await wavFile.openRead(0, 44).toList();
       if (bytes.isEmpty) {
         throw Exception('WAV file is empty or unreadable');
       }
 
       final headerBytes = bytes.expand((x) => x).toList();
+      debugPrint('WAV header bytes read: ${headerBytes.length}');
+      
       if (headerBytes.length >= 12) {
         // Check for RIFF header (bytes 0-3: "RIFF")
         final riffCheck = String.fromCharCodes(headerBytes.sublist(0, 4));
         // Check for WAVE format (bytes 8-11: "WAVE")  
         final waveCheck = String.fromCharCodes(headerBytes.sublist(8, 12));
         
+        debugPrint('RIFF header: "$riffCheck" (expected: "RIFF")');
+        debugPrint('WAVE format: "$waveCheck" (expected: "WAVE")');
+        
         if (riffCheck == 'RIFF' && waveCheck == 'WAVE') {
           debugPrint('✅ Valid WAV file header detected');
+          
+          // Additional check: verify file size matches header
+          if (headerBytes.length >= 8) {
+            // Bytes 4-7 contain file size - 8
+            int headerFileSize = (headerBytes[4] | (headerBytes[5] << 8) | 
+                                (headerBytes[6] << 16) | (headerBytes[7] << 24)) + 8;
+            debugPrint('Header reports file size: $headerFileSize bytes, actual: $fileSize bytes');
+            
+            if ((headerFileSize - fileSize).abs() > 1000) { // Allow small difference
+              debugPrint('⚠️ File size mismatch - possible corruption');
+            }
+          }
         } else {
-          debugPrint('⚠️ Invalid WAV header: RIFF=$riffCheck, WAVE=$waveCheck');
-          throw Exception('Invalid WAV file format');
+          debugPrint('❌ Invalid WAV header detected');
+          debugPrint('Header hex: ${headerBytes.take(12).map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}');
+          throw Exception('Invalid WAV file format - corrupt TTS output');
         }
       } else {
-        throw Exception('WAV file too small to contain valid header');
+        throw Exception('WAV file too small to contain valid header (${headerBytes.length} bytes)');
       }
     } catch (e) {
       debugPrint('WAV validation failed: $e');
@@ -159,33 +194,70 @@ class SpeakerService {
         debugPrint('Deleted existing final file');
       }
 
-      // Synthesize to temporary file first
-      await _flutterTts.synthesizeToFile(text, tempPath, true);
+      // Synthesize to temporary file with error recovery
+      bool ttsSuccess = false;
+      int ttsAttempts = 0;
+      const int maxTtsAttempts = 2;
+      
+      while (!ttsSuccess && ttsAttempts < maxTtsAttempts) {
+        ttsAttempts++;
+        debugPrint('TTS synthesis attempt $ttsAttempts/$maxTtsAttempts');
+        
+        try {
+          // Ensure TTS is stopped before new synthesis
+          await _flutterTts.stop();
+          await Future.delayed(const Duration(milliseconds: 300));
+          
+          await _flutterTts.synthesizeToFile(text, tempPath, true);
 
-      // Wait longer to ensure TTS file is fully written and closed
-      await Future.delayed(const Duration(milliseconds: 1500));
-      
-      // Additional check: wait until file size stabilizes
-      int previousSize = 0;
-      int currentSize = 0;
-      int stableCount = 0;
-      
-      for (int i = 0; i < 10; i++) { // Max 10 attempts (5 seconds)
-        File checkFile = File(tempPath);
-        if (await checkFile.exists()) {
-          currentSize = await checkFile.length();
-          if (currentSize == previousSize && currentSize > 0) {
-            stableCount++;
-            if (stableCount >= 2) { // File size stable for 2 checks
-              debugPrint('TTS file size stabilized at $currentSize bytes');
-              break;
+          // Wait longer to ensure TTS file is fully written and closed
+          await Future.delayed(const Duration(milliseconds: 2000));
+          
+          // Additional check: wait until file size stabilizes
+          int previousSize = 0;
+          int currentSize = 0;
+          int stableCount = 0;
+          
+          for (int i = 0; i < 15; i++) { // Max 15 attempts (7.5 seconds)
+            File checkFile = File(tempPath);
+            if (await checkFile.exists()) {
+              currentSize = await checkFile.length();
+              if (currentSize == previousSize && currentSize > 0) {
+                stableCount++;
+                if (stableCount >= 3) { // File size stable for 3 checks
+                  debugPrint('TTS file size stabilized at $currentSize bytes');
+                  ttsSuccess = true;
+                  break;
+                }
+              } else {
+                stableCount = 0;
+              }
+              previousSize = currentSize;
             }
-          } else {
-            stableCount = 0;
+            await Future.delayed(const Duration(milliseconds: 500));
           }
-          previousSize = currentSize;
+          
+          if (!ttsSuccess) {
+            debugPrint('⚠️ TTS file size did not stabilize, attempt $ttsAttempts failed');
+            // Clean up unstable file
+            File unstableFile = File(tempPath);
+            if (await unstableFile.exists()) {
+              await unstableFile.delete();
+            }
+          }
+          
+        } catch (e) {
+          debugPrint('TTS synthesis attempt $ttsAttempts failed: $e');
+          // Clean up failed file
+          File failedFile = File(tempPath);
+          if (await failedFile.exists()) {
+            await failedFile.delete();
+          }
         }
-        await Future.delayed(const Duration(milliseconds: 500));
+      }
+      
+      if (!ttsSuccess) {
+        throw Exception('TTS synthesis failed after $maxTtsAttempts attempts');
       }
 
       // Verify the temp file exists and has content
@@ -204,7 +276,7 @@ class SpeakerService {
       // Validate the WAV file header
       await _validateWavFile(tempPath);
 
-      // Convert to A-Law compressed WAV with retry mechanism
+      // Convert to A-Law compressed WAV (8kHz, mono, 1 byte per sample)
       await _convertToAlawWithRetry(tempPath, finalPath);
 
       // Clean up temporary file on success
@@ -219,7 +291,7 @@ class SpeakerService {
     }
   }
 
-  /// Convert WAV to A-Law compressed format with retry mechanism
+  /// Convert WAV to A-Law compressed format (8kHz, mono) - optimized for smart glasses
   Future<void> _convertToAlawWithRetry(
     String tempPath,
     String finalPath, {
@@ -228,21 +300,9 @@ class SpeakerService {
     for (int attempt = 1; attempt <= maxRetries; attempt++) {
       debugPrint('Converting to A-Law (attempt $attempt/$maxRetries)...');
 
-      // Progressive fallback strategy - start with the working approach
-      String ffmpegCommand;
-      if (attempt == 1) {
-        // First attempt: Basic conversion (we know this works from your log)
-        ffmpegCommand = '-i $tempPath -ar 8000 -ac 1 -y $finalPath';
-        debugPrint('Using basic conversion (known to work)');
-      } else if (attempt == 2) {
-        // Second attempt: Try A-Law compression with file refresh
-        ffmpegCommand = '-i $tempPath -ar 8000 -ac 1 -acodec pcm_alaw -y $finalPath';
-        debugPrint('Retry with A-Law compression');
-      } else {
-        // Final attempt: Standard PCM 16-bit
-        ffmpegCommand = '-i $tempPath -ar 8000 -ac 1 -acodec pcm_s16le -y $finalPath';
-        debugPrint('Final fallback: PCM 16-bit format');
-      }
+      // A-Law compression only - optimized for smart glasses
+      String ffmpegCommand = '-i $tempPath -ar 8000 -ac 1 -acodec pcm_alaw -y $finalPath';
+      debugPrint('Using A-Law compression (8kHz, mono, optimized for smart glasses)');
       
       debugPrint('FFmpeg command: $ffmpegCommand');
       
@@ -261,9 +321,11 @@ class SpeakerService {
         File finalFile = File(finalPath);
         if (await finalFile.exists()) {
           int fileSize = await finalFile.length();
+          
+          // Calculate duration for A-Law format: 1 byte per sample at 8kHz
           String duration = _calculateDuration(fileSize, 8000, 1, 1);
           
-          debugPrint('A-Law compressed WAV created successfully');
+          debugPrint('✅ A-Law compressed WAV created successfully');
           debugPrint('File size: $fileSize bytes (${(fileSize / 1024).toStringAsFixed(1)} KB)');
           debugPrint('Duration: $duration');
           debugPrint('Format: 8kHz, A-Law compression, mono - optimized for smart glasses');
@@ -272,33 +334,33 @@ class SpeakerService {
         }
       }
 
-      // Handle failure - get detailed error information
+      // Handle A-Law conversion failure
       final logs = await session.getAllLogs();
       final output = await session.getOutput();
       final allLogs = await session.getAllLogsAsString();
       String errorDetails = logs.map((log) => log.getMessage()).join('\n');
       
-      debugPrint('FFmpeg attempt $attempt failed with return code: $returnCode');
+      debugPrint('A-Law conversion attempt $attempt failed with return code: $returnCode');
       debugPrint('FFmpeg output: $output');
       if (allLogs != null) {
-        debugPrint('FFmpeg all logs: ${allLogs.length > 1500 ? allLogs.substring(allLogs.length - 1500) : allLogs}'); // Show last 1500 chars which should contain the error
+        debugPrint('FFmpeg error logs: ${allLogs.length > 1500 ? allLogs.substring(allLogs.length - 1500) : allLogs}');
       } else {
         debugPrint('FFmpeg logs: $errorDetails');
       }
       
-      // Also check if any output file was partially created
+      // Clean up any partial output file
       File outputFile = File(finalPath);
       if (await outputFile.exists()) {
         int outputSize = await outputFile.length();
-        debugPrint('Partial output file created: $outputSize bytes');
-        await outputFile.delete(); // Clean up partial file
+        debugPrint('Removing partial A-Law file: $outputSize bytes');
+        await outputFile.delete();
       }
 
       if (attempt < maxRetries) {
-        debugPrint('Retrying in ${attempt * 500}ms...');
+        debugPrint('Retrying A-Law conversion in ${attempt * 500}ms...');
         await Future.delayed(Duration(milliseconds: attempt * 500));
       } else {
-        throw Exception('FFmpeg conversion failed after $maxRetries attempts: $errorDetails');
+        throw Exception('A-Law conversion failed after $maxRetries attempts. Error: $errorDetails');
       }
     }
   }
