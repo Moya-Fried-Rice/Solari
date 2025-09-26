@@ -35,15 +35,22 @@ class BleService {
     const speakerCharacteristicUuid = '12345678-1234-1234-1234-123456789abc';
 
     try {
+      debugPrint('🔍 Discovering services for speaker characteristic...');
       List<BluetoothService> services = await _connectedDevice!.discoverServices();
+      debugPrint('Found ${services.length} services');
       
       for (var service in services) {
+        debugPrint('  Service: ${service.uuid}');
         if (service.uuid.toString().toLowerCase() == serviceUuid) {
+          debugPrint('  ✅ Found target service!');
+          debugPrint('  Characteristics in service: ${service.characteristics.length}');
           for (var characteristic in service.characteristics) {
+            debugPrint('    Characteristic: ${characteristic.uuid}');
+            debugPrint('      Properties: write=${characteristic.properties.write}, writeWithoutResponse=${characteristic.properties.writeWithoutResponse}');
             if (characteristic.uuid.toString().toLowerCase() == speakerCharacteristicUuid &&
-                characteristic.properties.write) {
+                (characteristic.properties.write || characteristic.properties.writeWithoutResponse)) {
               _writeCharacteristic = characteristic;
-              debugPrint('Found speaker characteristic: ${characteristic.uuid}');
+              debugPrint('  ✅ Found speaker characteristic: ${characteristic.uuid}');
               return;
             }
           }
@@ -51,6 +58,8 @@ class BleService {
       }
       
       if (_writeCharacteristic == null) {
+        debugPrint('❌ Speaker characteristic not found!');
+        debugPrint('Expected UUID: $speakerCharacteristicUuid');
         throw Exception('Speaker characteristic not found');
       }
     } catch (e) {
@@ -86,9 +95,14 @@ class BleService {
       onStart?.call();
       debugPrint('Starting audio data transmission: ${audioData.length} bytes');
 
+      // Determine if we should use writeWithoutResponse or write
+      bool useWriteWithoutResponse = _writeCharacteristic!.properties.writeWithoutResponse && 
+                                   !_writeCharacteristic!.properties.write;
+      debugPrint('Using write method: ${useWriteWithoutResponse ? "writeWithoutResponse" : "write"}');
+
       // Send audio start header
       String audioHeader = "S_START:${audioData.length}";
-      await _writeCharacteristic!.write(audioHeader.codeUnits, withoutResponse: false);
+      await _writeCharacteristic!.write(audioHeader.codeUnits, withoutResponse: useWriteWithoutResponse);
       await Future.delayed(const Duration(milliseconds: 50));
       debugPrint('Audio header sent: $audioHeader');
 
@@ -103,7 +117,7 @@ class BleService {
         int endIndex = (i + chunkSize < audioData.length) ? i + chunkSize : audioData.length;
         Uint8List chunk = audioData.sublist(i, endIndex);
         
-        await _writeCharacteristic!.write(chunk, withoutResponse: false);
+        await _writeCharacteristic!.write(chunk, withoutResponse: useWriteWithoutResponse);
         totalSent += chunk.length;
         
         onProgress?.call(totalSent, audioData.length);
@@ -119,7 +133,7 @@ class BleService {
 
       // Send audio end header
       String audioEndHeader = "S_END";
-      await _writeCharacteristic!.write(audioEndHeader.codeUnits, withoutResponse: false);
+      await _writeCharacteristic!.write(audioEndHeader.codeUnits, withoutResponse: useWriteWithoutResponse);
       debugPrint('Audio end header sent');
 
       debugPrint('Audio data transmission complete: $totalSent bytes sent');
@@ -157,9 +171,17 @@ class BleService {
   }
 
   /// Check if the service is ready to send data
-  bool get isReady => _isInitialized && 
-                     _writeCharacteristic != null && 
-                     _connectedDevice?.isConnected == true;
+  bool get isReady {
+    bool ready = _isInitialized && 
+                 _writeCharacteristic != null && 
+                 _connectedDevice?.isConnected == true;
+    debugPrint('🔍 BLE Service Ready Check:');
+    debugPrint('  _isInitialized: $_isInitialized');
+    debugPrint('  _writeCharacteristic != null: ${_writeCharacteristic != null}');
+    debugPrint('  _connectedDevice?.isConnected: ${_connectedDevice?.isConnected}');
+    debugPrint('  Overall ready: $ready');
+    return ready;
+  }
 
   /// Get the connected device
   BluetoothDevice? get connectedDevice => _connectedDevice;

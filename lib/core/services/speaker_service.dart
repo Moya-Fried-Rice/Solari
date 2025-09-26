@@ -105,10 +105,18 @@ class SpeakerService {
       await _synthesizeTextToCompressedWav(processedText, fileName);
       
       if (_currentFilePath.isNotEmpty) {
+        debugPrint('🔍 BLE Transmission Debug:');
+        debugPrint('  _useBleTransmission: $_useBleTransmission');
+        debugPrint('  _bleService.isReady: ${_bleService.isReady}');
+        debugPrint('  BLE device connected: ${_bleService.connectedDevice?.isConnected}');
+        
         if (_useBleTransmission && _bleService.isReady) {
+          debugPrint('📡 Sending audio via BLE...');
           await _sendAudioViaBle();
-          // await _playCompressedAudio();
         } else {
+          debugPrint('🔊 Playing audio locally because:');
+          if (!_useBleTransmission) debugPrint('  - BLE transmission disabled');
+          if (!_bleService.isReady) debugPrint('  - BLE service not ready');
           await _playCompressedAudio();
         }
         onComplete?.call();

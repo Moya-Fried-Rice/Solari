@@ -299,12 +299,9 @@
         }
         speakerAudioState.receivedAudioSize += length;
         
-        // Show progress every 1KB using the existing progress logger
-        if (speakerAudioState.receivedAudioSize % 1024 == 0 || 
-            speakerAudioState.receivedAudioSize >= speakerAudioState.expectedAudioSize) {
-          logProgressRate("SPEAKER", speakerAudioState.receivedAudioSize, 
-                         speakerAudioState.expectedAudioSize, speakerAudioState.audioReceiveStartTime);
-        }
+        // Show progress for every MTU chunk received (each BLE packet)
+        logProgressRate("SPEAKER", speakerAudioState.receivedAudioSize, 
+                       speakerAudioState.expectedAudioSize, speakerAudioState.audioReceiveStartTime);
         return;
       }
       
