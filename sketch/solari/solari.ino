@@ -93,41 +93,7 @@
   };
   SpeakerAudioState speakerAudioState;
 
-  // A-Law decompression lookup table for real-time audio streaming
-  static const int16_t alaw_table[256] = {
-    -5504, -5248, -6016, -5760, -4480, -4224, -4992, -4736,
-    -7552, -7296, -8064, -7808, -6528, -6272, -7040, -6784,
-    -2752, -2624, -3008, -2880, -2240, -2112, -2496, -2368,
-    -3776, -3648, -4032, -3904, -3264, -3136, -3520, -3392,
-    -22016, -20992, -24064, -23040, -17920, -16896, -19968, -18944,
-    -30208, -29184, -32256, -31232, -26112, -25088, -28160, -27136,
-    -11008, -10496, -12032, -11520, -8960, -8448, -9984, -9472,
-    -15104, -14592, -16128, -15616, -13056, -12544, -14080, -13568,
-    -344, -328, -376, -360, -280, -264, -312, -296,
-    -472, -456, -504, -488, -408, -392, -440, -424,
-    -88, -72, -120, -104, -24, -8, -56, -40,
-    -216, -200, -248, -232, -152, -136, -184, -168,
-    -1376, -1312, -1504, -1440, -1120, -1056, -1248, -1184,
-    -1888, -1824, -2016, -1952, -1632, -1568, -1760, -1696,
-    -688, -656, -752, -720, -560, -528, -624, -592,
-    -944, -912, -1008, -976, -816, -784, -880, -848,
-    5504, 5248, 6016, 5760, 4480, 4224, 4992, 4736,
-    7552, 7296, 8064, 7808, 6528, 6272, 7040, 6784,
-    2752, 2624, 3008, 2880, 2240, 2112, 2496, 2368,
-    3776, 3648, 4032, 3904, 3264, 3136, 3520, 3392,
-    22016, 20992, 24064, 23040, 17920, 16896, 19968, 18944,
-    30208, 29184, 32256, 31232, 26112, 25088, 28160, 27136,
-    11008, 10496, 12032, 11520, 8960, 8448, 9984, 9472,
-    15104, 14592, 16128, 15616, 13056, 12544, 14080, 13568,
-    344, 328, 376, 360, 280, 264, 312, 296,
-    472, 456, 504, 488, 408, 392, 440, 424,
-    88, 72, 120, 104, 24, 8, 56, 40,
-    216, 200, 248, 232, 152, 136, 184, 168,
-    1376, 1312, 1504, 1440, 1120, 1056, 1248, 1184,
-    1888, 1824, 2016, 1952, 1632, 1568, 1760, 1696,
-    688, 656, 752, 720, 560, 528, 624, 592,
-    944, 912, 1008, 976, 816, 784, 880, 848
-  };
+  // No longer need A-Law decompression - using direct 16-bit PCM for superior quality
 
   // I2S instance for speaker output (separate from microphone I2S)
   I2SClass i2s_speaker;
@@ -328,7 +294,7 @@
                 " bytes in " + String(loadTime) + "ms (" + String(loadRate, 1) + " KB/s)");
         
         // Start playback after complete transmission (like reference)
-        logInfo("SPEAKER", "Starting A-Law audio playback...");
+        logInfo("SPEAKER", "Starting high-quality PCM audio playback...");
         playAudioBuffer();
         
         // Turn off LED after playback completes
@@ -539,12 +505,12 @@
       
       // Set the TX pins for I2S speaker output (based on your test_bread_board.ino)
       // Using different pins from microphone to avoid conflicts
-      i2s_speaker.setPins(D1, D2, D3);  // BCLK=D1, LRC=D0, DOUT=D2
+      i2s_speaker.setPins(D1, D0, D2);  // BCLK=D1, LRC=D0, DOUT=D2
       logDebug("SPEAKER", "I2S TX pins configured: BCLK=D1, LRC=D0, DOUT=D2");
 
-      // Begin I2S in TX mode, mono, 16-bit, 8kHz for A-Law audio
+      // Begin I2S in TX mode, mono, 16-bit, 16kHz for high-quality PCM audio
       // Enhanced configuration for better audio quality
-      if (!i2s_speaker.begin(I2S_MODE_STD, 8000, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO)) {
+      if (!i2s_speaker.begin(I2S_MODE_STD, 16000, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO)) {
           logError("SPEAKER", "I2S speaker initialization failed!");
           while (true) delay(100);
       }
@@ -873,7 +839,7 @@
     vTaskDelete(NULL);
   }
 
-  // Enhanced Audio Playback Function with Quality Improvements
+  // High-Quality Audio Playback Function with 16-bit PCM
   void playAudioBuffer() {
     if (speakerAudioState.audioBuffer.size() == 0) {
       logWarn("SPEAKER", "No audio data to play");
@@ -881,26 +847,30 @@
     }
     
     size_t audioDataSize = speakerAudioState.audioBuffer.size();
-    float duration = (float)audioDataSize / 8000.0;
-    logInfo("SPEAKER", "Playing A-Law audio: " + String(duration, 1) + " seconds, " + String(audioDataSize) + " bytes");
+    // Each sample is now 2 bytes (16-bit) at 16kHz
+    float duration = (float)(audioDataSize / 2) / 16000.0;
+    logInfo("SPEAKER", "Playing 16-bit PCM audio: " + String(duration, 1) + " seconds, " + String(audioDataSize) + " bytes");
     
-    // Use larger chunks for smoother playback and less overhead
-    const size_t chunkSize = 256;  // Increased from 128 for better performance
+    // Use larger chunks for smoother playback at higher quality
+    const size_t chunkSize = 512;  // Increased for 16kHz data rate
     size_t totalBytesPlayed = 0;
-    
-    // Pre-allocate I2S buffer for better performance
-    int16_t i2sBuffer[chunkSize];
     
     while (totalBytesPlayed < audioDataSize) {
       size_t bytesToPlay = min(chunkSize, audioDataSize - totalBytesPlayed);
       
-      // Batch convert A-Law samples to reduce I2S write calls
-      for (size_t i = 0; i < bytesToPlay; i++) {
-        // Get A-Law compressed sample from buffer
-        uint8_t alawSample = speakerAudioState.audioBuffer[totalBytesPlayed + i];
-        
-        // Decompress A-Law to 16-bit linear PCM using lookup table
-        int16_t sample = alaw_table[alawSample];
+      // Ensure we don't split 16-bit samples
+      if (bytesToPlay % 2 == 1) {
+        bytesToPlay--;
+      }
+      
+      if (bytesToPlay == 0) break;
+      
+      // Apply volume control and filtering to 16-bit PCM samples
+      std::vector<uint8_t> processedChunk(bytesToPlay);
+      for (size_t i = 0; i < bytesToPlay; i += 2) {
+        // Extract 16-bit sample (little-endian)
+        int16_t sample = speakerAudioState.audioBuffer[totalBytesPlayed + i] | 
+                        (speakerAudioState.audioBuffer[totalBytesPlayed + i + 1] << 8);
         
         // Apply volume control with better precision
         sample = (int16_t)((int32_t)sample * speakerAudioState.amplitude / 32767);
@@ -910,18 +880,20 @@
         int16_t filtered = sample - (lastSample >> 4);  // Simple HPF
         lastSample = sample;
         
-        i2sBuffer[i] = filtered;
+        // Store back as little-endian
+        processedChunk[i] = filtered & 0xFF;
+        processedChunk[i + 1] = (filtered >> 8) & 0xFF;
       }
       
       // Send entire chunk to I2S at once for smoother playback
       size_t bytesWritten = 0;
-      while (bytesWritten < bytesToPlay * sizeof(int16_t)) {
-        size_t written = i2s_speaker.write((uint8_t*)i2sBuffer + bytesWritten, 
-                                         (bytesToPlay * sizeof(int16_t)) - bytesWritten);
+      while (bytesWritten < bytesToPlay) {
+        size_t written = i2s_speaker.write(processedChunk.data() + bytesWritten, 
+                                         bytesToPlay - bytesWritten);
         bytesWritten += written;
         
         // Prevent watchdog timeout on large audio files
-        if (bytesWritten == 0) {
+        if (written == 0) {
           vTaskDelay(pdMS_TO_TICKS(1));
         }
       }
@@ -929,12 +901,12 @@
       totalBytesPlayed += bytesToPlay;
       
       // Yield periodically to prevent watchdog timeout
-      if (totalBytesPlayed % 1024 == 0) {
+      if (totalBytesPlayed % 2048 == 0) {
         vTaskDelay(pdMS_TO_TICKS(1));
       }
     }
     
-    logInfo("SPEAKER", "Enhanced audio playback finished - played " + String(totalBytesPlayed) + " bytes");
+    logInfo("SPEAKER", "High-quality PCM audio playback finished - played " + String(totalBytesPlayed) + " bytes");
   }
 
   // Temperature Task

@@ -8,8 +8,8 @@ import 'package:ffmpeg_kit_flutter_new/ffmpeg_kit.dart';
 import 'package:ffmpeg_kit_flutter_new/return_code.dart';
 import 'ble_service.dart';
 
-/// Service that handles text-to-speech by converting text to compressed WAV audio
-/// Optimized for smart glasses with 8kHz A-Law compression
+/// Service that handles text-to-speech by converting text to high-quality WAV audio
+/// Optimized for smart glasses with 16kHz 16-bit PCM for superior audio quality
 class SpeakerService {
   static final SpeakerService _instance = SpeakerService._internal();
   factory SpeakerService() => _instance;
@@ -69,8 +69,8 @@ class SpeakerService {
     debugPrint('BLE transmission disabled');
   }
 
-  /// Convert text to compressed WAV and play it
-  /// Uses 8kHz A-Law compression optimized for smart glasses
+  /// Convert text to high-quality WAV and play it
+  /// Uses 16kHz 16-bit PCM optimized for superior smart glasses audio
   Future<void> speakText(String text, {
     Function()? onStart,
     Function()? onComplete,
@@ -102,7 +102,7 @@ class SpeakerService {
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final fileName = "tts_$timestamp";
 
-      await _synthesizeTextToCompressedWav(processedText, fileName);
+      await _synthesizeTextToHighQualityWav(processedText, fileName);
       
       if (_currentFilePath.isNotEmpty) {
         debugPrint('🔍 BLE Transmission Debug:');
@@ -203,8 +203,8 @@ class SpeakerService {
     }
   }
 
-  /// Convert text to 8kHz A-Law compressed WAV file
-  Future<void> _synthesizeTextToCompressedWav(String text, String fileName) async {
+  /// Convert text to 16kHz 16-bit PCM high-quality WAV file
+  Future<void> _synthesizeTextToHighQualityWav(String text, String fileName) async {
     try {
       // Only Android supported for TTS to file
       if (!Platform.isAndroid) {
@@ -214,10 +214,10 @@ class SpeakerService {
       // Get temporary directory
       Directory tempDir = await getTemporaryDirectory();
       String tempPath = "${tempDir.path}/${fileName}_temp.wav";
-      String finalPath = "${tempDir.path}/${fileName}_alaw.wav";
+      String finalPath = "${tempDir.path}/${fileName}_hq.wav";
 
       debugPrint('Synthesizing TTS to temporary file: $tempPath');
-      debugPrint('Final A-Law file will be: $finalPath');
+      debugPrint('Final high-quality file will be: $finalPath');
 
       // Clean up any existing files first
       File existingTempFile = File(tempPath);
@@ -313,8 +313,8 @@ class SpeakerService {
       // Validate the WAV file header
       await _validateWavFile(tempPath);
 
-      // Convert to A-Law compressed WAV (8kHz, mono, 1 byte per sample)
-      await _convertToAlawWithRetry(tempPath, finalPath);
+      // Convert to high-quality PCM WAV (16kHz, mono, 2 bytes per sample)
+      await _convertToHighQualityWithRetry(tempPath, finalPath);
 
       // Clean up temporary file on success
       if (await tempFile.exists()) {
@@ -328,18 +328,18 @@ class SpeakerService {
     }
   }
 
-  /// Convert WAV to A-Law compressed format (8kHz, mono) - optimized for smart glasses
-  Future<void> _convertToAlawWithRetry(
+  /// Convert WAV to high-quality PCM format (16kHz, mono) - optimized for superior smart glasses audio
+  Future<void> _convertToHighQualityWithRetry(
     String tempPath,
     String finalPath, {
     int maxRetries = 3,
   }) async {
     for (int attempt = 1; attempt <= maxRetries; attempt++) {
-      debugPrint('Converting to A-Law (attempt $attempt/$maxRetries)...');
+      debugPrint('Converting to high-quality PCM (attempt $attempt/$maxRetries)...');
 
-      // A-Law compression only - optimized for smart glasses
-      String ffmpegCommand = '-i $tempPath -ar 8000 -ac 1 -acodec pcm_alaw -y $finalPath';
-      debugPrint('Using A-Law compression (8kHz, mono, optimized for smart glasses)');
+      // High-quality 16-bit PCM - superior audio for smart glasses
+      String ffmpegCommand = '-i $tempPath -ar 16000 -ac 1 -acodec pcm_s16le -y $finalPath';
+      debugPrint('Using 16kHz 16-bit PCM (superior quality for smart glasses)');
       
       debugPrint('FFmpeg command: $ffmpegCommand');
       
@@ -359,25 +359,25 @@ class SpeakerService {
         if (await finalFile.exists()) {
           int fileSize = await finalFile.length();
           
-          // Calculate duration for A-Law format: 1 byte per sample at 8kHz
-          String duration = _calculateDuration(fileSize, 8000, 1, 1);
+          // Calculate duration for 16-bit PCM format: 2 bytes per sample at 16kHz
+          String duration = _calculateDuration(fileSize, 16000, 1, 2);
           
-          debugPrint('✅ A-Law compressed WAV created successfully');
+          debugPrint('✅ High-quality PCM WAV created successfully');
           debugPrint('File size: $fileSize bytes (${(fileSize / 1024).toStringAsFixed(1)} KB)');
           debugPrint('Duration: $duration');
-          debugPrint('Format: 8kHz, A-Law compression, mono - optimized for smart glasses');
+          debugPrint('Format: 16kHz, 16-bit PCM, mono - superior quality for smart glasses');
           
           return; // Success!
         }
       }
 
-      // Handle A-Law conversion failure
+      // Handle high-quality conversion failure
       final logs = await session.getAllLogs();
       final output = await session.getOutput();
       final allLogs = await session.getAllLogsAsString();
       String errorDetails = logs.map((log) => log.getMessage()).join('\n');
       
-      debugPrint('A-Law conversion attempt $attempt failed with return code: $returnCode');
+      debugPrint('High-quality conversion attempt $attempt failed with return code: $returnCode');
       debugPrint('FFmpeg output: $output');
       if (allLogs != null) {
         debugPrint('FFmpeg error logs: ${allLogs.length > 1500 ? allLogs.substring(allLogs.length - 1500) : allLogs}');
@@ -389,28 +389,28 @@ class SpeakerService {
       File outputFile = File(finalPath);
       if (await outputFile.exists()) {
         int outputSize = await outputFile.length();
-        debugPrint('Removing partial A-Law file: $outputSize bytes');
+        debugPrint('Removing partial high-quality file: $outputSize bytes');
         await outputFile.delete();
       }
 
       if (attempt < maxRetries) {
-        debugPrint('Retrying A-Law conversion in ${attempt * 500}ms...');
+        debugPrint('Retrying high-quality conversion in ${attempt * 500}ms...');
         await Future.delayed(Duration(milliseconds: attempt * 500));
       } else {
-        throw Exception('A-Law conversion failed after $maxRetries attempts. Error: $errorDetails');
+        throw Exception('High-quality conversion failed after $maxRetries attempts. Error: $errorDetails');
       }
     }
   }
 
-  /// Calculate audio duration from file size for A-Law format
+  /// Calculate audio duration from file size for PCM format
   String _calculateDuration(
     int fileSize,
     int sampleRate,
     int channels,
     int bytesPerSample,
   ) {
-    // For A-Law: 1 byte per sample, mono channel
-    int totalSamples = fileSize - 44; // Subtract WAV header size
+    // For 16-bit PCM: 2 bytes per sample, mono channel
+    int totalSamples = (fileSize - 44) ~/ bytesPerSample; // Subtract WAV header size and divide by bytes per sample
     double durationSeconds = totalSamples / (sampleRate * channels);
 
     int minutes = (durationSeconds / 60).floor();
@@ -489,7 +489,7 @@ class SpeakerService {
       final files = tempDir.listSync();
       
       for (var file in files) {
-        if (file.path.contains('tts_') && file.path.endsWith('_alaw.wav')) {
+        if (file.path.contains('tts_') && file.path.endsWith('_hq.wav')) {
           await file.delete();
           debugPrint('Cleaned up temp file: ${file.path}');
         }
@@ -520,12 +520,12 @@ class SpeakerService {
       final encodersLogs = await encodersSession.getAllLogsAsString();
       
       if (ReturnCode.isSuccess(encodersReturnCode) && encodersLogs != null) {
-        bool hasAlawEncoder = encodersLogs.contains('pcm_alaw');
-        debugPrint('A-Law encoder available: $hasAlawEncoder');
-        if (hasAlawEncoder) {
-          debugPrint('✅ pcm_alaw encoder is available');
+        bool hasPcmEncoder = encodersLogs.contains('pcm_s16le');
+        debugPrint('16-bit PCM encoder available: $hasPcmEncoder');
+        if (hasPcmEncoder) {
+          debugPrint('✅ pcm_s16le encoder is available');
         } else {
-          debugPrint('❌ pcm_alaw encoder is NOT available');
+          debugPrint('❌ pcm_s16le encoder is NOT available');
         }
       } else {
         debugPrint('Could not check available encoders');
