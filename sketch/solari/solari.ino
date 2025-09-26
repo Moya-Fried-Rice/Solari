@@ -949,12 +949,6 @@
           }
           
           speakerAudioState.playPosition += bytesToPlay;
-          
-          // Minimal streaming progress - only log major milestones
-          if (speakerAudioState.playPosition % 4096 == 0) { // Every 4KB instead of 2KB
-            float playedSeconds = (float)(speakerAudioState.playPosition / 2) / 16000.0;
-            logDebug("STREAM", "🔊 " + String(playedSeconds, 1) + "s played");
-          }
         }
       }
       
