@@ -86,7 +86,7 @@
     size_t expectedAudioSize = 0;
     size_t receivedAudioSize = 0;
     size_t playPosition = 0;
-    size_t streamThreshold = 30720;  // Start playing after 30KB buffer
+    size_t streamThreshold = 61440;  // Start playing after 60KB buffer
     unsigned long audioReceiveStartTime = 0;
     unsigned long lastSampleTime = 0;
     std::vector<uint8_t> audioBuffer;
