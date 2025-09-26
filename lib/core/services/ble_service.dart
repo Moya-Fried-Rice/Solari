@@ -122,8 +122,8 @@ class BleService {
         
         onProgress?.call(totalSent, audioData.length);
         
-        // Small delay between chunks to prevent overwhelming the device
-        await Future.delayed(const Duration(milliseconds: 5));
+        // Minimal delay - Arduino can handle the throughput
+        // await Future.delayed(const Duration(milliseconds: 1));
 
         // Check if device is still connected
         if (_connectedDevice?.isConnected != true) {
