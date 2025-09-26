@@ -199,29 +199,44 @@ class _SolariScreenState extends State<SolariScreen>
 
   Future<void> _speakText(String text) async {
     try {
+      // Play done.wav at the same time as TTS starts speaking
+      final player = AudioPlayer();
+      await player.play(
+        AssetSource('audio/done.wav'),
+        volume: 1.0,
+      );
+
       await _speakerService.speakText(
         text,
         onStart: () {
           if (mounted) {
-            setState(() {}); // Trigger rebuild to update UI
+            setState(() {
+              _isSpeaking = true; // Explicitly track speaking state
+            });
           }
         },
         onComplete: () {
           if (mounted) {
-            setState(() {}); // Trigger rebuild to update UI
+            setState(() {
+              _isSpeaking = false;
+            });
           }
         },
         onError: (error) {
           debugPrint('Error speaking text: $error');
           if (mounted) {
-            setState(() {}); // Trigger rebuild to update UI
+            setState(() {
+              _isSpeaking = false;
+            });
           }
         },
       );
     } catch (e) {
       debugPrint('Error in _speakText: $e');
       if (mounted) {
-        setState(() {}); // Trigger rebuild to update UI
+        setState(() {
+          _isSpeaking = false;
+        });
       }
     }
   }
