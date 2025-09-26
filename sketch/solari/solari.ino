@@ -89,7 +89,7 @@
     unsigned long lastSampleTime = 0;
     std::vector<uint8_t> audioBuffer;
     TaskHandle_t audioPlaybackTaskHandle = nullptr;
-    int16_t amplitude = 20000;  // Volume control
+    int16_t amplitude = 30000;  // Volume control
   };
   SpeakerAudioState speakerAudioState;
 
@@ -539,10 +539,11 @@
       
       // Set the TX pins for I2S speaker output (based on your test_bread_board.ino)
       // Using different pins from microphone to avoid conflicts
-      i2s_speaker.setPins(D1, D0, D2);  // BCLK=D1, LRC=D0, DOUT=D2
-      logDebug("SPEAKER", "I2S TX pins configured: BCLK=1, LRC=0, DOUT=2");
+      i2s_speaker.setPins(D1, D2, D3);  // BCLK=D1, LRC=D0, DOUT=D2
+      logDebug("SPEAKER", "I2S TX pins configured: BCLK=D1, LRC=D0, DOUT=D2");
 
       // Begin I2S in TX mode, mono, 16-bit, 8kHz for A-Law audio
+      // Enhanced configuration for better audio quality
       if (!i2s_speaker.begin(I2S_MODE_STD, 8000, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO)) {
           logError("SPEAKER", "I2S speaker initialization failed!");
           while (true) delay(100);
@@ -565,7 +566,7 @@
       logInfo("BLE", "Initializing Bluetooth LE...");
       
       BLEDevice::init("XIAO_ESP32S3");
-      BLEDevice::setMTU(223);
+      BLEDevice::setMTU(515);
       BLEServer *pServer = BLEDevice::createServer();
       pServer->setCallbacks(new MyServerCallbacks());
 
@@ -872,7 +873,7 @@
     vTaskDelete(NULL);
   }
 
-  // Simple Audio Playback Function (based on reference)
+  // Enhanced Audio Playback Function with Quality Improvements
   void playAudioBuffer() {
     if (speakerAudioState.audioBuffer.size() == 0) {
       logWarn("SPEAKER", "No audio data to play");
@@ -883,14 +884,17 @@
     float duration = (float)audioDataSize / 8000.0;
     logInfo("SPEAKER", "Playing A-Law audio: " + String(duration, 1) + " seconds, " + String(audioDataSize) + " bytes");
     
-    // Process audio in chunks like the reference
-    const size_t chunkSize = 128;
+    // Use larger chunks for smoother playback and less overhead
+    const size_t chunkSize = 256;  // Increased from 128 for better performance
     size_t totalBytesPlayed = 0;
+    
+    // Pre-allocate I2S buffer for better performance
+    int16_t i2sBuffer[chunkSize];
     
     while (totalBytesPlayed < audioDataSize) {
       size_t bytesToPlay = min(chunkSize, audioDataSize - totalBytesPlayed);
       
-      // Convert A-Law compressed samples to 16-bit linear PCM and send to I2S
+      // Batch convert A-Law samples to reduce I2S write calls
       for (size_t i = 0; i < bytesToPlay; i++) {
         // Get A-Law compressed sample from buffer
         uint8_t alawSample = speakerAudioState.audioBuffer[totalBytesPlayed + i];
@@ -898,17 +902,39 @@
         // Decompress A-Law to 16-bit linear PCM using lookup table
         int16_t sample = alaw_table[alawSample];
         
-        // Apply volume control (same as reference)
+        // Apply volume control with better precision
         sample = (int16_t)((int32_t)sample * speakerAudioState.amplitude / 32767);
         
-        // Send to I2S speaker
-        i2s_speaker.write((uint8_t*)&sample, sizeof(int16_t));
+        // Apply simple high-pass filter to reduce DC offset and improve clarity
+        static int16_t lastSample = 0;
+        int16_t filtered = sample - (lastSample >> 4);  // Simple HPF
+        lastSample = sample;
+        
+        i2sBuffer[i] = filtered;
+      }
+      
+      // Send entire chunk to I2S at once for smoother playback
+      size_t bytesWritten = 0;
+      while (bytesWritten < bytesToPlay * sizeof(int16_t)) {
+        size_t written = i2s_speaker.write((uint8_t*)i2sBuffer + bytesWritten, 
+                                         (bytesToPlay * sizeof(int16_t)) - bytesWritten);
+        bytesWritten += written;
+        
+        // Prevent watchdog timeout on large audio files
+        if (bytesWritten == 0) {
+          vTaskDelay(pdMS_TO_TICKS(1));
+        }
       }
       
       totalBytesPlayed += bytesToPlay;
+      
+      // Yield periodically to prevent watchdog timeout
+      if (totalBytesPlayed % 1024 == 0) {
+        vTaskDelay(pdMS_TO_TICKS(1));
+      }
     }
     
-    logInfo("SPEAKER", "Audio playback finished - played " + String(totalBytesPlayed) + " bytes");
+    logInfo("SPEAKER", "Enhanced audio playback finished - played " + String(totalBytesPlayed) + " bytes");
   }
 
   // Temperature Task
@@ -1104,9 +1130,24 @@
         tempMonitoringEnabled = !tempMonitoringEnabled;
         logInfo("CMD", "Temperature monitoring " + String(tempMonitoringEnabled ? "enabled" : "disabled") + " via serial (overheat protection always active)");
       }
+      else if (cmd.startsWith("VOL")) {
+        // Volume control: VOL <number> (0-32767)
+        int spaceIndex = cmd.indexOf(' ');
+        if (spaceIndex > 0) {
+          int newVolume = cmd.substring(spaceIndex + 1).toInt();
+          if (newVolume >= 0 && newVolume <= 32767) {
+            speakerAudioState.amplitude = newVolume;
+            logInfo("CMD", "Speaker volume set to " + String(newVolume));
+          } else {
+            logWarn("CMD", "Volume must be between 0-32767");
+          }
+        } else {
+          logInfo("CMD", "Current volume: " + String(speakerAudioState.amplitude));
+        }
+      }
       else if (cmd.length() > 0) {
         logWarn("CMD", "Unknown serial command: '" + cmd + "'");
-        logInfo("CMD", "Available commands: VQA_START, VQA_STOP, STATUS, DEBUG, TEMP");
+        logInfo("CMD", "Available commands: VQA_START, VQA_STOP, STATUS, DEBUG, TEMP, VOL <0-32767>");
       }
     }
 
