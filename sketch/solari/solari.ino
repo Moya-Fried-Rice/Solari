@@ -10,6 +10,7 @@
   #define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
   #define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
   #define TEMP_CHARACTERISTIC_UUID "00002A6E-0000-1000-8000-00805F9B34FB"
+  #define SPEAKER_CHARACTERISTIC_UUID "12345678-1234-1234-1234-123456789abc"
 
   #define CAPTURE_DEBOUNCE_MS 500
   #define SEND_DELAY_BETWEEN_CHUNKS_MS 15
@@ -49,6 +50,7 @@
   bool systemInitialized = false;
   BLECharacteristic* pCharacteristic;
   BLECharacteristic* pTempCharacteristic;
+  BLECharacteristic* pSpeakerCharacteristic;
   int negotiatedChunkSize = 23;
   I2SClass i2s;
 
@@ -230,6 +232,27 @@
       uint8_t* data = pCharacteristic->getData();
       size_t length = pCharacteristic->getLength();
       
+      // Output raw data to serial for VQA commands
+      Serial.print("VQA BLE Data Received: ");
+      for (size_t i = 0; i < length; i++) {
+        Serial.print("0x");
+        if (data[i] < 16) Serial.print("0");
+        Serial.print(data[i], HEX);
+        Serial.print(" ");
+      }
+      Serial.print("| String: \"");
+      Serial.print(value);
+      Serial.print("\" | Length: ");
+      Serial.println(length);
+    }
+  };
+
+  class MySpeakerCharacteristicCallbacks : public BLECharacteristicCallbacks {
+    void onWrite(BLECharacteristic* pCharacteristic) override {
+      String value = pCharacteristic->getValue().c_str();
+      uint8_t* data = pCharacteristic->getData();
+      size_t length = pCharacteristic->getLength();
+      
       // Handle speaker audio headers
       if (value.startsWith("S_START:")) {
         speakerAudioState.expectedAudioSize = value.substring(8).toInt();
@@ -270,8 +293,10 @@
       
       // Handle binary audio data
       if (speakerAudioState.receivingAudio) {
-        // Append received data to audio buffer (more efficient batch insert)
-        speakerAudioState.audioBuffer.insert(speakerAudioState.audioBuffer.end(), data, data + length);
+        // Append received data to audio buffer
+        for (size_t i = 0; i < length; i++) {
+          speakerAudioState.audioBuffer.push_back(data[i]);
+        }
         speakerAudioState.receivedAudioSize += length;
         
         // Show progress every 1KB using the existing progress logger
@@ -283,8 +308,8 @@
         return;
       }
       
-      // Output raw data to serial for other commands
-      Serial.print("BLE Data Received: ");
+      // Output raw data to serial for debugging
+      Serial.print("Speaker BLE Data Received: ");
       for (size_t i = 0; i < length; i++) {
         Serial.print("0x");
         if (data[i] < 16) Serial.print("0");
@@ -468,12 +493,18 @@
 
       BLEService *pService = pServer->createService(SERVICE_UUID);
 
-      // Service Characteristic
+      // VQA Service Characteristic
       pCharacteristic = pService->createCharacteristic(
           CHARACTERISTIC_UUID,
           BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_NOTIFY
       );
       pCharacteristic->addDescriptor(new BLE2902());
+
+      // Speaker Characteristic
+      pSpeakerCharacteristic = pService->createCharacteristic(
+          SPEAKER_CHARACTERISTIC_UUID,
+          BLECharacteristic::PROPERTY_WRITE_NR
+      );
 
       // Temperature Characteristic
       pTempCharacteristic = pService->createCharacteristic(
@@ -483,6 +514,7 @@
       pTempCharacteristic->addDescriptor(new BLE2902());
 
       pCharacteristic->setCallbacks(new MyCharacteristicCallbacks());
+      pSpeakerCharacteristic->setCallbacks(new MySpeakerCharacteristicCallbacks());
       pService->start();
 
       BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();

@@ -27,12 +27,12 @@ class BleService {
     }
   }
 
-  /// Discover the write characteristic for sending data
+  /// Discover the speaker write characteristic for sending audio data
   Future<void> _discoverWriteCharacteristic() async {
     if (_connectedDevice == null) return;
 
     const serviceUuid = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
-    const characteristicUuid = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
+    const speakerCharacteristicUuid = '12345678-1234-1234-1234-123456789abc';
 
     try {
       List<BluetoothService> services = await _connectedDevice!.discoverServices();
@@ -40,10 +40,10 @@ class BleService {
       for (var service in services) {
         if (service.uuid.toString().toLowerCase() == serviceUuid) {
           for (var characteristic in service.characteristics) {
-            if (characteristic.uuid.toString().toLowerCase() == characteristicUuid &&
+            if (characteristic.uuid.toString().toLowerCase() == speakerCharacteristicUuid &&
                 characteristic.properties.write) {
               _writeCharacteristic = characteristic;
-              debugPrint('Found write characteristic: ${characteristic.uuid}');
+              debugPrint('Found speaker characteristic: ${characteristic.uuid}');
               return;
             }
           }
@@ -51,10 +51,10 @@ class BleService {
       }
       
       if (_writeCharacteristic == null) {
-        throw Exception('Write characteristic not found');
+        throw Exception('Speaker characteristic not found');
       }
     } catch (e) {
-      debugPrint('Error discovering write characteristic: $e');
+      debugPrint('Error discovering speaker characteristic: $e');
       rethrow;
     }
   }
@@ -103,7 +103,7 @@ class BleService {
         int endIndex = (i + chunkSize < audioData.length) ? i + chunkSize : audioData.length;
         Uint8List chunk = audioData.sublist(i, endIndex);
         
-        await _writeCharacteristic!.write(chunk, withoutResponse: true);
+        await _writeCharacteristic!.write(chunk, withoutResponse: false);
         totalSent += chunk.length;
         
         onProgress?.call(totalSent, audioData.length);
