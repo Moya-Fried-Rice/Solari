@@ -5,6 +5,7 @@
   #include "ESP_I2S.h"
   #include "esp_adc_cal.h"
   #include <BLE2902.h>
+  #include <vector>
 
   #define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
   #define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
@@ -71,6 +72,19 @@
     unsigned long streamStartTime = 0;
   };
   VQAState vqaState;
+
+  // ============================================================================
+  // Speaker Audio Globals
+  // ============================================================================
+  struct SpeakerAudioState {
+    bool receivingAudio = false;
+    bool audioLoadingComplete = false;
+    size_t expectedAudioSize = 0;
+    size_t receivedAudioSize = 0;
+    unsigned long audioReceiveStartTime = 0;
+    std::vector<uint8_t> audioBuffer;
+  };
+  SpeakerAudioState speakerAudioState;
 
 
 
@@ -216,7 +230,62 @@
       uint8_t* data = pCharacteristic->getData();
       size_t length = pCharacteristic->getLength();
       
-      // Output raw data to serial
+      // Handle speaker audio headers
+      if (value.startsWith("S_START:")) {
+        speakerAudioState.expectedAudioSize = value.substring(8).toInt();
+        speakerAudioState.receivingAudio = true;
+        speakerAudioState.audioLoadingComplete = false;
+        speakerAudioState.receivedAudioSize = 0;
+        speakerAudioState.audioReceiveStartTime = millis();
+        speakerAudioState.audioBuffer.clear();
+        speakerAudioState.audioBuffer.reserve(speakerAudioState.expectedAudioSize);
+        
+        logInfo("SPEAKER", "Audio loading started - Expected size: " + String(speakerAudioState.expectedAudioSize) + " bytes");
+        
+        // Turn on LED to indicate loading
+        digitalWrite(led_pin, HIGH);
+        ledState = true;
+        return;
+      }
+      
+      if (value.startsWith("S_END")) {
+        speakerAudioState.receivingAudio = false;
+        speakerAudioState.audioLoadingComplete = true;
+        
+        unsigned long loadTime = millis() - speakerAudioState.audioReceiveStartTime;
+        float loadRate = (speakerAudioState.receivedAudioSize / 1024.0) / (loadTime / 1000.0);
+        
+        logInfo("SPEAKER", "Audio loading complete - Received: " + String(speakerAudioState.receivedAudioSize) + 
+                " bytes in " + String(loadTime) + "ms (" + String(loadRate, 1) + " KB/s)");
+        
+        // Turn off LED - loading complete
+        digitalWrite(led_pin, LOW);
+        ledState = false;
+        
+        // TODO: Process the received audio data here
+        // For now, just show completion message
+        logInfo("SPEAKER", "Audio ready for processing (not implemented yet)");
+        return;
+      }
+      
+      // Handle binary audio data
+      if (speakerAudioState.receivingAudio) {
+        // Append received data to audio buffer
+        for (size_t i = 0; i < length; i++) {
+          speakerAudioState.audioBuffer.push_back(data[i]);
+        }
+        speakerAudioState.receivedAudioSize += length;
+        
+        // Show progress every 1KB using the existing progress logger
+        if (speakerAudioState.receivedAudioSize % 1024 == 0 || 
+            speakerAudioState.receivedAudioSize >= speakerAudioState.expectedAudioSize) {
+          logProgressRate("SPEAKER", speakerAudioState.receivedAudioSize, 
+                         speakerAudioState.expectedAudioSize, speakerAudioState.audioReceiveStartTime);
+        }
+        return;
+      }
+      
+      // Output raw data to serial for other commands
       Serial.print("BLE Data Received: ");
       for (size_t i = 0; i < length; i++) {
         Serial.print("0x");
@@ -869,6 +938,11 @@
         logInfo("SYS", "VQA running: " + String(vqaState.isRunning ? "Yes" : "No"));
         logInfo("SYS", "Temperature monitoring: " + String(tempMonitoringEnabled ? "Enabled" : "Disabled"));
         logInfo("SYS", "Chunk size: " + String(negotiatedChunkSize) + " bytes");
+        logInfo("SPEAKER", "Audio receiving: " + String(speakerAudioState.receivingAudio ? "Yes" : "No"));
+        logInfo("SPEAKER", "Audio loaded: " + String(speakerAudioState.audioLoadingComplete ? "Yes" : "No"));
+        if (speakerAudioState.audioLoadingComplete) {
+          logInfo("SPEAKER", "Audio buffer size: " + String(speakerAudioState.audioBuffer.size()) + " bytes");
+        }
         logMemory("SYS");
       }
       else if (cmd == "DEBUG") {

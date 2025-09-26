@@ -1,10 +1,12 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:ffmpeg_kit_flutter_new/ffmpeg_kit.dart';
 import 'package:ffmpeg_kit_flutter_new/return_code.dart';
+import 'ble_service.dart';
 
 /// Service that handles text-to-speech by converting text to compressed WAV audio
 /// Optimized for smart glasses with 8kHz A-Law compression
@@ -15,10 +17,12 @@ class SpeakerService {
 
   final FlutterTts _flutterTts = FlutterTts();
   final AudioPlayer _audioPlayer = AudioPlayer();
+  final BleService _bleService = BleService();
   
   bool _isInitialized = false;
   bool _isSpeaking = false;
   String _currentFilePath = "";
+  bool _useBleTransmission = false;
 
   /// Initialize the TTS engine
   Future<void> initialize() async {
@@ -44,6 +48,26 @@ class SpeakerService {
 
   /// Get current speaking status
   bool get isSpeaking => _isSpeaking;
+
+  /// Enable BLE transmission mode (sends audio to connected BLE device)
+  Future<void> enableBleTransmission(dynamic bleDevice) async {
+    try {
+      await _bleService.initialize(bleDevice);
+      _useBleTransmission = true;
+      debugPrint('BLE transmission enabled');
+    } catch (e) {
+      debugPrint('Error enabling BLE transmission: $e');
+      _useBleTransmission = false;
+      throw Exception('Failed to enable BLE transmission: $e');
+    }
+  }
+
+  /// Disable BLE transmission mode (reverts to local audio playback)
+  void disableBleTransmission() {
+    _useBleTransmission = false;
+    _bleService.dispose();
+    debugPrint('BLE transmission disabled');
+  }
 
   /// Convert text to compressed WAV and play it
   /// Uses 8kHz A-Law compression optimized for smart glasses
@@ -81,7 +105,12 @@ class SpeakerService {
       await _synthesizeTextToCompressedWav(processedText, fileName);
       
       if (_currentFilePath.isNotEmpty) {
-        await _playCompressedAudio();
+        if (_useBleTransmission && _bleService.isReady) {
+          await _sendAudioViaBle();
+          // await _playCompressedAudio();
+        } else {
+          await _playCompressedAudio();
+        }
         onComplete?.call();
       }
     } catch (e) {
@@ -389,6 +418,47 @@ class SpeakerService {
     }
   }
 
+  /// Send the compressed audio file to BLE device
+  Future<void> _sendAudioViaBle() async {
+    if (_currentFilePath.isEmpty) {
+      throw Exception('No audio file to send');
+    }
+
+    try {
+      debugPrint('Sending compressed audio via BLE: $_currentFilePath');
+      
+      // Read the audio file as bytes
+      File audioFile = File(_currentFilePath);
+      if (!await audioFile.exists()) {
+        throw Exception('Audio file does not exist: $_currentFilePath');
+      }
+
+      Uint8List audioData = await audioFile.readAsBytes();
+      debugPrint('Audio file loaded: ${audioData.length} bytes');
+
+      // Send audio data via BLE
+      await _bleService.sendAudioData(
+        audioData,
+        onStart: () {
+          debugPrint('Started BLE audio transmission');
+        },
+        onProgress: (sent, total) {
+          int percent = ((sent * 100) / total).round();
+          debugPrint('BLE audio transmission progress: $percent% ($sent/$total bytes)');
+        },
+        onComplete: () {
+          debugPrint('BLE audio transmission complete');
+        },
+        onError: (error) {
+          debugPrint('BLE audio transmission error: $error');
+        },
+      );
+    } catch (e) {
+      debugPrint('Error sending audio via BLE: $e');
+      rethrow;
+    }
+  }
+
   /// Play the compressed audio file
   Future<void> _playCompressedAudio() async {
     if (_currentFilePath.isEmpty) {
@@ -463,6 +533,7 @@ class SpeakerService {
     await stopSpeaking();
     await _audioPlayer.dispose();
     await cleanupTempFiles();
+    _bleService.dispose();
     _isInitialized = false;
     debugPrint('SpeakerService disposed');
   }

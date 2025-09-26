@@ -184,6 +184,12 @@ class _SolariScreenState extends State<SolariScreen>
       await _speakerService.initialize();
       debugPrint('Speaker service initialized successfully');
       
+      // Enable BLE transmission if not in mock mode
+      if (!widget.isMock) {
+        await _speakerService.enableBleTransmission(widget.device);
+        debugPrint('BLE transmission enabled for speaker service');
+      }
+      
       // Test FFmpeg to debug issues
       await _speakerService.testFFmpeg();
     } catch (e) {
