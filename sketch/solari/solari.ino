@@ -81,12 +81,56 @@
   struct SpeakerAudioState {
     bool receivingAudio = false;
     bool audioLoadingComplete = false;
+    bool isPlaying = false;
     size_t expectedAudioSize = 0;
     size_t receivedAudioSize = 0;
+    size_t playPosition = 0;
     unsigned long audioReceiveStartTime = 0;
+    unsigned long lastSampleTime = 0;
     std::vector<uint8_t> audioBuffer;
+    TaskHandle_t audioPlaybackTaskHandle = nullptr;
+    int16_t amplitude = 20000;  // Volume control
   };
   SpeakerAudioState speakerAudioState;
+
+  // A-Law decompression lookup table for real-time audio streaming
+  static const int16_t alaw_table[256] = {
+    -5504, -5248, -6016, -5760, -4480, -4224, -4992, -4736,
+    -7552, -7296, -8064, -7808, -6528, -6272, -7040, -6784,
+    -2752, -2624, -3008, -2880, -2240, -2112, -2496, -2368,
+    -3776, -3648, -4032, -3904, -3264, -3136, -3520, -3392,
+    -22016, -20992, -24064, -23040, -17920, -16896, -19968, -18944,
+    -30208, -29184, -32256, -31232, -26112, -25088, -28160, -27136,
+    -11008, -10496, -12032, -11520, -8960, -8448, -9984, -9472,
+    -15104, -14592, -16128, -15616, -13056, -12544, -14080, -13568,
+    -344, -328, -376, -360, -280, -264, -312, -296,
+    -472, -456, -504, -488, -408, -392, -440, -424,
+    -88, -72, -120, -104, -24, -8, -56, -40,
+    -216, -200, -248, -232, -152, -136, -184, -168,
+    -1376, -1312, -1504, -1440, -1120, -1056, -1248, -1184,
+    -1888, -1824, -2016, -1952, -1632, -1568, -1760, -1696,
+    -688, -656, -752, -720, -560, -528, -624, -592,
+    -944, -912, -1008, -976, -816, -784, -880, -848,
+    5504, 5248, 6016, 5760, 4480, 4224, 4992, 4736,
+    7552, 7296, 8064, 7808, 6528, 6272, 7040, 6784,
+    2752, 2624, 3008, 2880, 2240, 2112, 2496, 2368,
+    3776, 3648, 4032, 3904, 3264, 3136, 3520, 3392,
+    22016, 20992, 24064, 23040, 17920, 16896, 19968, 18944,
+    30208, 29184, 32256, 31232, 26112, 25088, 28160, 27136,
+    11008, 10496, 12032, 11520, 8960, 8448, 9984, 9472,
+    15104, 14592, 16128, 15616, 13056, 12544, 14080, 13568,
+    344, 328, 376, 360, 280, 264, 312, 296,
+    472, 456, 504, 488, 408, 392, 440, 424,
+    88, 72, 120, 104, 24, 8, 56, 40,
+    216, 200, 248, 232, 152, 136, 184, 168,
+    1376, 1312, 1504, 1440, 1120, 1056, 1248, 1184,
+    1888, 1824, 2016, 1952, 1632, 1568, 1760, 1696,
+    688, 656, 752, 720, 560, 528, 624, 592,
+    944, 912, 1008, 976, 816, 784, 880, 848
+  };
+
+  // I2S instance for speaker output (separate from microphone I2S)
+  I2SClass i2s_speaker;
 
 
 
@@ -259,15 +303,35 @@
         speakerAudioState.receivingAudio = true;
         speakerAudioState.audioLoadingComplete = false;
         speakerAudioState.receivedAudioSize = 0;
+        speakerAudioState.playPosition = 0;
+        speakerAudioState.isPlaying = false;
         speakerAudioState.audioReceiveStartTime = millis();
         speakerAudioState.audioBuffer.clear();
         speakerAudioState.audioBuffer.reserve(speakerAudioState.expectedAudioSize);
         
-        logInfo("SPEAKER", "Audio loading started - Expected size: " + String(speakerAudioState.expectedAudioSize) + " bytes");
+        logInfo("SPEAKER", "Audio streaming started - Expected size: " + String(speakerAudioState.expectedAudioSize) + " bytes");
         
-        // Turn on LED to indicate loading
+        // Turn on LED to indicate audio streaming
         digitalWrite(led_pin, HIGH);
         ledState = true;
+        
+        // Start real-time audio playback task
+        if (speakerAudioState.audioPlaybackTaskHandle == nullptr) {
+          BaseType_t result = xTaskCreatePinnedToCore(
+            audioPlaybackTask, 
+            "AudioPlaybackTask", 
+            8192, 
+            nullptr, 
+            2, // Higher priority for real-time audio
+            &speakerAudioState.audioPlaybackTaskHandle, 
+            1  // Core 1
+          );
+          if (result == pdPASS) {
+            logInfo("SPEAKER", "Real-time audio playback task created");
+          } else {
+            logError("SPEAKER", "Failed to create audio playback task");
+          }
+        }
         return;
       }
       
@@ -278,16 +342,11 @@
         unsigned long loadTime = millis() - speakerAudioState.audioReceiveStartTime;
         float loadRate = (speakerAudioState.receivedAudioSize / 1024.0) / (loadTime / 1000.0);
         
-        logInfo("SPEAKER", "Audio loading complete - Received: " + String(speakerAudioState.receivedAudioSize) + 
+        logInfo("SPEAKER", "Audio streaming complete - Received: " + String(speakerAudioState.receivedAudioSize) + 
                 " bytes in " + String(loadTime) + "ms (" + String(loadRate, 1) + " KB/s)");
         
-        // Turn off LED - loading complete
-        digitalWrite(led_pin, LOW);
-        ledState = false;
-        
-        // TODO: Process the received audio data here
-        // For now, just show completion message
-        logInfo("SPEAKER", "Audio ready for processing (not implemented yet)");
+        // LED will turn off when playback completes
+        logInfo("SPEAKER", "Real-time playback will continue until all samples are played");
         return;
       }
       
@@ -337,6 +396,9 @@
     // Initialize Microphone
     initMicrophone();
 
+    // Initialize Speaker
+    initSpeaker();
+
     systemInitialized = true;
     logInfo("SYS", "========================== System initialization complete ==========================");
     Serial.println();
@@ -376,9 +438,28 @@
     esp_camera_deinit();
     logInfo("SYS", "Camera deinitialized");
     
-    // Stop I2S (microphone)
+    // Clean up audio playback task if running
+    if (speakerAudioState.audioPlaybackTaskHandle) {
+      speakerAudioState.isPlaying = false;
+      vTaskDelay(pdMS_TO_TICKS(100)); // Give time for graceful stop
+      if (speakerAudioState.audioPlaybackTaskHandle) {
+        vTaskDelete(speakerAudioState.audioPlaybackTaskHandle);
+        speakerAudioState.audioPlaybackTaskHandle = nullptr;
+      }
+      logInfo("SYS", "Audio playback task deleted");
+    }
+    
+    // Reset speaker audio state
+    speakerAudioState.receivingAudio = false;
+    speakerAudioState.audioLoadingComplete = false;
+    speakerAudioState.isPlaying = false;
+    speakerAudioState.playPosition = 0;
+    speakerAudioState.audioBuffer.clear();
+    
+    // Stop I2S (microphone and speaker)
     i2s.end();
-    logInfo("SYS", "Microphone deinitialized");
+    i2s_speaker.end();
+    logInfo("SYS", "Microphone and speaker deinitialized");
     
     systemInitialized = false;
     logInfo("SYS", "========================== System cleanup complete ==========================");
@@ -469,6 +550,28 @@
       
       logInfo("MIC", "Microphone ready");
       logMemory("MIC");
+  }
+
+  // ============================================================================
+  // Setup Speaker / I2S Output
+  // ============================================================================
+
+  void initSpeaker() {
+      logInfo("SPEAKER", "Initializing speaker output...");
+      
+      // Set the TX pins for I2S speaker output (based on your test_bread_board.ino)
+      // Using different pins from microphone to avoid conflicts
+      i2s_speaker.setPins(1, 0, 2);  // BCLK=D1, LRC=D0, DOUT=D2
+      logDebug("SPEAKER", "I2S TX pins configured: BCLK=1, LRC=0, DOUT=2");
+
+      // Begin I2S in TX mode, mono, 16-bit, 8kHz for A-Law audio
+      if (!i2s_speaker.begin(I2S_MODE_STD, 8000, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO)) {
+          logError("SPEAKER", "I2S speaker initialization failed!");
+          while (true) delay(100);
+      }
+      
+      logInfo("SPEAKER", "Speaker ready - 8kHz, 16-bit, mono");
+      logMemory("SPEAKER");
   }
 
 
@@ -791,6 +894,76 @@
     vTaskDelete(NULL);
   }
 
+  // Real-time Audio Playback Task
+  void audioPlaybackTask(void *param) {
+    logInfo("AUDIO-PLAYBACK", "Audio playback task started");
+    
+    // Wait for sufficient buffer (500ms worth of data = 4000 bytes at 8kHz)
+    const size_t bufferThreshold = 4000;
+    
+    while (speakerAudioState.receivingAudio && speakerAudioState.audioBuffer.size() < bufferThreshold) {
+      vTaskDelay(pdMS_TO_TICKS(50)); // Wait for more data
+    }
+    
+    if (!speakerAudioState.receivingAudio && speakerAudioState.audioBuffer.size() < bufferThreshold) {
+      logWarn("AUDIO-PLAYBACK", "Insufficient audio data for playback");
+      speakerAudioState.audioPlaybackTaskHandle = nullptr;
+      vTaskDelete(NULL);
+      return;
+    }
+    
+    speakerAudioState.isPlaying = true;
+    speakerAudioState.playPosition = 0;
+    speakerAudioState.lastSampleTime = micros();
+    
+    logInfo("AUDIO-PLAYBACK", "Starting real-time playback");
+    
+    // 8kHz = 125 microseconds per sample
+    const unsigned long sampleInterval = 125;
+    
+    while (speakerAudioState.isPlaying) {
+      unsigned long now = micros();
+      
+      // Check if it's time for the next sample
+      if (now - speakerAudioState.lastSampleTime >= sampleInterval) {
+        // Check if we have data to play
+        if (speakerAudioState.playPosition < speakerAudioState.audioBuffer.size()) {
+          // Get A-Law compressed sample
+          uint8_t alawSample = speakerAudioState.audioBuffer[speakerAudioState.playPosition];
+          
+          // Decompress A-Law to 16-bit linear PCM using lookup table
+          int16_t sample = alaw_table[alawSample];
+          
+          // Apply volume control
+          sample = (int16_t)((int32_t)sample * speakerAudioState.amplitude / 32767);
+          
+          // Send to I2S speaker
+          i2s_speaker.write((uint8_t*)&sample, sizeof(int16_t));
+          
+          speakerAudioState.playPosition++;
+          speakerAudioState.lastSampleTime = now;
+          
+        } else if (!speakerAudioState.receivingAudio) {
+          // No more data and not receiving - playback complete
+          break;
+        } else {
+          // Waiting for more data - small delay
+          vTaskDelay(pdMS_TO_TICKS(1));
+        }
+      } else {
+        // Not time for next sample yet - yield CPU
+        vTaskDelay(pdMS_TO_TICKS(1));
+      }
+    }
+    
+    speakerAudioState.isPlaying = false;
+    logInfo("AUDIO-PLAYBACK", "Playback complete - played " + String(speakerAudioState.playPosition) + " samples");
+    
+    // Task cleanup
+    speakerAudioState.audioPlaybackTaskHandle = nullptr;
+    vTaskDelete(NULL);
+  }
+
   // Temperature Task
   void temperatureTask(void *param) {
     while (true) {
@@ -966,9 +1139,13 @@
         logInfo("SYS", "Temperature monitoring: " + String(tempMonitoringEnabled ? "Enabled" : "Disabled"));
         logInfo("SYS", "Chunk size: " + String(negotiatedChunkSize) + " bytes");
         logInfo("SPEAKER", "Audio receiving: " + String(speakerAudioState.receivingAudio ? "Yes" : "No"));
+        logInfo("SPEAKER", "Audio playing: " + String(speakerAudioState.isPlaying ? "Yes" : "No"));
         logInfo("SPEAKER", "Audio loaded: " + String(speakerAudioState.audioLoadingComplete ? "Yes" : "No"));
-        if (speakerAudioState.audioLoadingComplete) {
-          logInfo("SPEAKER", "Audio buffer size: " + String(speakerAudioState.audioBuffer.size()) + " bytes");
+        if (speakerAudioState.audioBuffer.size() > 0) {
+          logInfo("SPEAKER", "Audio buffer: " + String(speakerAudioState.audioBuffer.size()) + " bytes");
+          logInfo("SPEAKER", "Play position: " + String(speakerAudioState.playPosition) + " samples");
+          float progress = (float)speakerAudioState.playPosition / speakerAudioState.audioBuffer.size() * 100;
+          logInfo("SPEAKER", "Playback progress: " + String(progress, 1) + "%");
         }
         logMemory("SYS");
       }
