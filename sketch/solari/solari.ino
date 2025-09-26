@@ -86,12 +86,12 @@
     size_t expectedAudioSize = 0;
     size_t receivedAudioSize = 0;
     size_t playPosition = 0;
-    size_t streamThreshold = 46080;  // Start playing after 45KB buffer
+    size_t streamThreshold = 61440;  // Start playing after 60KB buffer
     unsigned long audioReceiveStartTime = 0;
     unsigned long lastSampleTime = 0;
     std::vector<uint8_t> audioBuffer;
     TaskHandle_t audioPlaybackTaskHandle = nullptr;
-    int16_t amplitude = 30000;  // Volume control
+    int16_t amplitude = 32767;  // Volume control
   };
   SpeakerAudioState speakerAudioState;
 
