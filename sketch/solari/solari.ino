@@ -86,7 +86,7 @@
     size_t expectedAudioSize = 0;
     size_t receivedAudioSize = 0;
     size_t playPosition = 0;
-    size_t streamThreshold = 61440;  // Start playing after 60KB buffer
+    size_t streamThreshold = 46080;  // Start playing after 45KB buffer
     unsigned long audioReceiveStartTime = 0;
     unsigned long lastSampleTime = 0;
     std::vector<uint8_t> audioBuffer;
@@ -898,6 +898,12 @@
     const size_t chunkSize = 512;  // Process in 512-byte chunks for 16kHz PCM
     const unsigned long targetDelayMs = 16;  // ~16ms between chunks for smooth playback
     
+    // Anti-click: Send silence first to initialize I2S cleanly
+    const size_t silenceSize = 64;  // Small silence buffer
+    uint8_t silenceBuffer[silenceSize] = {0};  // Zero-filled silence
+    i2s_speaker.write(silenceBuffer, silenceSize);
+    vTaskDelay(pdMS_TO_TICKS(10));  // Brief pause
+    
     while (true) {
       // Check if we have enough data to play
       size_t availableData = speakerAudioState.receivedAudioSize - speakerAudioState.playPosition;
@@ -916,6 +922,11 @@
           // Process and play chunk with volume control and filtering
           std::vector<uint8_t> processedChunk(bytesToPlay);
           
+          // Anti-click: Volume ramp for first few chunks
+          static bool isFirstChunk = true;
+          static int rampCounter = 0;
+          const int rampChunks = 5;  // Ramp over 5 chunks (~80ms)
+          
           for (size_t i = 0; i < bytesToPlay; i += 2) {
             size_t bufferIndex = speakerAudioState.playPosition + i;
             
@@ -924,16 +935,28 @@
                             (speakerAudioState.audioBuffer[bufferIndex + 1] << 8);
             
             // Apply volume control
-            sample = (int16_t)((int32_t)sample * speakerAudioState.amplitude / 32767);
+            int32_t adjustedAmplitude = speakerAudioState.amplitude;
             
-            // Apply simple high-pass filter
+            // Anti-click: Gradual volume ramp for smooth start
+            if (rampCounter < rampChunks) {
+              adjustedAmplitude = (adjustedAmplitude * (rampCounter + 1)) / rampChunks;
+            }
+            
+            sample = (int16_t)((int32_t)sample * adjustedAmplitude / 32767);
+            
+            // Apply simple high-pass filter to reduce DC offset and clicks
             static int16_t lastSample = 0;
-            int16_t filtered = sample - (lastSample >> 4);
+            int16_t filtered = sample - (lastSample >> 4);  // Simple HPF
             lastSample = sample;
             
             // Store back as little-endian
             processedChunk[i] = filtered & 0xFF;
             processedChunk[i + 1] = (filtered >> 8) & 0xFF;
+          }
+          
+          // Increment ramp counter
+          if (rampCounter < rampChunks) {
+            rampCounter++;
           }
           
           // Send chunk to I2S
@@ -991,9 +1014,17 @@
     float duration = (float)(audioDataSize / 2) / 16000.0;
     logInfo("SPEAKER", "Playing 16-bit PCM audio: " + String(duration, 1) + " seconds, " + String(audioDataSize) + " bytes");
     
+    // Anti-click: Send silence first to initialize I2S cleanly
+    const size_t silenceSize = 64;
+    uint8_t silenceBuffer[silenceSize] = {0};
+    i2s_speaker.write(silenceBuffer, silenceSize);
+    vTaskDelay(pdMS_TO_TICKS(5));
+    
     // Use larger chunks for smoother playback at higher quality
     const size_t chunkSize = 512;  // Increased for 16kHz data rate
     size_t totalBytesPlayed = 0;
+    const int rampChunks = 3;  // Ramp over 3 chunks for quick start
+    int chunkCounter = 0;
     
     while (totalBytesPlayed < audioDataSize) {
       size_t bytesToPlay = min(chunkSize, audioDataSize - totalBytesPlayed);
@@ -1012,10 +1043,15 @@
         int16_t sample = speakerAudioState.audioBuffer[totalBytesPlayed + i] | 
                         (speakerAudioState.audioBuffer[totalBytesPlayed + i + 1] << 8);
         
-        // Apply volume control with better precision
-        sample = (int16_t)((int32_t)sample * speakerAudioState.amplitude / 32767);
+        // Apply volume control with anti-click ramping
+        int32_t adjustedAmplitude = speakerAudioState.amplitude;
+        if (chunkCounter < rampChunks) {
+          adjustedAmplitude = (adjustedAmplitude * (chunkCounter + 1)) / rampChunks;
+        }
         
-        // Apply simple high-pass filter to reduce DC offset and improve clarity
+        sample = (int16_t)((int32_t)sample * adjustedAmplitude / 32767);
+        
+        // Apply simple high-pass filter to reduce DC offset and clicks
         static int16_t lastSample = 0;
         int16_t filtered = sample - (lastSample >> 4);  // Simple HPF
         lastSample = sample;
@@ -1024,6 +1060,8 @@
         processedChunk[i] = filtered & 0xFF;
         processedChunk[i + 1] = (filtered >> 8) & 0xFF;
       }
+      
+      chunkCounter++;
       
       // Send entire chunk to I2S at once for smoother playback
       size_t bytesWritten = 0;
