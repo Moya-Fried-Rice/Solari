@@ -561,7 +561,7 @@
       
       // Set the TX pins for I2S speaker output (based on your test_bread_board.ino)
       // Using different pins from microphone to avoid conflicts
-      i2s_speaker.setPins(1, 0, 2);  // BCLK=D1, LRC=D0, DOUT=D2
+      i2s_speaker.setPins(D1, D0, D2);  // BCLK=D1, LRC=D0, DOUT=D2
       logDebug("SPEAKER", "I2S TX pins configured: BCLK=1, LRC=0, DOUT=2");
 
       // Begin I2S in TX mode, mono, 16-bit, 8kHz for A-Law audio
