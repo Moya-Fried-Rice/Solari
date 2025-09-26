@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:audioplayers/audioplayers.dart';
 
 class SolariTab extends StatelessWidget {
   final double? temperature;
@@ -33,7 +34,7 @@ class SolariTab extends StatelessWidget {
                 final width = constraints.maxWidth;
                 return SizedBox(
                   width: width,
-                  height: 240,
+                  height: 360, // Increased height for more noticeable sound wave
                   child: (downloadingModel && (downloadProgress ?? 0) < 1.0)
                       ? _DonutProgress(progress: downloadProgress, size: width, color: theme.primaryColor)
                       : AnimatedSoundWave(speaking: speaking, processing: processing, color: theme.primaryColor),
@@ -97,7 +98,7 @@ class _DonutProgress extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: size,
-      height: 240,
+      height: 360,
       child: Stack(
         alignment: Alignment.center,
         children: [
@@ -133,6 +134,35 @@ class AnimatedSoundWave extends StatefulWidget {
 }
 
 class AnimatedSoundWaveState extends State<AnimatedSoundWave> with SingleTickerProviderStateMixin {
+  static const _processingAudio = 'assets/audio/solari_processing.wav';
+  AudioPlayer? _processingPlayer;
+
+  @override
+  void didUpdateWidget(covariant AnimatedSoundWave oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Start looping processing audio only when processing and not speaking
+    if (widget.processing && !widget.speaking && (!oldWidget.processing || oldWidget.speaking)) {
+      _processingPlayer?.stop();
+      _processingPlayer?.dispose();
+      _processingPlayer = AudioPlayer();
+      _processingPlayer!.setReleaseMode(ReleaseMode.loop);
+      _processingPlayer!.play(
+        AssetSource(_processingAudio.replaceFirst('assets/', '')),
+        volume: 1.0,
+      );
+    }
+    // Stop processing audio when processing ends or speaking starts
+    if ((!widget.processing && oldWidget.processing) || (widget.speaking && !oldWidget.speaking)) {
+      _processingPlayer?.stop();
+      _processingPlayer?.dispose();
+      _processingPlayer = null;
+    }
+    if ((widget.speaking || widget.processing) && !_controller.isAnimating) {
+      _controller.repeat();
+    } else if (!widget.speaking && !widget.processing && _controller.isAnimating) {
+      _controller.stop();
+    }
+  }
   late AnimationController _controller;
 
   @override
@@ -148,43 +178,61 @@ class AnimatedSoundWaveState extends State<AnimatedSoundWave> with SingleTickerP
   }
 
   @override
-  void didUpdateWidget(covariant AnimatedSoundWave oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if ((widget.speaking || widget.processing) && !_controller.isAnimating) {
-      _controller.repeat();
-    } else if (!widget.speaking && !widget.processing && _controller.isAnimating) {
-      _controller.stop();
-    }
-  }
-
-  @override
   void dispose() {
+  _processingPlayer?.stop();
+  _processingPlayer?.dispose();
+  _processingPlayer = null;
     _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        double progress = 0.0;
-        bool flat = false;
-        if (widget.speaking) {
-          progress = _controller.value;
-          flat = false;
-        } else if (widget.processing) {
-          progress = _controller.value * 0.25; // subtle, slow movement
-          flat = false;
-        } else {
-          progress = 0.0;
-          flat = true;
-        }
-        return CustomPaint(
-          painter: SoundWavePainter(progress, flat: flat, color: widget.color),
-        );
-      },
-    );
+    if (widget.processing && !widget.speaking) {
+      // Show pulsing sphere while processing and not speaking
+      return AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          double scale = 1.1 + 0.3 * math.sin(_controller.value * 2 * math.pi); // Larger and more pronounced
+          return Center(
+            child: Container(
+              width: 160 * scale,
+              height: 160 * scale,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: widget.color.withOpacity(0.4),
+                boxShadow: [
+                  BoxShadow(
+                    color: widget.color.withOpacity(0.7),
+                    blurRadius: 24 * scale,
+                    spreadRadius: 5 * scale,
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    } else {
+      // Show animated sound waves
+      return AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          double progress = 0.0;
+          bool flat = false;
+          if (widget.speaking) {
+            progress = _controller.value;
+            flat = false;
+          } else {
+            progress = 0.0;
+            flat = true;
+          }
+          return CustomPaint(
+            painter: SoundWavePainter(progress, flat: flat, color: widget.color),
+          );
+        },
+      );
+    }
   }
 }
 
@@ -202,19 +250,20 @@ class SoundWavePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 4.0
-      ..strokeCap = StrokeCap.round;
+      final paint = Paint()
+        ..color = color
+        ..strokeWidth = 20.0
+        ..strokeCap = StrokeCap.round;
 
     final midY = size.height / 2;
-    final waveCount = 32;
-    final amplitude = flat ? 0.0 : size.height * 0.4;
+      final waveCount = 10;
+  final amplitude = flat ? 0.0 : size.height * 0.4;
     final phase = progress * 2 * math.pi;
 
+    final barAreaWidth = size.width * 0.7;
+    final startX = (size.width - barAreaWidth) / 2;
     for (int i = 0; i < waveCount; i++) {
-      final x = i * (size.width / (waveCount - 1));
-      // vary phase across the bars so it looks like a flowing wave
+      final x = startX + i * (barAreaWidth / (waveCount - 1));
       final yOffset = math.sin(phase + i * 0.5) * amplitude;
       final y = midY + yOffset;
       canvas.drawLine(Offset(x, midY), Offset(x, y), paint);

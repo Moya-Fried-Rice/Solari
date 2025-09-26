@@ -107,6 +107,7 @@ class _HistoryTabState extends State<HistoryTab>
                                           style: TextStyle(
                                             fontSize: theme.fontSize * 0.85,
                                             color: theme.primaryColor,
+                                            fontWeight: FontWeight.bold,
                                           ),
                                         ),
                                         TextSpan(

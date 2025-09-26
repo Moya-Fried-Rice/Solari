@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:image_picker/image_picker.dart';
 
 // Providers
@@ -193,6 +194,12 @@ class _SolariScreenState extends State<SolariScreen>
       setState(() {
         _isSpeaking = true;
       });
+      // Play done.wav at the same time as TTS starts speaking
+      final player = AudioPlayer();
+      await player.play(
+        AssetSource('audio/done.wav'),
+        volume: 1.0,
+      );
       await _flutterTts.speak(text);
       // Optionally, listen for completion
       _flutterTts.setCompletionHandler(() {
