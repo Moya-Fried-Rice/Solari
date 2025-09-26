@@ -86,7 +86,7 @@
     size_t expectedAudioSize = 0;
     size_t receivedAudioSize = 0;
     size_t playPosition = 0;
-    size_t streamThreshold = 1024;  // Start playing after 1KB buffer
+    size_t streamThreshold = 30720;  // Start playing after 30KB buffer
     unsigned long audioReceiveStartTime = 0;
     unsigned long lastSampleTime = 0;
     std::vector<uint8_t> audioBuffer;
@@ -299,21 +299,21 @@
         unsigned long loadTime = millis() - speakerAudioState.audioReceiveStartTime;
         float loadRate = (speakerAudioState.receivedAudioSize / 1024.0) / (loadTime / 1000.0);
         
-        logInfo("SPEAKER", "Audio streaming complete - Received: " + String(speakerAudioState.receivedAudioSize) + 
-                " bytes in " + String(loadTime) + "ms (" + String(loadRate, 1) + " KB/s)");
+        logInfo("SPEAKER", "📥 Reception complete - " + String(speakerAudioState.receivedAudioSize/1024.0, 1) + 
+                "KB in " + String(loadTime) + "ms (" + String(loadRate, 1) + "KB/s)");
         
         if (!speakerAudioState.isPlaying) {
           // If streaming didn't start (very small audio), play normally
-          logInfo("SPEAKER", "Starting high-quality PCM audio playback...");
+          logInfo("SPEAKER", "🔊 Playing small audio file...");
           playAudioBuffer();
           
           // Turn off LED after playback completes
           digitalWrite(led_pin, LOW);
           ledState = false;
           
-          logInfo("SPEAKER", "Audio playback complete");
+          logInfo("SPEAKER", "✅ Playback complete");
         } else {
-          logInfo("SPEAKER", "Audio transmission complete, streaming will finish automatically");
+          logInfo("SPEAKER", "📡▶️ Transmission complete, streaming continues...");
         }
         return;
       }
@@ -329,8 +329,8 @@
         // Start streaming playback once we have enough buffer
         if (!speakerAudioState.isPlaying && 
             speakerAudioState.receivedAudioSize >= speakerAudioState.streamThreshold) {
-          logInfo("SPEAKER", "Starting real-time audio streaming with " + 
-                  String(speakerAudioState.receivedAudioSize) + " bytes buffered");
+          logInfo("SPEAKER", "🎵 Real-time streaming started with " + 
+                  String(speakerAudioState.receivedAudioSize/1024.0, 1) + "KB buffered");
           speakerAudioState.streamingEnabled = true;
           speakerAudioState.isPlaying = true;
           
@@ -339,9 +339,35 @@
                      &speakerAudioState.audioPlaybackTaskHandle);
         }
         
-        // Show progress for every MTU chunk received (each BLE packet)
-        logProgressRate("SPEAKER", speakerAudioState.receivedAudioSize, 
-                       speakerAudioState.expectedAudioSize, speakerAudioState.audioReceiveStartTime);
+        // Combined progress bar: show both receiving and streaming status
+        if (speakerAudioState.receivedAudioSize % 1024 == 0) { // Log every 1KB
+          unsigned long elapsed = millis() - speakerAudioState.audioReceiveStartTime;
+          float receiveRate = (speakerAudioState.receivedAudioSize / 1024.0) / (elapsed / 1000.0);
+          int percent = (speakerAudioState.receivedAudioSize * 100) / speakerAudioState.expectedAudioSize;
+          
+          // Create unified progress bar
+          const int barWidth = 20;
+          int filled = (percent * barWidth) / 100;
+          String progressBar = "[";
+          
+          for (int i = 0; i < barWidth; i++) {
+            if (i < filled) {
+              progressBar += "█";
+            } else {
+              progressBar += "░";
+            }
+          }
+          progressBar += "]";
+          
+          String status = speakerAudioState.isPlaying ? "📡▶️" : "📡";
+          float playedSeconds = speakerAudioState.isPlaying ? 
+                              (float)(speakerAudioState.playPosition / 2) / 16000.0 : 0;
+          
+          logInfo("STREAM", status + " " + progressBar + " " + String(percent) + "% | " + 
+                  String(speakerAudioState.receivedAudioSize/1024.0, 1) + "KB @ " + 
+                  String(receiveRate, 1) + "KB/s" + 
+                  (speakerAudioState.isPlaying ? " | ♪" + String(playedSeconds, 1) + "s" : ""));
+        }
         return;
       }
       
@@ -924,12 +950,10 @@
           
           speakerAudioState.playPosition += bytesToPlay;
           
-          // Log progress every 2KB
-          if (speakerAudioState.playPosition % 2048 == 0) {
+          // Minimal streaming progress - only log major milestones
+          if (speakerAudioState.playPosition % 4096 == 0) { // Every 4KB instead of 2KB
             float playedSeconds = (float)(speakerAudioState.playPosition / 2) / 16000.0;
-            logDebug("STREAM", "Streamed " + String(playedSeconds, 1) + "s (" + 
-                    String(speakerAudioState.playPosition) + "/" + 
-                    String(speakerAudioState.receivedAudioSize) + " bytes)");
+            logDebug("STREAM", "🔊 " + String(playedSeconds, 1) + "s played");
           }
         }
       }
@@ -939,8 +963,8 @@
           speakerAudioState.playPosition >= speakerAudioState.receivedAudioSize) {
         
         float totalDuration = (float)(speakerAudioState.playPosition / 2) / 16000.0;
-        logInfo("STREAM", "Real-time streaming complete - played " + String(totalDuration, 1) + 
-                " seconds (" + String(speakerAudioState.playPosition) + " bytes)");
+        logInfo("STREAM", "✅ Streaming complete - " + String(totalDuration, 1) + 
+                "s played (" + String(speakerAudioState.playPosition/1024.0, 1) + "KB)");
         
         // Turn off LED and reset state
         digitalWrite(led_pin, LOW);
