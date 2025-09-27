@@ -286,9 +286,9 @@
         
         logInfo("SPEAKER", "Real-time audio streaming started - Expected size: " + String(speakerAudioState.expectedAudioSize) + " bytes");
         
-        // Turn on LED to indicate audio loading
-        digitalWrite(led_pin, HIGH);
-        ledState = true;
+        // Turn off LED to indicate audio loading
+        digitalWrite(led_pin, LOW);
+        ledState = false;
         return;
       }
       
@@ -307,9 +307,9 @@
           logInfo("SPEAKER", "Playing small audio file...");
           playAudioBuffer();
           
-          // Turn off LED after playback completes
-          digitalWrite(led_pin, LOW);
-          ledState = false;
+          // Turn on LED after playback completes
+          digitalWrite(led_pin, HIGH);
+          ledState = true;
           
           logInfo("SPEAKER", "Playback complete");
         } else {
@@ -670,8 +670,8 @@
     logInfo("VQA-STREAM", "VQA streaming task started (audio first, then image after stop)");
     
     // Ensure LED reflects streaming state
-    digitalWrite(led_pin, HIGH);
-    ledState = true;
+    digitalWrite(led_pin, LOW);
+    ledState = false;
 
     // Initialize VQA streaming state
     vqaState.isRunning = true;
@@ -915,9 +915,9 @@
     vqaState.stopRequested = false;
     vqaState.vqaTaskHandle = nullptr;
 
-    // Turn off indicator LED
-    digitalWrite(led_pin, LOW);
-    ledState = false;
+    // Turn on indicator LED
+    digitalWrite(led_pin, HIGH);
+    ledState = true;
     
     // Task auto-cleanup
     vTaskDelete(NULL);
@@ -1015,9 +1015,9 @@
         logInfo("STREAM", "Streaming complete - " + String(totalDuration, 1) + 
                 "s played (" + String(speakerAudioState.playPosition/1024.0, 1) + "KB)");
         
-        // Turn off LED and reset state
-        digitalWrite(led_pin, LOW);
-        ledState = false;
+        // Turn on LED and reset state
+        digitalWrite(led_pin, HIGH);
+        ledState = true;
         speakerAudioState.isPlaying = false;
         speakerAudioState.streamingEnabled = false;
         speakerAudioState.playPosition = 0;
@@ -1163,7 +1163,7 @@
 
       // Setup LED and button pins
       pinMode(led_pin, OUTPUT);
-      digitalWrite(led_pin, LOW);
+      digitalWrite(led_pin, HIGH);
       pinMode(BUTTON_PIN, INPUT_PULLUP); // Button input with pullup
 
       // Initialize BLE only
@@ -1219,8 +1219,8 @@
           );
           if (result == pdPASS) {
             logInfo("BUTTON", "VQA streaming started - button pressed");
-            digitalWrite(led_pin, HIGH);
-            ledState = true;
+            digitalWrite(led_pin, LOW);
+            ledState = false;
           } else {
             logError("BUTTON", "Failed to start VQA streaming task");
           }
@@ -1266,8 +1266,8 @@
             );
             if (result == pdPASS) {
               logInfo("CMD", "VQA streaming started via serial");
-              digitalWrite(led_pin, HIGH);
-              ledState = true;
+              digitalWrite(led_pin, LOW);
+              ledState = false;
             } else {
               logError("CMD", "Failed to start VQA streaming task via serial");
             }
