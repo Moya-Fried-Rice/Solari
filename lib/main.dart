@@ -26,8 +26,8 @@ void main() {
     DeviceOrientation.portraitDown,
   ]);
   
-  // Enable verbose logging for Bluetooth
-  FlutterBluePlus.setLogLevel(LogLevel.verbose, color: true);
+  // Disable verbose logging for Bluetooth
+  FlutterBluePlus.setLogLevel(LogLevel.none);
 
   runApp(
     MultiProvider(

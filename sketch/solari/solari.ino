@@ -13,7 +13,7 @@
   #define SPEAKER_CHARACTERISTIC_UUID "12345678-1234-1234-1234-123456789abc"
 
   #define CAPTURE_DEBOUNCE_MS 500
-  #define SEND_DELAY_BETWEEN_CHUNKS_MS 15
+  #define SEND_DELAY_BETWEEN_CHUNKS_MS 8
 
   #define VQA_STREAM_CHUNK_DURATION_MS 150  // 500ms chunks for VQA streaming
   #define VQA_STREAM_BUFFER_COUNT 4         // Number of buffers for smooth streaming
