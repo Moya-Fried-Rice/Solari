@@ -16,20 +16,55 @@ class SpeakerService {
   SpeakerService._internal();
 
   // Audio Quality Configuration - Change these values to test different formats
-  // FORMAT OPTIONS:
-  // Low Quality:     8000 Hz, 16-bit, pcm_s16le (small files, basic quality)
-  // Standard:       16000 Hz, 16-bit, pcm_s16le (good balance)
-  // High Quality:   22050 Hz, 16-bit, pcm_s16le (music quality)
-  // Professional:   44100 Hz, 24-bit, pcm_s24le (CD quality)
-  // Studio Grade:   48000 Hz, 24-bit, pcm_s24le (professional audio)
-  // Ultra High:     96000 Hz, 32-bit, pcm_s32le (audiophile quality, very large files)
+  // QUALITY PRESETS - Uncomment one set to test:
   
-  static const int _sampleRate = 48000;      // Current: 48kHz (studio grade)
-  static const int _bitDepth = 24;           // Current: 24-bit (professional)
-  static const String _codec = 'pcm_s24le'; // Current: 24-bit PCM
-  static const int _bytesPerSample = 3;      // 24-bit = 3 bytes per sample
+  // === LOW QUALITY (Basic, Small Files) ===
+  // static const int _sampleRate = 8000;
+  // static const int _bitDepth = 16;
+  // static const String _codec = 'pcm_s16le';
+  // static const int _bytesPerSample = 2;
+  // static const String _qualityName = 'Low Quality';
+  // static const String _filePostfix = 'low';
+  
+  // === STANDARD QUALITY (Good Balance) ===
+  // static const int _sampleRate = 16000;
+  // static const int _bitDepth = 16;
+  // static const String _codec = 'pcm_s16le';
+  // static const int _bytesPerSample = 2;
+  // static const String _qualityName = 'Standard';
+  // static const String _filePostfix = 'std';
+  
+  // === HIGH QUALITY (Music Quality) ===
+  // static const int _sampleRate = 22050;
+  // static const int _bitDepth = 16;
+  // static const String _codec = 'pcm_s16le';
+  // static const int _bytesPerSample = 2;
+  // static const String _qualityName = 'High Quality';
+  // static const String _filePostfix = 'hq';
+  
+  // === PROFESSIONAL QUALITY (CD Quality) ===
+  // static const int _sampleRate = 44100;
+  // static const int _bitDepth = 24;
+  // static const String _codec = 'pcm_s24le';
+  // static const int _bytesPerSample = 3;
+  // static const String _qualityName = 'Professional';
+  // static const String _filePostfix = 'pro';
+  
+  // === STUDIO GRADE (Professional Audio) === CURRENT ACTIVE
+  static const int _sampleRate = 48000;      // 48kHz sampling rate
+  static const int _bitDepth = 24;           // 24-bit depth
+  static const String _codec = 'pcm_s24le'; // 24-bit PCM codec
+  static const int _bytesPerSample = 3;      // 3 bytes per sample
   static const String _qualityName = 'Studio Grade';
   static const String _filePostfix = 'studio';
+  
+  // === ULTRA HIGH (Audiophile, Very Large Files) ===
+  // static const int _sampleRate = 96000;
+  // static const int _bitDepth = 32;
+  // static const String _codec = 'pcm_s32le';
+  // static const int _bytesPerSample = 4;
+  // static const String _qualityName = 'Ultra High';
+  // static const String _filePostfix = 'ultra';
 
   final FlutterTts _flutterTts = FlutterTts();
   final AudioPlayer _audioPlayer = AudioPlayer();

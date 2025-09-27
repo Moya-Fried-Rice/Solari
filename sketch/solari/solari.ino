@@ -119,13 +119,13 @@
   // const int AUDIO_CHUNK_SIZE = 1024;
   // const int AUDIO_TARGET_DELAY_MS = 12;
   
-  // === STUDIO GRADE (Professional Audio) === CURRENT ACTIVE
-  const int AUDIO_SAMPLE_RATE = 48000;        // 48kHz sampling rate
-  const int AUDIO_BIT_DEPTH = 16;             // 16-bit depth  
-  const int AUDIO_BYTES_PER_SAMPLE = 2;       // 2 bytes per sample
+  // === STUDIO GRADE (Professional Audio) ===
+  const int AUDIO_SAMPLE_RATE = 48000;
+  const int AUDIO_BIT_DEPTH = 16;
+  const int AUDIO_BYTES_PER_SAMPLE = 2;
   const char* AUDIO_QUALITY_NAME = "Studio Grade";
-  const int AUDIO_CHUNK_SIZE = 1024;          // Larger chunks for high quality
-  const int AUDIO_TARGET_DELAY_MS = 10;       // Faster processing for studio grade
+  const int AUDIO_CHUNK_SIZE = 1024;
+  const int AUDIO_TARGET_DELAY_MS = 10;
   
   // === ULTRA HIGH (Audiophile, Very Large Files) ===
   // const int AUDIO_SAMPLE_RATE = 96000;
