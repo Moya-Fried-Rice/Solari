@@ -27,20 +27,20 @@ class SpeakerService {
   // static const String _filePostfix = 'low';
   
   // === STANDARD QUALITY (Good Balance) ===
-  // static const int _sampleRate = 16000;
-  // static const int _bitDepth = 16;
-  // static const String _codec = 'pcm_s16le';
-  // static const int _bytesPerSample = 2;
-  // static const String _qualityName = 'Standard';
-  // static const String _filePostfix = 'std';
-  
-  // === HIGH QUALITY (Music Quality) ===
-  static const int _sampleRate = 22050;
+  static const int _sampleRate = 16000;
   static const int _bitDepth = 16;
   static const String _codec = 'pcm_s16le';
   static const int _bytesPerSample = 2;
-  static const String _qualityName = 'High Quality';
-  static const String _filePostfix = 'hq';
+  static const String _qualityName = 'Standard';
+  static const String _filePostfix = 'std';
+  
+  // === HIGH QUALITY (Music Quality) ===
+  // static const int _sampleRate = 22050;
+  // static const int _bitDepth = 16;
+  // static const String _codec = 'pcm_s16le';
+  // static const int _bytesPerSample = 2;
+  // static const String _qualityName = 'High Quality';
+  // static const String _filePostfix = 'hq';
   
   // === PROFESSIONAL QUALITY (CD Quality) ===
   // static const int _sampleRate = 44100;
@@ -82,9 +82,10 @@ class SpeakerService {
     try {
       // Configure TTS for optimal quality and proper file generation
       await _flutterTts.setLanguage("en-US");
-      await _flutterTts.setSpeechRate(0.5);
-      await _flutterTts.setVolume(0.8);
-      await _flutterTts.setPitch(1.0);
+      await _flutterTts.setSpeechRate(0.4); // slower for better clarity
+      await _flutterTts.setVolume(1.0);     // max volume for better audibility
+      await _flutterTts.setPitch(1.0);      // natural pitch (avoid distortion)
+
       
       // Ensure TTS is ready and not in the middle of any operation
       await _flutterTts.stop();
