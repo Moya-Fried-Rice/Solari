@@ -18,7 +18,7 @@
   #define VQA_STREAM_CHUNK_DURATION_MS 150  // 500ms chunks for VQA streaming
   #define VQA_STREAM_BUFFER_COUNT 4         // Number of buffers for smooth streaming
 
-  #define BUTTON_PIN D10
+  #define BUTTON_PIN D4
 
 
 
