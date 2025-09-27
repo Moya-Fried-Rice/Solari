@@ -51,10 +51,10 @@ class SpeakerService {
   // static const String _filePostfix = 'pro';
   
   // === STUDIO GRADE (Professional Audio) === CURRENT ACTIVE
-  static const int _sampleRate = 48000;      // 48kHz sampling rate
-  static const int _bitDepth = 24;           // 24-bit depth
-  static const String _codec = 'pcm_s24le'; // 24-bit PCM codec
-  static const int _bytesPerSample = 3;      // 3 bytes per sample
+  static const int _sampleRate = 48000;
+  static const int _bitDepth = 24;
+  static const String _codec = 'pcm_s24le';
+  static const int _bytesPerSample = 3;
   static const String _qualityName = 'Studio Grade';
   static const String _filePostfix = 'studio';
   
