@@ -104,12 +104,12 @@
   // const int AUDIO_TARGET_DELAY_MS = 16;
   
   // === HIGH QUALITY (Music Quality) ===
-  // const int AUDIO_SAMPLE_RATE = 22050;
-  // const int AUDIO_BIT_DEPTH = 16;
-  // const int AUDIO_BYTES_PER_SAMPLE = 2;
-  // const char* AUDIO_QUALITY_NAME = "High Quality";
-  // const int AUDIO_CHUNK_SIZE = 512;
-  // const int AUDIO_TARGET_DELAY_MS = 12;
+  const int AUDIO_SAMPLE_RATE = 22050;
+  const int AUDIO_BIT_DEPTH = 16;
+  const int AUDIO_BYTES_PER_SAMPLE = 2;
+  const char* AUDIO_QUALITY_NAME = "High Quality";
+  const int AUDIO_CHUNK_SIZE = 512;
+  const int AUDIO_TARGET_DELAY_MS = 12;
   
   // === PROFESSIONAL QUALITY (CD Quality) ===
   // const int AUDIO_SAMPLE_RATE = 44100;
@@ -120,12 +120,12 @@
   // const int AUDIO_TARGET_DELAY_MS = 12;
   
   // === STUDIO GRADE (Professional Audio) ===
-  const int AUDIO_SAMPLE_RATE = 48000;
-  const int AUDIO_BIT_DEPTH = 16;
-  const int AUDIO_BYTES_PER_SAMPLE = 2;
-  const char* AUDIO_QUALITY_NAME = "Studio Grade";
-  const int AUDIO_CHUNK_SIZE = 1024;
-  const int AUDIO_TARGET_DELAY_MS = 10;
+  // const int AUDIO_SAMPLE_RATE = 48000;
+  // const int AUDIO_BIT_DEPTH = 16;
+  // const int AUDIO_BYTES_PER_SAMPLE = 2;
+  // const char* AUDIO_QUALITY_NAME = "Studio Grade";
+  // const int AUDIO_CHUNK_SIZE = 1024;
+  // const int AUDIO_TARGET_DELAY_MS = 10;
   
   // === ULTRA HIGH (Audiophile, Very Large Files) ===
   // const int AUDIO_SAMPLE_RATE = 96000;

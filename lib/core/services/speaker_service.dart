@@ -35,12 +35,12 @@ class SpeakerService {
   // static const String _filePostfix = 'std';
   
   // === HIGH QUALITY (Music Quality) ===
-  // static const int _sampleRate = 22050;
-  // static const int _bitDepth = 16;
-  // static const String _codec = 'pcm_s16le';
-  // static const int _bytesPerSample = 2;
-  // static const String _qualityName = 'High Quality';
-  // static const String _filePostfix = 'hq';
+  static const int _sampleRate = 22050;
+  static const int _bitDepth = 16;
+  static const String _codec = 'pcm_s16le';
+  static const int _bytesPerSample = 2;
+  static const String _qualityName = 'High Quality';
+  static const String _filePostfix = 'hq';
   
   // === PROFESSIONAL QUALITY (CD Quality) ===
   // static const int _sampleRate = 44100;
@@ -51,12 +51,12 @@ class SpeakerService {
   // static const String _filePostfix = 'pro';
   
   // === STUDIO GRADE (Professional Audio) === CURRENT ACTIVE
-  static const int _sampleRate = 48000;
-  static const int _bitDepth = 24;
-  static const String _codec = 'pcm_s24le';
-  static const int _bytesPerSample = 3;
-  static const String _qualityName = 'Studio Grade';
-  static const String _filePostfix = 'studio';
+  // static const int _sampleRate = 48000;
+  // static const int _bitDepth = 24;
+  // static const String _codec = 'pcm_s24le';
+  // static const int _bytesPerSample = 3;
+  // static const String _qualityName = 'Studio Grade';
+  // static const String _filePostfix = 'studio';
   
   // === ULTRA HIGH (Audiophile, Very Large Files) ===
   // static const int _sampleRate = 96000;
