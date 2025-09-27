@@ -314,6 +314,38 @@
           logInfo("SPEAKER", "Playback complete");
         } else {
           logInfo("SPEAKER", "Transmission complete, streaming continues...");
+          
+          // Create a monitoring task to show streaming progress
+          xTaskCreate([](void* param) {
+            int progressCounter = 0;
+            while (speakerAudioState.isPlaying && speakerAudioState.streamingEnabled) {
+              float playedSeconds = (float)(speakerAudioState.playPosition / 2) / 16000.0;
+              float totalSeconds = (float)(speakerAudioState.receivedAudioSize / 2) / 16000.0;
+              int percent = (speakerAudioState.playPosition * 100) / speakerAudioState.receivedAudioSize;
+              
+              // Create simple progress indicator
+              String indicator = "";
+              switch(progressCounter % 4) {
+                case 0: indicator = "|"; break;
+                case 1: indicator = "/"; break;
+                case 2: indicator = "-"; break;
+                case 3: indicator = "\\"; break;
+              }
+              
+              logInfo("STREAM", "Playing " + indicator + " " + String(percent) + "% (" + 
+                      String(playedSeconds, 1) + "s/" + String(totalSeconds, 1) + "s)");
+              
+              progressCounter++;
+              vTaskDelay(pdMS_TO_TICKS(1000)); // Update every second
+              
+              // Exit if streaming completed
+              if (!speakerAudioState.isPlaying || 
+                  speakerAudioState.playPosition >= speakerAudioState.receivedAudioSize) {
+                break;
+              }
+            }
+            vTaskDelete(NULL); // Clean up this monitoring task
+          }, "StreamMonitor", 2048, NULL, 1, NULL);
         }
         return;
       }
