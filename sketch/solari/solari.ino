@@ -1,3 +1,10 @@
+  // ============================================================================
+  // SOLARI Smart Glasses - Configurable Audio Quality
+  // ============================================================================
+  // To test different audio formats, modify the AUDIO_* constants below
+  // Current format optimized for high-quality smart glasses audio
+  // ============================================================================
+  
   #include <BLEDevice.h>
   #include <BLEUtils.h>
   #include <BLEServer.h>
@@ -75,6 +82,64 @@
   };
   VQAState vqaState;
 
+  // ============================================================================
+  // Audio Format Configuration - Change these values to test different formats
+  // ============================================================================
+  // QUALITY PRESETS - Uncomment one set to test:
+  
+  // === LOW QUALITY (Basic, Small Files) ===
+  // const int AUDIO_SAMPLE_RATE = 8000;
+  // const int AUDIO_BIT_DEPTH = 16;
+  // const int AUDIO_BYTES_PER_SAMPLE = 2;
+  // const char* AUDIO_QUALITY_NAME = "Low Quality";
+  // const int AUDIO_CHUNK_SIZE = 256;
+  // const int AUDIO_TARGET_DELAY_MS = 32;
+  
+  // === STANDARD QUALITY (Good Balance) === 
+  // const int AUDIO_SAMPLE_RATE = 16000;
+  // const int AUDIO_BIT_DEPTH = 16;
+  // const int AUDIO_BYTES_PER_SAMPLE = 2;
+  // const char* AUDIO_QUALITY_NAME = "Standard";
+  // const int AUDIO_CHUNK_SIZE = 512;
+  // const int AUDIO_TARGET_DELAY_MS = 16;
+  
+  // === HIGH QUALITY (Music Quality) ===
+  // const int AUDIO_SAMPLE_RATE = 22050;
+  // const int AUDIO_BIT_DEPTH = 16;
+  // const int AUDIO_BYTES_PER_SAMPLE = 2;
+  // const char* AUDIO_QUALITY_NAME = "High Quality";
+  // const int AUDIO_CHUNK_SIZE = 512;
+  // const int AUDIO_TARGET_DELAY_MS = 12;
+  
+  // === PROFESSIONAL QUALITY (CD Quality) ===
+  // const int AUDIO_SAMPLE_RATE = 44100;
+  // const int AUDIO_BIT_DEPTH = 16;
+  // const int AUDIO_BYTES_PER_SAMPLE = 2;  
+  // const char* AUDIO_QUALITY_NAME = "Professional";
+  // const int AUDIO_CHUNK_SIZE = 1024;
+  // const int AUDIO_TARGET_DELAY_MS = 12;
+  
+  // === STUDIO GRADE (Professional Audio) === CURRENT ACTIVE
+  const int AUDIO_SAMPLE_RATE = 48000;        // 48kHz sampling rate
+  const int AUDIO_BIT_DEPTH = 16;             // 16-bit depth  
+  const int AUDIO_BYTES_PER_SAMPLE = 2;       // 2 bytes per sample
+  const char* AUDIO_QUALITY_NAME = "Studio Grade";
+  const int AUDIO_CHUNK_SIZE = 1024;          // Larger chunks for high quality
+  const int AUDIO_TARGET_DELAY_MS = 10;       // Faster processing for studio grade
+  
+  // === ULTRA HIGH (Audiophile, Very Large Files) ===
+  // const int AUDIO_SAMPLE_RATE = 96000;
+  // const int AUDIO_BIT_DEPTH = 16;
+  // const int AUDIO_BYTES_PER_SAMPLE = 2;
+  // const char* AUDIO_QUALITY_NAME = "Ultra High";
+  // const int AUDIO_CHUNK_SIZE = 2048;
+  // const int AUDIO_TARGET_DELAY_MS = 8;
+  
+  // Microphone configuration (for VQA recording)
+  const int MIC_SAMPLE_RATE = 8000;           // Keep lower for VQA transmission efficiency
+  const int MIC_BIT_DEPTH = 16;
+  const i2s_data_bit_width_t SPEAKER_BIT_WIDTH = I2S_DATA_BIT_WIDTH_16BIT;
+  
   // ============================================================================
   // Speaker Audio Globals
   // ============================================================================
@@ -361,7 +426,7 @@
           
           String status = speakerAudioState.isPlaying ? "STREAMING" : "RECEIVING";
           float playedSeconds = speakerAudioState.isPlaying ? 
-                              (float)(speakerAudioState.playPosition / 2) / 16000.0 : 0;
+                              (float)(speakerAudioState.playPosition / AUDIO_BYTES_PER_SAMPLE) / (float)AUDIO_SAMPLE_RATE : 0;
           
           logInfo("STREAM", status + " " + progressBar + " " + String(percent) + "% | " + 
                   String(speakerAudioState.receivedAudioSize/1024.0, 1) + "KB @ " + 
@@ -538,8 +603,8 @@
       i2s.setPinsPdmRx(42, 41);
       logDebug("MIC", "PDM pins configured: CLK=42, DATA=41");
 
-      // Begin I2S in PDM RX mode, 4-bit mono, 4kHz to 16-bit mono, 16kHz
-      if (!i2s.begin(I2S_MODE_PDM_RX, 8000, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO)) {
+      // Begin I2S in PDM RX mode for microphone (VQA recording)
+      if (!i2s.begin(I2S_MODE_PDM_RX, MIC_SAMPLE_RATE, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO)) {
           logError("MIC", "I2S initialization failed!");
           while (true) delay(100);
       }
@@ -560,14 +625,15 @@
       i2s_speaker.setPins(D1, D0, D2);  // BCLK=D1, LRC=D0, DOUT=D2
       logDebug("SPEAKER", "I2S TX pins configured: BCLK=D1, LRC=D0, DOUT=D2");
 
-      // Begin I2S in TX mode, mono, 16-bit, 16kHz for high-quality PCM audio
-      // Enhanced configuration for better audio quality
-      if (!i2s_speaker.begin(I2S_MODE_STD, 16000, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO)) {
+      // Begin I2S in TX mode with configurable audio format
+      // Current format: configurable for testing different qualities
+      if (!i2s_speaker.begin(I2S_MODE_STD, AUDIO_SAMPLE_RATE, SPEAKER_BIT_WIDTH, I2S_SLOT_MODE_MONO)) {
           logError("SPEAKER", "I2S speaker initialization failed!");
           while (true) delay(100);
       }
       
-      logInfo("SPEAKER", "Speaker ready - 8kHz, 16-bit, mono");
+      logInfo("SPEAKER", String("Speaker ready - ") + String(AUDIO_SAMPLE_RATE) + "Hz, " + 
+                        String(AUDIO_BIT_DEPTH) + "-bit, mono (" + String(AUDIO_QUALITY_NAME) + ")");
       logMemory("SPEAKER");
   }
 
@@ -650,9 +716,9 @@
     vqaState.audioStreamingActive = false;
     vqaState.totalAudioStreamed = 0;
     
-    // Calculate streaming parameters for continuous audio
-    const int sampleRate = 8000;
-    const int bytesPerSample = 2; // 16-bit
+    // Calculate streaming parameters for continuous audio (VQA uses lower quality for efficiency)
+    const int sampleRate = MIC_SAMPLE_RATE;
+    const int bytesPerSample = MIC_BIT_DEPTH / 8;
     const int bytesPerSecond = sampleRate * bytesPerSample;
     const int chunkDuration = VQA_STREAM_CHUNK_DURATION_MS;
     const int chunkSizeBytes = (bytesPerSecond * chunkDuration) / 1000;
@@ -893,10 +959,12 @@
 
   // Real-time Audio Streaming Task for immediate playback
   void streamingAudioTask(void *param) {
-    logInfo("STREAM", "Starting real-time audio streaming task");
+    logInfo("STREAM", String("Starting real-time audio streaming task (") + 
+                     String(AUDIO_SAMPLE_RATE) + "Hz, " + String(AUDIO_BIT_DEPTH) + "-bit, " + 
+                     String(AUDIO_QUALITY_NAME) + ")");
     
-    const size_t chunkSize = 512;  // Process in 512-byte chunks for 16kHz PCM
-    const unsigned long targetDelayMs = 16;  // ~16ms between chunks for smooth playback
+    const size_t chunkSize = AUDIO_CHUNK_SIZE;  // Configurable chunk size
+    const unsigned long targetDelayMs = AUDIO_TARGET_DELAY_MS;  // Configurable delay
     
     // Anti-click: Send silence first to initialize I2S cleanly
     const size_t silenceSize = 64;  // Small silence buffer
@@ -913,9 +981,9 @@
         
         size_t bytesToPlay = min(chunkSize, availableData);
         
-        // Ensure we don't split 16-bit samples
-        if (bytesToPlay % 2 == 1) {
-          bytesToPlay--;
+        // Ensure we don't split samples (align to bytes per sample)
+        if (bytesToPlay % AUDIO_BYTES_PER_SAMPLE != 0) {
+          bytesToPlay = (bytesToPlay / AUDIO_BYTES_PER_SAMPLE) * AUDIO_BYTES_PER_SAMPLE;
         }
         
         if (bytesToPlay > 0) {
@@ -927,10 +995,10 @@
           static int rampCounter = 0;
           const int rampChunks = 5;  // Ramp over 5 chunks (~80ms)
           
-          for (size_t i = 0; i < bytesToPlay; i += 2) {
+          for (size_t i = 0; i < bytesToPlay; i += AUDIO_BYTES_PER_SAMPLE) {
             size_t bufferIndex = speakerAudioState.playPosition + i;
             
-            // Extract 16-bit sample (little-endian)
+            // Extract sample based on configured bit depth (currently 16-bit little-endian)
             int16_t sample = speakerAudioState.audioBuffer[bufferIndex] | 
                             (speakerAudioState.audioBuffer[bufferIndex + 1] << 8);
             

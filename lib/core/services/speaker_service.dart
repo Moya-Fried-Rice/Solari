@@ -9,11 +9,27 @@ import 'package:ffmpeg_kit_flutter_new/return_code.dart';
 import 'ble_service.dart';
 
 /// Service that handles text-to-speech by converting text to high-quality WAV audio
-/// Optimized for smart glasses with 16kHz 16-bit PCM for superior audio quality
+/// Configurable audio quality for smart glasses - easily adjustable for testing
 class SpeakerService {
   static final SpeakerService _instance = SpeakerService._internal();
   factory SpeakerService() => _instance;
   SpeakerService._internal();
+
+  // Audio Quality Configuration - Change these values to test different formats
+  // FORMAT OPTIONS:
+  // Low Quality:     8000 Hz, 16-bit, pcm_s16le (small files, basic quality)
+  // Standard:       16000 Hz, 16-bit, pcm_s16le (good balance)
+  // High Quality:   22050 Hz, 16-bit, pcm_s16le (music quality)
+  // Professional:   44100 Hz, 24-bit, pcm_s24le (CD quality)
+  // Studio Grade:   48000 Hz, 24-bit, pcm_s24le (professional audio)
+  // Ultra High:     96000 Hz, 32-bit, pcm_s32le (audiophile quality, very large files)
+  
+  static const int _sampleRate = 48000;      // Current: 48kHz (studio grade)
+  static const int _bitDepth = 24;           // Current: 24-bit (professional)
+  static const String _codec = 'pcm_s24le'; // Current: 24-bit PCM
+  static const int _bytesPerSample = 3;      // 24-bit = 3 bytes per sample
+  static const String _qualityName = 'Studio Grade';
+  static const String _filePostfix = 'studio';
 
   final FlutterTts _flutterTts = FlutterTts();
   final AudioPlayer _audioPlayer = AudioPlayer();
@@ -70,7 +86,7 @@ class SpeakerService {
   }
 
   /// Convert text to high-quality WAV and play it
-  /// Uses 16kHz 16-bit PCM optimized for superior smart glasses audio
+  /// Uses configurable audio format - currently $_sampleRate Hz $_bitDepth-bit PCM ($_qualityName)
   Future<void> speakText(String text, {
     Function()? onStart,
     Function()? onComplete,
@@ -102,7 +118,7 @@ class SpeakerService {
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final fileName = "tts_$timestamp";
 
-      await _synthesizeTextToHighQualityWav(processedText, fileName);
+      await _synthesizeTextToConfiguredQualityWav(processedText, fileName);
       
       if (_currentFilePath.isNotEmpty) {
         debugPrint('🔍 BLE Transmission Debug:');
@@ -203,8 +219,9 @@ class SpeakerService {
     }
   }
 
-  /// Convert text to 16kHz 16-bit PCM high-quality WAV file
-  Future<void> _synthesizeTextToHighQualityWav(String text, String fileName) async {
+  /// Convert text to configurable quality WAV file
+  /// Current format: $_sampleRate Hz $_bitDepth-bit PCM ($_qualityName)
+  Future<void> _synthesizeTextToConfiguredQualityWav(String text, String fileName) async {
     try {
       // Only Android supported for TTS to file
       if (!Platform.isAndroid) {
@@ -214,10 +231,10 @@ class SpeakerService {
       // Get temporary directory
       Directory tempDir = await getTemporaryDirectory();
       String tempPath = "${tempDir.path}/${fileName}_temp.wav";
-      String finalPath = "${tempDir.path}/${fileName}_hq.wav";
+      String finalPath = "${tempDir.path}/${fileName}_$_filePostfix.wav";
 
       debugPrint('Synthesizing TTS to temporary file: $tempPath');
-      debugPrint('Final high-quality file will be: $finalPath');
+      debugPrint('Final $_qualityName quality file will be: $finalPath');
 
       // Clean up any existing files first
       File existingTempFile = File(tempPath);
@@ -313,8 +330,8 @@ class SpeakerService {
       // Validate the WAV file header
       await _validateWavFile(tempPath);
 
-      // Convert to high-quality PCM WAV (16kHz, mono, 2 bytes per sample)
-      await _convertToHighQualityWithRetry(tempPath, finalPath);
+      // Convert to $_qualityName PCM WAV ($_sampleRate Hz, mono, $_bytesPerSample bytes per sample)
+      await _convertToConfiguredQualityWithRetry(tempPath, finalPath);
 
       // Clean up temporary file on success
       if (await tempFile.exists()) {
@@ -323,23 +340,24 @@ class SpeakerService {
 
       _currentFilePath = finalPath;
     } catch (e) {
-      debugPrint('Error in _synthesizeTextToCompressedWav: $e');
+      debugPrint('Error in _synthesizeTextToConfiguredQualityWav: $e');
       rethrow;
     }
   }
 
-  /// Convert WAV to high-quality PCM format (16kHz, mono) - optimized for superior smart glasses audio
-  Future<void> _convertToHighQualityWithRetry(
+  /// Convert WAV to configurable PCM format - optimized for smart glasses audio
+  /// Current: $_sampleRate Hz $_bitDepth-bit PCM ($_qualityName)
+  Future<void> _convertToConfiguredQualityWithRetry(
     String tempPath,
     String finalPath, {
     int maxRetries = 3,
   }) async {
     for (int attempt = 1; attempt <= maxRetries; attempt++) {
-      debugPrint('Converting to high-quality PCM (attempt $attempt/$maxRetries)...');
+      debugPrint('Converting to $_qualityName PCM (attempt $attempt/$maxRetries)...');
 
-      // High-quality 16-bit PCM - superior audio for smart glasses
-      String ffmpegCommand = '-i $tempPath -ar 16000 -ac 1 -acodec pcm_s16le -y $finalPath';
-      debugPrint('Using 16kHz 16-bit PCM (superior quality for smart glasses)');
+      // Configurable quality PCM - easily adjustable for testing different formats
+      String ffmpegCommand = '-i $tempPath -ar $_sampleRate -ac 1 -acodec $_codec -y $finalPath';
+      debugPrint('Using $_sampleRate Hz $_bitDepth-bit PCM ($_qualityName for smart glasses)');
       
       debugPrint('FFmpeg command: $ffmpegCommand');
       
@@ -359,25 +377,25 @@ class SpeakerService {
         if (await finalFile.exists()) {
           int fileSize = await finalFile.length();
           
-          // Calculate duration for 16-bit PCM format: 2 bytes per sample at 16kHz
-          String duration = _calculateDuration(fileSize, 16000, 1, 2);
+          // Calculate duration for $_bitDepth-bit PCM format: $_bytesPerSample bytes per sample at $_sampleRate Hz
+          String duration = _calculateDuration(fileSize, _sampleRate, 1, _bytesPerSample);
           
-          debugPrint('✅ High-quality PCM WAV created successfully');
+          debugPrint('✅ $_qualityName PCM WAV created successfully');
           debugPrint('File size: $fileSize bytes (${(fileSize / 1024).toStringAsFixed(1)} KB)');
           debugPrint('Duration: $duration');
-          debugPrint('Format: 16kHz, 16-bit PCM, mono - superior quality for smart glasses');
+          debugPrint('Format: $_sampleRate Hz, $_bitDepth-bit PCM, mono - $_qualityName for smart glasses');
           
           return; // Success!
         }
       }
 
-      // Handle high-quality conversion failure
+      // Handle $_qualityName conversion failure
       final logs = await session.getAllLogs();
       final output = await session.getOutput();
       final allLogs = await session.getAllLogsAsString();
       String errorDetails = logs.map((log) => log.getMessage()).join('\n');
       
-      debugPrint('High-quality conversion attempt $attempt failed with return code: $returnCode');
+      debugPrint('$_qualityName conversion attempt $attempt failed with return code: $returnCode');
       debugPrint('FFmpeg output: $output');
       if (allLogs != null) {
         debugPrint('FFmpeg error logs: ${allLogs.length > 1500 ? allLogs.substring(allLogs.length - 1500) : allLogs}');
@@ -389,15 +407,15 @@ class SpeakerService {
       File outputFile = File(finalPath);
       if (await outputFile.exists()) {
         int outputSize = await outputFile.length();
-        debugPrint('Removing partial high-quality file: $outputSize bytes');
+        debugPrint('Removing partial $_qualityName file: $outputSize bytes');
         await outputFile.delete();
       }
 
       if (attempt < maxRetries) {
-        debugPrint('Retrying high-quality conversion in ${attempt * 500}ms...');
+        debugPrint('Retrying $_qualityName conversion in ${attempt * 500}ms...');
         await Future.delayed(Duration(milliseconds: attempt * 500));
       } else {
-        throw Exception('High-quality conversion failed after $maxRetries attempts. Error: $errorDetails');
+        throw Exception('$_qualityName conversion failed after $maxRetries attempts. Error: $errorDetails');
       }
     }
   }
@@ -409,7 +427,7 @@ class SpeakerService {
     int channels,
     int bytesPerSample,
   ) {
-    // For 16-bit PCM: 2 bytes per sample, mono channel
+    // For $_bitDepth-bit PCM: $_bytesPerSample bytes per sample, mono channel
     int totalSamples = (fileSize - 44) ~/ bytesPerSample; // Subtract WAV header size and divide by bytes per sample
     double durationSeconds = totalSamples / (sampleRate * channels);
 
@@ -489,7 +507,7 @@ class SpeakerService {
       final files = tempDir.listSync();
       
       for (var file in files) {
-        if (file.path.contains('tts_') && file.path.endsWith('_hq.wav')) {
+        if (file.path.contains('tts_') && file.path.endsWith('_$_filePostfix.wav')) {
           await file.delete();
           debugPrint('Cleaned up temp file: ${file.path}');
         }
@@ -520,12 +538,12 @@ class SpeakerService {
       final encodersLogs = await encodersSession.getAllLogsAsString();
       
       if (ReturnCode.isSuccess(encodersReturnCode) && encodersLogs != null) {
-        bool hasPcmEncoder = encodersLogs.contains('pcm_s16le');
-        debugPrint('16-bit PCM encoder available: $hasPcmEncoder');
+        bool hasPcmEncoder = encodersLogs.contains('$_codec');
+        debugPrint('$_bitDepth-bit PCM encoder available: $hasPcmEncoder');
         if (hasPcmEncoder) {
-          debugPrint('✅ pcm_s16le encoder is available');
+          debugPrint('✅ $_codec encoder is available');
         } else {
-          debugPrint('❌ pcm_s16le encoder is NOT available');
+          debugPrint('❌ $_codec encoder is NOT available');
         }
       } else {
         debugPrint('Could not check available encoders');
