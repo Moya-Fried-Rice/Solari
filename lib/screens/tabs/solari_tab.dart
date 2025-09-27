@@ -1,7 +1,6 @@
 import 'dart:typed_data';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:audioplayers/audioplayers.dart';
 
 class SolariTab extends StatelessWidget {
   final double? temperature;
@@ -134,29 +133,10 @@ class AnimatedSoundWave extends StatefulWidget {
 }
 
 class AnimatedSoundWaveState extends State<AnimatedSoundWave> with SingleTickerProviderStateMixin {
-  static const _processingAudio = 'assets/audio/solari_processing.wav';
-  AudioPlayer? _processingPlayer;
 
   @override
   void didUpdateWidget(covariant AnimatedSoundWave oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Start looping processing audio only when processing and not speaking
-    if (widget.processing && !widget.speaking && (!oldWidget.processing || oldWidget.speaking)) {
-      _processingPlayer?.stop();
-      _processingPlayer?.dispose();
-      _processingPlayer = AudioPlayer();
-      _processingPlayer!.setReleaseMode(ReleaseMode.loop);
-      _processingPlayer!.play(
-        AssetSource(_processingAudio.replaceFirst('assets/', '')),
-        volume: 1.0,
-      );
-    }
-    // Stop processing audio when processing ends or speaking starts
-    if ((!widget.processing && oldWidget.processing) || (widget.speaking && !oldWidget.speaking)) {
-      _processingPlayer?.stop();
-      _processingPlayer?.dispose();
-      _processingPlayer = null;
-    }
     if ((widget.speaking || widget.processing) && !_controller.isAnimating) {
       _controller.repeat();
     } else if (!widget.speaking && !widget.processing && _controller.isAnimating) {
@@ -179,9 +159,6 @@ class AnimatedSoundWaveState extends State<AnimatedSoundWave> with SingleTickerP
 
   @override
   void dispose() {
-  _processingPlayer?.stop();
-  _processingPlayer?.dispose();
-  _processingPlayer = null;
     _controller.dispose();
     super.dispose();
   }

@@ -7,7 +7,6 @@ import 'package:provider/provider.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:audioplayers/audioplayers.dart';
 
 // Providers
 import '../core/providers/history_provider.dart';
@@ -200,13 +199,6 @@ class _SolariScreenState extends State<SolariScreen>
 
   Future<void> _speakText(String text) async {
     try {
-      // Play done.wav at the same time as TTS starts speaking
-      final player = AudioPlayer();
-      await player.play(
-        AssetSource('audio/done.wav'),
-        volume: 1.0,
-      );
-
       await _speakerService.speakText(
         text,
         onStart: () {
@@ -423,13 +415,21 @@ class _SolariScreenState extends State<SolariScreen>
     });
 
     try {
+      // Start processing sound during VLM processing
+      await _speakerService.startProcessingSound();
+      
       debugPrint('[AI] Passing image to VlmService for processing...');
       final response = await _vlmService.processImage(
         imageData,
         prompt: prompt,
       );
+      
+      // Stop processing sound and play done sound when VLM processing completes
+      await _speakerService.playDoneSound();
+      
       if (response != null && mounted) {
         debugPrint('[AI] Image description complete: $response');
+        // Now TTS speaks the response
         _speakText(response);
         // Add to history
         final historyProvider = Provider.of<HistoryProvider>(
@@ -440,6 +440,8 @@ class _SolariScreenState extends State<SolariScreen>
       }
     } catch (e) {
       debugPrint('[AI] Error processing image: $e');
+      // Stop processing sound on error
+      await _speakerService.playDoneSound();
     } finally {
       if (mounted) {
         setState(() {
