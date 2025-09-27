@@ -286,9 +286,9 @@
         
         logInfo("SPEAKER", "Real-time audio streaming started - Expected size: " + String(speakerAudioState.expectedAudioSize) + " bytes");
         
-        // Turn off LED to indicate audio loading
-        digitalWrite(led_pin, LOW);
-        ledState = false;
+        // Turn on LED to indicate audio loading
+        digitalWrite(led_pin, HIGH);
+        ledState = true;
         return;
       }
       
@@ -307,45 +307,13 @@
           logInfo("SPEAKER", "Playing small audio file...");
           playAudioBuffer();
           
-          // Turn on LED after playback completes
-          digitalWrite(led_pin, HIGH);
-          ledState = true;
+          // Turn off LED after playback completes
+          digitalWrite(led_pin, LOW);
+          ledState = false;
           
           logInfo("SPEAKER", "Playback complete");
         } else {
           logInfo("SPEAKER", "Transmission complete, streaming continues...");
-          
-          // Create a monitoring task to show streaming progress
-          xTaskCreate([](void* param) {
-            int progressCounter = 0;
-            while (speakerAudioState.isPlaying && speakerAudioState.streamingEnabled) {
-              float playedSeconds = (float)(speakerAudioState.playPosition / 2) / 16000.0;
-              float totalSeconds = (float)(speakerAudioState.receivedAudioSize / 2) / 16000.0;
-              int percent = (speakerAudioState.playPosition * 100) / speakerAudioState.receivedAudioSize;
-              
-              // Create simple progress indicator
-              String indicator = "";
-              switch(progressCounter % 4) {
-                case 0: indicator = "|"; break;
-                case 1: indicator = "/"; break;
-                case 2: indicator = "-"; break;
-                case 3: indicator = "\\"; break;
-              }
-              
-              logInfo("STREAM", "Playing " + indicator + " " + String(percent) + "% (" + 
-                      String(playedSeconds, 1) + "s/" + String(totalSeconds, 1) + "s)");
-              
-              progressCounter++;
-              vTaskDelay(pdMS_TO_TICKS(1000)); // Update every second
-              
-              // Exit if streaming completed
-              if (!speakerAudioState.isPlaying || 
-                  speakerAudioState.playPosition >= speakerAudioState.receivedAudioSize) {
-                break;
-              }
-            }
-            vTaskDelete(NULL); // Clean up this monitoring task
-          }, "StreamMonitor", 2048, NULL, 1, NULL);
         }
         return;
       }
@@ -670,8 +638,8 @@
     logInfo("VQA-STREAM", "VQA streaming task started (audio first, then image after stop)");
     
     // Ensure LED reflects streaming state
-    digitalWrite(led_pin, LOW);
-    ledState = false;
+    digitalWrite(led_pin, HIGH);
+    ledState = true;
 
     // Initialize VQA streaming state
     vqaState.isRunning = true;
@@ -915,9 +883,9 @@
     vqaState.stopRequested = false;
     vqaState.vqaTaskHandle = nullptr;
 
-    // Turn on indicator LED
-    digitalWrite(led_pin, HIGH);
-    ledState = true;
+    // Turn off indicator LED
+    digitalWrite(led_pin, LOW);
+    ledState = false;
     
     // Task auto-cleanup
     vTaskDelete(NULL);
@@ -1015,9 +983,9 @@
         logInfo("STREAM", "Streaming complete - " + String(totalDuration, 1) + 
                 "s played (" + String(speakerAudioState.playPosition/1024.0, 1) + "KB)");
         
-        // Turn on LED and reset state
-        digitalWrite(led_pin, HIGH);
-        ledState = true;
+        // Turn off LED and reset state
+        digitalWrite(led_pin, LOW);
+        ledState = false;
         speakerAudioState.isPlaying = false;
         speakerAudioState.streamingEnabled = false;
         speakerAudioState.playPosition = 0;
@@ -1163,7 +1131,7 @@
 
       // Setup LED and button pins
       pinMode(led_pin, OUTPUT);
-      digitalWrite(led_pin, HIGH);
+      digitalWrite(led_pin, LOW);
       pinMode(BUTTON_PIN, INPUT_PULLUP); // Button input with pullup
 
       // Initialize BLE only
@@ -1219,8 +1187,8 @@
           );
           if (result == pdPASS) {
             logInfo("BUTTON", "VQA streaming started - button pressed");
-            digitalWrite(led_pin, LOW);
-            ledState = false;
+            digitalWrite(led_pin, HIGH);
+            ledState = true;
           } else {
             logError("BUTTON", "Failed to start VQA streaming task");
           }
@@ -1266,8 +1234,8 @@
             );
             if (result == pdPASS) {
               logInfo("CMD", "VQA streaming started via serial");
-              digitalWrite(led_pin, LOW);
-              ledState = false;
+              digitalWrite(led_pin, HIGH);
+              ledState = true;
             } else {
               logError("CMD", "Failed to start VQA streaming task via serial");
             }
