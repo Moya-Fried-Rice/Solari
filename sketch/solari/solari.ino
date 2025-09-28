@@ -264,7 +264,7 @@
   const char* logLevelStr[] = {"DEBUG", "INFO", "WARN", "ERROR"};
 
   // Enhanced logging function
-  void printLog(LogLevel level, const String &component, const String &msg) {
+  void log(LogLevel level, const String &component, const String &msg) {
     if (level >= currentLogLevel) {
       Serial.printf("[%8lu] [%s] [%s] %s\n", 
                     millis(), 
@@ -276,25 +276,25 @@
 
   // Convenience functions for different log levels
   void logInfo(const String &component, const String &msg) {
-    printLog(LOG_INFO, component, msg);
+    log(LOG_INFO, component, msg);
   }
 
   void logWarn(const String &component, const String &msg) {
-    printLog(LOG_WARN, component, msg);
+    log(LOG_WARN, component, msg);
   }
 
   void logError(const String &component, const String &msg) {
-    printLog(LOG_ERROR, component, msg);
+    log(LOG_ERROR, component, msg);
   }
 
   void logDebug(const String &component, const String &msg) {
-    printLog(LOG_DEBUG, component, msg);
+    log(LOG_DEBUG, component, msg);
   }
 
   // Memory info helper
   void logMemory(const String &component) {
     if (currentLogLevel <= LOG_DEBUG) {
-      printLog(LOG_DEBUG, component, "Free heap: " + String(ESP.getFreeHeap()) + 
+      log(LOG_DEBUG, component, "Free heap: " + String(ESP.getFreeHeap()) + 
           " bytes, PSRAM: " + String(ESP.getFreePsram()) + " bytes");
     }
   }
