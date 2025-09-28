@@ -34,5 +34,7 @@ flutter:
   assets:
     - assets/icons/
     - assets/images/
-    - assets/audio/processing.wav
-    - assets/audio/done.wav
+    - assets/audio/8kHz_processing.wav
+    - assets/audio/8kHz_done.wav
+    - assets/audio/16kHz_processing.wav
+    - assets/audio/16kHz_done.wav

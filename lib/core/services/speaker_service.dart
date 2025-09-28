@@ -520,7 +520,7 @@ class SpeakerService {
         if (!_isProcessing) break;
         
         // Load processing.wav from assets and send via BLE
-        final audioData = await _loadAssetAudio('assets/audio/processing.wav');
+        final audioData = await _loadAssetAudio('assets/audio/16kHz_processing.wav');
         if (audioData != null && _isProcessing) {
           _isProcessingSoundActive = true; // Mark processing sound as active
           
@@ -556,7 +556,7 @@ class SpeakerService {
   /// Play done sound via BLE
   Future<void> _playDoneSound() async {
     try {
-      final audioData = await _loadAssetAudio('assets/audio/done.wav');
+      final audioData = await _loadAssetAudio('assets/audio/16kHz_done.wav');
       if (audioData != null) {
         await _bleService.sendAudioData(
           audioData,
