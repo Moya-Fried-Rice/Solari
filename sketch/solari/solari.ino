@@ -165,11 +165,6 @@
   // I2S instance for speaker output (separate from microphone I2S)
   I2SClass i2s_speaker;
 
-  // ============================================================================
-  // Function Declarations
-  // ============================================================================
-  void reinitSpeaker(uint32_t sampleRate = AUDIO_SAMPLE_RATE);
-
 
 
   // ============================================================================
@@ -639,7 +634,6 @@
       
       logInfo("SPEAKER", String("Speaker ready - ") + String(AUDIO_SAMPLE_RATE) + "Hz, " + 
                         String(AUDIO_BIT_DEPTH) + "-bit, mono (" + String(AUDIO_QUALITY_NAME) + ")");
-      logDebug("SPEAKER", "I2S speaker initialization successful");
       logMemory("SPEAKER");
   }
 
@@ -969,9 +963,6 @@
                      String(AUDIO_SAMPLE_RATE) + "Hz, " + String(AUDIO_BIT_DEPTH) + "-bit, " + 
                      String(AUDIO_QUALITY_NAME) + ")");
     
-    // Reinitialize I2S speaker before streaming (like test_bread_board.ino)
-    reinitSpeaker();
-    
     const size_t chunkSize = AUDIO_CHUNK_SIZE;  // Configurable chunk size
     const unsigned long targetDelayMs = AUDIO_TARGET_DELAY_MS;  // Configurable delay
     
@@ -1079,34 +1070,12 @@
     }
   }
 
-  // Reinitialize I2S speaker with specific sample rate (similar to test_bread_board.ino approach)
-  void reinitSpeaker(uint32_t sampleRate = AUDIO_SAMPLE_RATE) {
-    logDebug("SPEAKER", "Reinitializing I2S speaker for playback at " + String(sampleRate) + "Hz...");
-    
-    // End current I2S session
-    i2s_speaker.end();
-    delay(50); // Brief delay to ensure cleanup
-    
-    // Reinitialize I2S for speaker output
-    i2s_speaker.setPins(D1, D0, D2);  // BCLK=D1, LRC=D0, DOUT=D2
-    
-    if (!i2s_speaker.begin(I2S_MODE_STD, sampleRate, SPEAKER_BIT_WIDTH, I2S_SLOT_MODE_MONO)) {
-        logError("SPEAKER", "I2S speaker reinitialization failed at " + String(sampleRate) + "Hz!");
-        return;
-    }
-    
-    logDebug("SPEAKER", "I2S speaker reinitialized successfully at " + String(sampleRate) + "Hz");
-  }
-
   // High-Quality Audio Playback Function with 16-bit PCM
   void playAudioBuffer() {
     if (speakerAudioState.audioBuffer.size() == 0) {
       logWarn("SPEAKER", "No audio data to play");
       return;
     }
-    
-    // Reinitialize I2S speaker before playback (like test_bread_board.ino)
-    reinitSpeaker();
     
     size_t audioDataSize = speakerAudioState.audioBuffer.size();
     // Each sample is now 2 bytes (16-bit) at 16kHz
