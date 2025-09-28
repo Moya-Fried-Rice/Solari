@@ -20,20 +20,20 @@ class SpeakerService {
   // QUALITY PRESETS - Uncomment one set to test:
   
   // === LOW QUALITY (Basic, Small Files) ===
-  static const int _sampleRate = 8000;
-  static const int _bitDepth = 16;
-  static const String _codec = 'pcm_s16le';
-  static const int _bytesPerSample = 2;
-  static const String _qualityName = 'Low Quality';
-  static const String _filePostfix = 'low';
-  
-  // === STANDARD QUALITY (Good Balance) ===
-  // static const int _sampleRate = 16000;
+  // static const int _sampleRate = 8000;
   // static const int _bitDepth = 16;
   // static const String _codec = 'pcm_s16le';
   // static const int _bytesPerSample = 2;
-  // static const String _qualityName = 'Standard';
-  // static const String _filePostfix = 'std';
+  // static const String _qualityName = 'Low Quality';
+  // static const String _filePostfix = 'low';
+  
+  // === STANDARD QUALITY (Good Balance) ===
+  static const int _sampleRate = 16000;
+  static const int _bitDepth = 16;
+  static const String _codec = 'pcm_s16le';
+  static const int _bytesPerSample = 2;
+  static const String _qualityName = 'Standard';
+  static const String _filePostfix = 'std';
   
   // === HIGH QUALITY (Music Quality) ===
   // static const int _sampleRate = 22050;
