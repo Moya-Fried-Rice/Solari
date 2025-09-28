@@ -76,6 +76,7 @@ class SpeakerService {
   String _currentFilePath = "";
   bool _useBleTransmission = false;
   bool _isProcessing = false;
+  bool _isProcessingSoundActive = false; // Track if processing sound is currently being sent
 
   /// Initialize the TTS engine
   Future<void> initialize() async {
@@ -115,6 +116,13 @@ class SpeakerService {
   /// Stop processing sound and play done sound via BLE (when VLM processing completes)
   Future<void> playDoneSound() async {
     _isProcessing = false; // Stop processing sound loop
+    
+    // Wait for any active processing sound transmission to complete before sending done sound
+    while (_isProcessingSoundActive) {
+      debugPrint('⏳ Waiting for processing sound to complete before sending done sound...');
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
+    
     if (_useBleTransmission && _bleService.isReady) {
       debugPrint('✅ Playing VLM done sound via BLE...');
       await _playDoneSound();
@@ -206,6 +214,7 @@ class SpeakerService {
   Future<void> stopSpeaking() async {
     try {
       _isProcessing = false; // Stop processing sound loop
+      _isProcessingSoundActive = false; // Clear processing sound flag
       await _audioPlayer.stop();
       await _flutterTts.stop();
       _isSpeaking = false;
@@ -513,12 +522,20 @@ class SpeakerService {
         // Load processing.wav from assets and send via BLE
         final audioData = await _loadAssetAudio('assets/audio/processing.wav');
         if (audioData != null && _isProcessing) {
+          _isProcessingSoundActive = true; // Mark processing sound as active
+          
           await _bleService.sendAudioData(
             audioData,
             onStart: () => debugPrint('🔄 Sending processing sound via BLE...'),
             onProgress: (sent, total) {}, // Silent progress for processing sound
-            onComplete: () => debugPrint('🔄 Processing sound sent'),
-            onError: (error) => debugPrint('Error sending processing sound: $error'),
+            onComplete: () {
+              debugPrint('🔄 Processing sound sent');
+              _isProcessingSoundActive = false; // Mark processing sound as completed
+            },
+            onError: (error) {
+              debugPrint('Error sending processing sound: $error');
+              _isProcessingSoundActive = false; // Mark processing sound as completed even on error
+            },
           );
         }
         
@@ -528,9 +545,11 @@ class SpeakerService {
         }
       } catch (e) {
         debugPrint('Error in processing sound loop: $e');
+        _isProcessingSoundActive = false; // Ensure flag is cleared on exception
         break;
       }
     }
+    _isProcessingSoundActive = false; // Ensure flag is cleared when loop ends
     debugPrint('🔄 Processing sound loop ended');
   }
 
