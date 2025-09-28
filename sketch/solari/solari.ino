@@ -88,20 +88,20 @@
   // QUALITY PRESETS - Uncomment one set to test:
   
   // === LOW QUALITY (Basic, Small Files) ===
-  // const int AUDIO_SAMPLE_RATE = 8000;
-  // const int AUDIO_BIT_DEPTH = 16;
-  // const int AUDIO_BYTES_PER_SAMPLE = 2;
-  // const char* AUDIO_QUALITY_NAME = "Low Quality";
-  // const int AUDIO_CHUNK_SIZE = 256;
-  // const int AUDIO_TARGET_DELAY_MS = 32;
-  
-  // === STANDARD QUALITY (Good Balance) === 
-  const int AUDIO_SAMPLE_RATE = 16000;
+  const int AUDIO_SAMPLE_RATE = 8000;
   const int AUDIO_BIT_DEPTH = 16;
   const int AUDIO_BYTES_PER_SAMPLE = 2;
-  const char* AUDIO_QUALITY_NAME = "Standard";
-  const int AUDIO_CHUNK_SIZE = 512;
-  const int AUDIO_TARGET_DELAY_MS = 16;
+  const char* AUDIO_QUALITY_NAME = "Low Quality";
+  const int AUDIO_CHUNK_SIZE = 256;
+  const int AUDIO_TARGET_DELAY_MS = 32;
+  
+  // === STANDARD QUALITY (Good Balance) === 
+  // const int AUDIO_SAMPLE_RATE = 16000;
+  // const int AUDIO_BIT_DEPTH = 16;
+  // const int AUDIO_BYTES_PER_SAMPLE = 2;
+  // const char* AUDIO_QUALITY_NAME = "Standard";
+  // const int AUDIO_CHUNK_SIZE = 512;
+  // const int AUDIO_TARGET_DELAY_MS = 16;
   
   // === HIGH QUALITY (Music Quality) ===
   // const int AUDIO_SAMPLE_RATE = 22050;
