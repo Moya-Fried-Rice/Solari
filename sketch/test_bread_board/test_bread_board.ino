@@ -6,9 +6,9 @@
  * 16-BIT PCM WAV PLAYER FOR SMART GLASSES
  * 
  * SUPPORTS:
- * - 16kHz, 16-bit PCM, mono WAV files
- * - High quality audio playback
- * - Optimized for best audio quality
+ * - 8kHz, 16-bit PCM (signed), mono WAV files
+ * - PCM_S16LE format with lower sample rate
+ * - Suitable for voice and audio with reduced bandwidth
  */
 
 // Xiao ESP32-S3 pin names (works fine)
@@ -19,9 +19,9 @@
 // SD Card pins for Xiao ESP32-S3 (using pin 21 like in camera example)
 #define SD_CS_PIN 21
 
-#define WAV_FILE_NAME "/processing.wav"
+#define WAV_FILE_NAME "/8bit_processing.wav"
 
-int16_t amplitude = 32767;  // Maximum amplitude for best quality (can be changed via Serial)
+int16_t amplitude = 32767;  // Maximum amplitude for 16-bit audio (can be changed via Serial)
 
 // WAV header structure for 16-bit PCM files
 struct WAVHeader {
@@ -52,11 +52,11 @@ void setup() {
   
   // Check if WAV file exists
   if (!SD.exists(WAV_FILE_NAME)) {
-    Serial.println("[ERROR] test.wav not found!");
+    Serial.println("[ERROR] processing.wav not found!");
     return;
   }
   
-  setupI2S(16000);  // Fixed 16kHz for high quality
+  setupI2S(8000);  // Fixed 8kHz for 16-bit audio
   Serial.println("Ready! Commands: 'p' = play, number = volume (0-32767)");
 }
 
@@ -70,13 +70,13 @@ void setupI2S(uint32_t sampleRate) {
   i2s.setPins(I2S_BCLK, I2S_LRC, I2S_DOUT);
   
   // Begin I2S in TX mode, mono, 16-bit, at the specified sample rate
-  if (!i2s.begin(I2S_MODE_STD, sampleRate, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO)) {
+  if (!i2s.begin(I2S_MODE_STD, sampleRate, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO)) {  
     Serial.println("[ERROR] Failed to initialize I2S!");
     while (true) delay(1000);
   }
   
   Serial.println("[DEBUG] ESP_I2S initialized successfully");
-  Serial.printf("[DEBUG] I2S configured for %d Hz, 16-bit, mono\n", sampleRate);
+  Serial.printf("[DEBUG] I2S configured for %d Hz, 16-bit (PCM_S16LE), mono\n", sampleRate);
 }
 
 bool readWAVHeader(File &file, WAVHeader &header) {
@@ -168,9 +168,9 @@ void playWAVFile() {
     return;
   }
   
-  // Dynamically configure I2S for the file's sample rate (prefer 16kHz)
-  if (header.sampleRate != 16000) {
-    Serial.printf("[WARN] Expected 16kHz, got %d Hz - reconfiguring I2S\n", header.sampleRate);
+  // Dynamically configure I2S for the file's sample rate (prefer 8kHz)
+  if (header.sampleRate != 8000) {
+    Serial.printf("[WARN] Expected 8kHz, got %d Hz - reconfiguring I2S\n", header.sampleRate);
     setupI2S(header.sampleRate);
   }
   
@@ -179,7 +179,7 @@ void playWAVFile() {
   float duration = (float)totalSamples / header.sampleRate;
   Serial.printf("[INFO] Playing: %.2f seconds, %d samples at %d Hz\n", duration, totalSamples, header.sampleRate);
   
-  const size_t chunkSize = 256;  // Larger chunk for 16-bit samples (128 samples)
+  const size_t chunkSize = 256;  // Chunk for 16-bit samples (128 samples)
   uint8_t audioData[chunkSize];
   uint32_t totalBytesRead = 0;
   
@@ -189,19 +189,19 @@ void playWAVFile() {
     
     if (bytesRead == 0) break;
     
-    // Process 16-bit PCM samples
+    // Process 16-bit PCM samples (signed, little-endian)
     for (size_t i = 0; i < bytesRead; i += 2 * header.numChannels) {
-      // Read 16-bit sample (little-endian)
+      // Read 16-bit sample (little-endian, signed)
       int16_t sample = (int16_t)(audioData[i] | (audioData[i + 1] << 8));
       
-      // Apply volume scaling for highest quality
+      // Apply volume scaling
       if (amplitude != 32767) {
         // Use 32-bit arithmetic to prevent overflow
         int32_t scaledSample = ((int32_t)sample * amplitude) / 32767;
         sample = (int16_t)constrain(scaledSample, -32768, 32767);
       }
       
-      // Send to I2S (already in correct 16-bit format)
+      // Send to I2S (already in correct 16-bit signed format)
       i2s.write((uint8_t*)&sample, sizeof(int16_t));
       
       // Skip additional channels if stereo (we only play the first channel)
@@ -233,7 +233,7 @@ void handleSerialInput() {
         Serial.printf("[INFO] Volume set to %d (%.1f%%)\n", amplitude, (float)amplitude / 327.67);
       } else {
         Serial.println("[INFO] Commands: 'p' = play, number = volume (0-32767)");
-        Serial.println("[INFO] Supports 16kHz, 16-bit PCM WAV files for highest quality!");
+        Serial.println("[INFO] Supports 8kHz, 16-bit PCM_S16LE WAV files!");
       }
     }
   }
