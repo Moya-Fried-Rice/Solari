@@ -19,7 +19,7 @@
 // SD Card pins for Xiao ESP32-S3 (using pin 21 like in camera example)
 #define SD_CS_PIN 21
 
-#define WAV_FILE_NAME "/processing.wav"
+#define WAV_FILE_NAME "/8bit_processing.wav"
 
 int16_t amplitude = 32767;  // Maximum amplitude for 16-bit audio (can be changed via Serial)
 
