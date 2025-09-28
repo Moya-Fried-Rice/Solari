@@ -165,6 +165,11 @@
   // I2S instance for speaker output (separate from microphone I2S)
   I2SClass i2s_speaker;
 
+  // ============================================================================
+  // Function Declarations
+  // ============================================================================
+  void reinitSpeaker(uint32_t sampleRate = AUDIO_SAMPLE_RATE);
+
 
 
   // ============================================================================
