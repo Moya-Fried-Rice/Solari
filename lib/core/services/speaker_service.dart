@@ -541,7 +541,7 @@ class SpeakerService {
         
         // Longer delay between loops to reduce irritating audio pops/explosions
         if (_isProcessing) {
-          await Future.delayed(const Duration(milliseconds: 1500)); // Increased from 100ms to 800ms
+          await Future.delayed(const Duration(milliseconds: 450)); // Increased from 100ms to 800ms
         }
       } catch (e) {
         debugPrint('Error in processing sound loop: $e');
