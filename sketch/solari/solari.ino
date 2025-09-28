@@ -160,10 +160,88 @@
   };
   SpeakerAudioState speakerAudioState;
 
+  // WAV header structure for 16-bit PCM files (matching test_bread_board.ino)
+  struct WAVHeader {
+    uint32_t sampleRate;
+    uint32_t dataSize;
+    uint16_t numChannels;
+    uint16_t bitsPerSample;
+  };
+
   // No longer need A-Law decompression - using direct 16-bit PCM for superior quality
 
   // I2S instance for speaker output (separate from microphone I2S)
   I2SClass i2s_speaker;
+
+  // Function to parse WAV header and find audio data start position
+  bool parseWAVHeader(const std::vector<uint8_t>& audioBuffer, WAVHeader& header, size_t& dataStartPos) {
+    if (audioBuffer.size() < 44) {
+      logError("SPEAKER", "Audio buffer too small for WAV header");
+      return false;
+    }
+    
+    // Check RIFF header
+    if (audioBuffer[0] != 'R' || audioBuffer[1] != 'I' || audioBuffer[2] != 'F' || audioBuffer[3] != 'F') {
+      logWarn("SPEAKER", "No RIFF header found - assuming raw PCM data");
+      // Treat as raw PCM data
+      header.sampleRate = AUDIO_SAMPLE_RATE;
+      header.bitsPerSample = AUDIO_BIT_DEPTH;
+      header.numChannels = 1;
+      header.dataSize = audioBuffer.size();
+      dataStartPos = 0;
+      return true;
+    }
+    
+    // Check WAVE header
+    if (audioBuffer[8] != 'W' || audioBuffer[9] != 'A' || audioBuffer[10] != 'V' || audioBuffer[11] != 'E') {
+      logError("SPEAKER", "Invalid WAVE header");
+      return false;
+    }
+    
+    // Read format code at offset 20 (should be 1 for PCM)
+    uint16_t formatCode = audioBuffer[20] | (audioBuffer[21] << 8);
+    if (formatCode != 1) {
+      logError("SPEAKER", "Expected PCM format (1), got format " + String(formatCode));
+      return false;
+    }
+    
+    // Read number of channels at offset 22
+    header.numChannels = audioBuffer[22] | (audioBuffer[23] << 8);
+    
+    // Read sample rate from offset 24
+    header.sampleRate = audioBuffer[24] | (audioBuffer[25] << 8) | 
+                       (audioBuffer[26] << 16) | (audioBuffer[27] << 24);
+    
+    // Read bits per sample from offset 34
+    header.bitsPerSample = audioBuffer[34] | (audioBuffer[35] << 8);
+    
+    // Find data chunk (starting from offset 36)
+    size_t pos = 36;
+    while (pos + 8 <= audioBuffer.size()) {
+      // Check for "data" chunk
+      if (audioBuffer[pos] == 'd' && audioBuffer[pos+1] == 'a' && 
+          audioBuffer[pos+2] == 't' && audioBuffer[pos+3] == 'a') {
+        // Read data chunk size
+        header.dataSize = audioBuffer[pos+4] | (audioBuffer[pos+5] << 8) | 
+                         (audioBuffer[pos+6] << 16) | (audioBuffer[pos+7] << 24);
+        dataStartPos = pos + 8; // Data starts after chunk header
+        
+        logInfo("SPEAKER", "WAV parsed: " + String(header.sampleRate) + "Hz, " + 
+                String(header.numChannels) + "ch, " + String(header.bitsPerSample) + "bit, " + 
+                String(header.dataSize) + " bytes data at pos " + String(dataStartPos));
+        
+        return true;
+      }
+      
+      // Skip this chunk
+      uint32_t chunkSize = audioBuffer[pos+4] | (audioBuffer[pos+5] << 8) | 
+                          (audioBuffer[pos+6] << 16) | (audioBuffer[pos+7] << 24);
+      pos += 8 + chunkSize;
+    }
+    
+    logError("SPEAKER", "No data chunk found in WAV file");
+    return false;
+  }
 
 
 
@@ -620,13 +698,11 @@
   void initSpeaker() {
       logInfo("SPEAKER", "Initializing speaker output...");
       
-      // Set the TX pins for I2S speaker output (based on your test_bread_board.ino)
-      // Using different pins from microphone to avoid conflicts
+      // Set the TX pins for I2S speaker output (matching test_bread_board.ino exactly)
       i2s_speaker.setPins(D1, D0, D2);  // BCLK=D1, LRC=D0, DOUT=D2
       logDebug("SPEAKER", "I2S TX pins configured: BCLK=D1, LRC=D0, DOUT=D2");
 
-      // Begin I2S in TX mode with configurable audio format
-      // Current format: configurable for testing different qualities
+      // Begin I2S in TX mode with default sample rate (will be reconfigured per WAV file)
       if (!i2s_speaker.begin(I2S_MODE_STD, AUDIO_SAMPLE_RATE, SPEAKER_BIT_WIDTH, I2S_SLOT_MODE_MONO)) {
           logError("SPEAKER", "I2S speaker initialization failed!");
           while (true) delay(100);
@@ -635,6 +711,23 @@
       logInfo("SPEAKER", String("Speaker ready - ") + String(AUDIO_SAMPLE_RATE) + "Hz, " + 
                         String(AUDIO_BIT_DEPTH) + "-bit, mono (" + String(AUDIO_QUALITY_NAME) + ")");
       logMemory("SPEAKER");
+  }
+
+  // Function to reconfigure I2S for specific sample rate (like test_bread_board.ino)
+  void setupSpeakerI2S(uint32_t sampleRate) {
+    // Stop current I2S
+    i2s_speaker.end();
+    
+    // Set the pins again
+    i2s_speaker.setPins(D1, D0, D2);
+    
+    // Begin I2S with the specified sample rate
+    if (!i2s_speaker.begin(I2S_MODE_STD, sampleRate, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO)) {
+      logError("SPEAKER", "Failed to reconfigure I2S for " + String(sampleRate) + "Hz!");
+      return;
+    }
+    
+    logDebug("SPEAKER", "I2S reconfigured for " + String(sampleRate) + "Hz, 16-bit, mono");
   }
 
 
@@ -1070,17 +1163,49 @@
     }
   }
 
-  // High-Quality Audio Playback Function with 16-bit PCM
+  // High-Quality Audio Playback Function with 16-bit PCM (Fixed to handle WAV files properly)
   void playAudioBuffer() {
     if (speakerAudioState.audioBuffer.size() == 0) {
       logWarn("SPEAKER", "No audio data to play");
       return;
     }
     
-    size_t audioDataSize = speakerAudioState.audioBuffer.size();
-    // Each sample is now 2 bytes (16-bit) at 16kHz
-    float duration = (float)(audioDataSize / 2) / 16000.0;
-    logInfo("SPEAKER", "Playing 16-bit PCM audio: " + String(duration, 1) + " seconds, " + String(audioDataSize) + " bytes");
+    // Parse WAV header to find actual audio data
+    WAVHeader header;
+    size_t dataStartPos = 0;
+    
+    if (!parseWAVHeader(speakerAudioState.audioBuffer, header, dataStartPos)) {
+      logError("SPEAKER", "Failed to parse audio format");
+      return;
+    }
+    
+    // Validate format matches our configuration
+    if (header.bitsPerSample != AUDIO_BIT_DEPTH) {
+      logWarn("SPEAKER", "Expected " + String(AUDIO_BIT_DEPTH) + "-bit, got " + String(header.bitsPerSample) + "-bit");
+    }
+    
+    if (header.sampleRate != AUDIO_SAMPLE_RATE) {
+      logWarn("SPEAKER", "Expected " + String(AUDIO_SAMPLE_RATE) + "Hz, got " + String(header.sampleRate) + "Hz");
+    }
+    
+    // Calculate actual audio data size (excluding WAV header)
+    size_t audioDataSize = speakerAudioState.audioBuffer.size() - dataStartPos;
+    if (header.dataSize > 0 && header.dataSize < audioDataSize) {
+      audioDataSize = header.dataSize; // Use header's data size if available
+    }
+    
+    // Calculate duration based on actual audio parameters
+    uint32_t totalSamples = audioDataSize / (header.bitsPerSample / 8) / header.numChannels;
+    float duration = (float)totalSamples / header.sampleRate;
+    
+    logInfo("SPEAKER", "Playing WAV: " + String(duration, 2) + "s, " + String(audioDataSize) + " audio bytes (" + 
+            String(header.sampleRate) + "Hz, " + String(header.bitsPerSample) + "bit, " + String(header.numChannels) + "ch)");
+    
+    // Dynamically configure I2S for the file's sample rate (like test_bread_board.ino)
+    if (header.sampleRate != AUDIO_SAMPLE_RATE) {
+      logWarn("SPEAKER", "Expected " + String(AUDIO_SAMPLE_RATE) + "Hz, got " + String(header.sampleRate) + "Hz - reconfiguring I2S");
+      setupSpeakerI2S(header.sampleRate);
+    }
     
     // Anti-click: Send silence first to initialize I2S cleanly
     const size_t silenceSize = 64;
@@ -1088,8 +1213,8 @@
     i2s_speaker.write(silenceBuffer, silenceSize);
     vTaskDelay(pdMS_TO_TICKS(5));
     
-    // Use larger chunks for smoother playback at higher quality
-    const size_t chunkSize = 512;  // Increased for 16kHz data rate
+    // Use appropriate chunk size for the sample rate (matching test_bread_board.ino approach)
+    const size_t chunkSize = 256;  // Optimal for 8kHz like test_bread_board.ino
     size_t totalBytesPlayed = 0;
     const int rampChunks = 3;  // Ramp over 3 chunks for quick start
     int chunkCounter = 0;
@@ -1106,27 +1231,35 @@
       
       // Apply volume control and filtering to 16-bit PCM samples
       std::vector<uint8_t> processedChunk(bytesToPlay);
-      for (size_t i = 0; i < bytesToPlay; i += 2) {
-        // Extract 16-bit sample (little-endian)
-        int16_t sample = speakerAudioState.audioBuffer[totalBytesPlayed + i] | 
-                        (speakerAudioState.audioBuffer[totalBytesPlayed + i + 1] << 8);
+      for (size_t i = 0; i < bytesToPlay; i += 2 * header.numChannels) {
+        // Extract 16-bit sample from audio data (after WAV header, little-endian)
+        size_t samplePos = dataStartPos + totalBytesPlayed + i;
+        if (samplePos + 1 >= speakerAudioState.audioBuffer.size()) break;
         
-        // Apply volume control with anti-click ramping
-        int32_t adjustedAmplitude = speakerAudioState.amplitude;
-        if (chunkCounter < rampChunks) {
-          adjustedAmplitude = (adjustedAmplitude * (chunkCounter + 1)) / rampChunks;
+        int16_t sample = speakerAudioState.audioBuffer[samplePos] | 
+                        (speakerAudioState.audioBuffer[samplePos + 1] << 8);
+        
+        // Apply volume control with anti-click ramping (like test_bread_board.ino)
+        if (speakerAudioState.amplitude != 32767) {
+          // Use 32-bit arithmetic to prevent overflow (matching test_bread_board.ino)
+          int32_t scaledSample = ((int32_t)sample * speakerAudioState.amplitude) / 32767;
+          sample = (int16_t)constrain(scaledSample, -32768, 32767);
         }
         
-        sample = (int16_t)((int32_t)sample * adjustedAmplitude / 32767);
+        // Apply gentle ramping for anti-click
+        if (chunkCounter < rampChunks) {
+          int32_t rampFactor = (chunkCounter + 1) * 32767 / rampChunks;
+          sample = (int16_t)((int32_t)sample * rampFactor / 32767);
+        }
         
-        // Apply simple high-pass filter to reduce DC offset and clicks
-        static int16_t lastSample = 0;
-        int16_t filtered = sample - (lastSample >> 4);  // Simple HPF
-        lastSample = sample;
+        // Store processed sample as little-endian
+        processedChunk[i] = sample & 0xFF;
+        processedChunk[i + 1] = (sample >> 8) & 0xFF;
         
-        // Store back as little-endian
-        processedChunk[i] = filtered & 0xFF;
-        processedChunk[i + 1] = (filtered >> 8) & 0xFF;
+        // Skip additional channels if stereo (we only play the first channel)
+        if (header.numChannels > 1) {
+          i += 2 * (header.numChannels - 1);
+        }
       }
       
       chunkCounter++;
@@ -1152,7 +1285,8 @@
       }
     }
     
-    logInfo("SPEAKER", "High-quality PCM audio playback finished - played " + String(totalBytesPlayed) + " bytes");
+    logInfo("SPEAKER", "WAV audio playback finished - played " + String(totalBytesPlayed) + " bytes (" + 
+            String(duration, 2) + "s at " + String(header.sampleRate) + "Hz)");
   }
 
   // Temperature Task
