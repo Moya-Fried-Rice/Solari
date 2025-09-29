@@ -1,259 +1,72 @@
-#include "ESP_I2S.h"
+#include <ESP_I2S.h>
 #include <SD.h>
 #include <SPI.h>
 
-/*
- * 16-BIT PCM WAV PLAYER FOR SMART GLASSES
- * 
- * SUPPORTS:
- * - 11025Hz, 16-bit PCM (signed), mono WAV files
- * - 16kHz, 16-bit PCM (signed), mono WAV files
- * - PCM_S16LE format with variable sample rates
- * - Suitable for high quality voice and audio
- */
+// --- Pin Definitions ---
+#define SD_CS_PIN 21        // SD card CS pin (change if needed)
+#define I2S_BCLK   D1       // I2S BCLK
+#define I2S_LRC    D0       // I2S LRC / WS
+#define I2S_DOUT   D2       // I2S Data Out
+#define WAV_FILE   "/fixed_done.wav"
 
-// Xiao ESP32-S3 pin names (works fine)
-#define I2S_BCLK D1  // BCLK
-#define I2S_LRC  D0  // LRC / WS
-#define I2S_DOUT D2  // DIN
+I2SClass I2S;
 
-// SD Card pins for Xiao ESP32-S3 (using pin 21 like in camera example)
-#define SD_CS_PIN 21
+void playWav() {
+  File wavFile = SD.open(WAV_FILE);
+  if (!wavFile) {
+    Serial.println("Failed to open WAV file!");
+    return;
+  }
 
-#define WAV_FILE_NAME "/11kHz_processing.wav"
+  wavFile.seek(44); // Skip header
+  const size_t BUFFER_SIZE = 512;
+  uint8_t buffer[BUFFER_SIZE];
 
-int16_t amplitude = 32767;  // Maximum amplitude for 16-bit audio (can be changed via Serial)
+  while (wavFile.available()) {
+    size_t bytesRead = wavFile.read(buffer, BUFFER_SIZE);
+    I2S.write(buffer, bytesRead);
+  }
 
-// WAV header structure for 16-bit PCM files
-struct WAVHeader {
-  uint32_t sampleRate;
-  uint32_t dataSize;
-  uint16_t numChannels;
-  uint16_t bitsPerSample;
-};
+  Serial.print("CLICK");
 
-// Create I2S instance
-I2SClass i2s;
+  // 🔇 Send 50 ms of silence to avoid click
+  int silenceSamples = 110025 / 20; // 50ms of silence
+  for (int i = 0; i < silenceSamples; i++) {
+    int16_t silence = 0;
+    I2S.write((uint8_t *)&silence, sizeof(silence));
+  }
 
-// Function declarations
-void setupI2S(uint32_t sampleRate);
-bool readWAVHeader(File &file, WAVHeader &header);
-void playWAVFile();
-void handleSerialInput();
+  wavFile.close();
+  Serial.println("Done!");
+}
+
 
 void setup() {
   Serial.begin(115200);
-  Serial.println("\n16-BIT PCM WAV PLAYER FOR SMART GLASSES");
-  
-  // Initialize SD card
+  Serial.println("\nSimple WAV Player with Command");
+
   if (!SD.begin(SD_CS_PIN)) {
-    Serial.println("[ERROR] SD card failed!");
-    return;
+    Serial.println("SD card mount failed!");
+    while (true);
   }
-  
-  // Check if WAV file exists
-  if (!SD.exists(WAV_FILE_NAME)) {
-    Serial.println("[ERROR] 11kHz_processing.wav not found!");
-    return;
+
+  I2S.setPins(I2S_BCLK, I2S_LRC, I2S_DOUT);
+  if (!I2S.begin(I2S_MODE_STD, 11025, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO)) {
+    Serial.println("I2S init failed!");
+    while (true);
   }
-  
-  setupI2S(11025);  // Fixed 11025Hz for 16-bit audio
-  Serial.println("Ready! Commands: 'p' = play, number = volume (0-32767)");
+
+  Serial.println("Type 'play' and press Enter to start.");
 }
 
 void loop() {
-  handleSerialInput();
-  delay(100);  // Small delay to prevent excessive loop iterations
-}
-
-void setupI2S(uint32_t sampleRate) {
-  // Set the pins for I2S TX (output to MAX98357A)
-  i2s.setPins(I2S_BCLK, I2S_LRC, I2S_DOUT);
-  
-  // Begin I2S in TX mode, mono, 16-bit, at the specified sample rate
-  if (!i2s.begin(I2S_MODE_STD, sampleRate, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO)) {  
-    Serial.println("[ERROR] Failed to initialize I2S!");
-    while (true) delay(1000);
-  }
-  
-  Serial.println("[DEBUG] ESP_I2S initialized successfully");
-  Serial.printf("[DEBUG] I2S configured for %d Hz, 16-bit (PCM_S16LE), mono\n", sampleRate);
-}
-
-bool readWAVHeader(File &file, WAVHeader &header) {
-  file.seek(0);
-  
-  // Read and verify RIFF header
-  char riffHeader[4];
-  file.read((uint8_t*)riffHeader, 4);
-  if (strncmp(riffHeader, "RIFF", 4) != 0) {
-    Serial.println("[ERROR] Not a valid WAV file - missing RIFF header");
-    return false;
-  }
-  
-  // Skip file size (4 bytes) and read WAVE header
-  file.seek(8);
-  char waveHeader[4];
-  file.read((uint8_t*)waveHeader, 4);
-  if (strncmp(waveHeader, "WAVE", 4) != 0) {
-    Serial.println("[ERROR] Not a valid WAV file - missing WAVE header");
-    return false;
-  }
-  
-  // Read format code at offset 20 (should be 1 for PCM)
-  file.seek(20);
-  uint16_t formatCode;
-  file.read((uint8_t*)&formatCode, 2);
-  
-  if (formatCode != 1) {
-    Serial.printf("[ERROR] Expected PCM format (1), got format %d\n", formatCode);
-    return false;
-  }
-  
-  // Read number of channels at offset 22
-  file.seek(22);
-  file.read((uint8_t*)&header.numChannels, 2);
-  
-  // Read sample rate from offset 24
-  file.seek(24);
-  file.read((uint8_t*)&header.sampleRate, 4);
-  
-  // Read bits per sample from offset 34
-  file.seek(34);
-  file.read((uint8_t*)&header.bitsPerSample, 2);
-  
-  // Find data chunk (it might not always be at offset 40)
-  file.seek(36);
-  char chunkId[4];
-  uint32_t chunkSize;
-  
-  while (file.available()) {
-    file.read((uint8_t*)chunkId, 4);
-    file.read((uint8_t*)&chunkSize, 4);
-    
-    if (strncmp(chunkId, "data", 4) == 0) {
-      header.dataSize = chunkSize;
-      break;
-    }
-    
-    // Skip this chunk
-    file.seek(file.position() + chunkSize);
-  }
-  
-  Serial.printf("[INFO] 16-bit PCM WAV: %d Hz, %d channels, %d bits, %d bytes\n", 
-                header.sampleRate, header.numChannels, header.bitsPerSample, header.dataSize);
-  
-  // Validate format
-  if (header.bitsPerSample != 16) {
-    Serial.printf("[ERROR] Expected 16-bit, got %d-bit\n", header.bitsPerSample);
-    return false;
-  }
-  
-  if (header.numChannels != 1) {
-    Serial.printf("[WARN] Expected mono (1 channel), got %d channels - will play first channel only\n", header.numChannels);
-  }
-  
-  return true;
-}
-
-void playWAVFile() {
-  File wavFile = SD.open(WAV_FILE_NAME);
-  if (!wavFile) {
-    Serial.println("[ERROR] Failed to open WAV file");
-    return;
-  }
-  
-  WAVHeader header;
-  if (!readWAVHeader(wavFile, header)) {
-    wavFile.close();
-    return;
-  }
-  
-  // Dynamically configure I2S for the file's sample rate (prefer 11025Hz)
-  if (header.sampleRate != 11025) {
-    Serial.printf("[WARN] Expected 11025Hz, got %d Hz - reconfiguring I2S\n", header.sampleRate);
-    setupI2S(header.sampleRate);
-  }
-  
-  // Clear I2S buffers with a gentle ramp to avoid pops
-  const int rampSamples = 64;  // Short ramp to clear buffers
-  for (int i = 0; i < rampSamples; i++) {
-    int16_t rampSample = (int16_t)((i * 32) / rampSamples);  // Gentle ramp from 0 to 32
-    i2s.write((uint8_t*)&rampSample, sizeof(int16_t));
-  }
-  
-  // Send a few samples of low-level signal
-  int16_t lowLevel = 16;
-  for (int i = 0; i < 32; i++) {
-    i2s.write((uint8_t*)&lowLevel, sizeof(int16_t));
-  }
-  
-  // Small delay to let the amplifier stabilize
-  delay(5);
-  
-  // Calculate duration and samples
-  uint32_t totalSamples = header.dataSize / (header.bitsPerSample / 8) / header.numChannels;
-  float duration = (float)totalSamples / header.sampleRate;
-  Serial.printf("[INFO] Playing: %.2f seconds, %d samples at %d Hz\n", duration, totalSamples, header.sampleRate);
-  
-  const size_t chunkSize = 256;  // Chunk for 16-bit samples (128 samples)
-  uint8_t audioData[chunkSize];
-  uint32_t totalBytesRead = 0;
-  
-  while (totalBytesRead < header.dataSize) {
-    size_t bytesToRead = min(chunkSize, (size_t)(header.dataSize - totalBytesRead));
-    size_t bytesRead = wavFile.read(audioData, bytesToRead);
-    
-    if (bytesRead == 0) break;
-    
-    // Process 16-bit PCM samples (signed, little-endian)
-    for (size_t i = 0; i < bytesRead; i += 2 * header.numChannels) {
-      // Read 16-bit sample (little-endian, signed)
-      int16_t sample = (int16_t)(audioData[i] | (audioData[i + 1] << 8));
-      
-      // Apply volume scaling
-      if (amplitude != 32767) {
-        // Use 32-bit arithmetic to prevent overflow
-        int32_t scaledSample = ((int32_t)sample * amplitude) / 32767;
-        sample = (int16_t)constrain(scaledSample, -32768, 32767);
-      }
-      
-      // Send to I2S (already in correct 16-bit signed format)
-      i2s.write((uint8_t*)&sample, sizeof(int16_t));
-      
-      // Skip additional channels if stereo (we only play the first channel)
-      if (header.numChannels > 1) {
-        i += 2 * (header.numChannels - 1);
-      }
-    }
-    
-    totalBytesRead += bytesRead;
-  }
-  
-  wavFile.close();
-  Serial.println("[INFO] Playback complete");
-}
-
-// Listen for serial input and handle commands
-void handleSerialInput() {
   if (Serial.available()) {
-    String input = Serial.readStringUntil('\n');
-    input.trim();
-    
-    if (input.equalsIgnoreCase("p") || input.equalsIgnoreCase("play")) {
-      Serial.println("[INFO] Playing 16-bit PCM WAV file...");
-      playWAVFile();
+    String cmd = Serial.readStringUntil('\n');
+    cmd.trim();
+    if (cmd.equalsIgnoreCase("play")) {
+      playWav();
     } else {
-      int newAmp = input.toInt();
-      if (newAmp >= 0 && newAmp <= 32767) {
-        amplitude = newAmp;
-        Serial.printf("[INFO] Volume set to %d (%.1f%%)\n", amplitude, (float)amplitude / 327.67);
-      } else {
-        Serial.println("[INFO] Commands: 'p' = play, number = volume (0-32767)");
-        Serial.println("[INFO] Supports 11kHz, 16kHz, 16-bit PCM_S16LE WAV files!");
-      }
+      Serial.println("Unknown command. Type 'play'.");
     }
   }
 }
-
-
