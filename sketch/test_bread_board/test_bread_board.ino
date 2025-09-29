@@ -6,9 +6,10 @@
  * 16-BIT PCM WAV PLAYER FOR SMART GLASSES
  * 
  * SUPPORTS:
- * - 8kHz, 16-bit PCM (signed), mono WAV files
- * - PCM_S16LE format with lower sample rate
- * - Suitable for voice and audio with reduced bandwidth
+ * - 11025Hz, 16-bit PCM (signed), mono WAV files
+ * - 16kHz, 16-bit PCM (signed), mono WAV files
+ * - PCM_S16LE format with variable sample rates
+ * - Suitable for high quality voice and audio
  */
 
 // Xiao ESP32-S3 pin names (works fine)
@@ -19,7 +20,7 @@
 // SD Card pins for Xiao ESP32-S3 (using pin 21 like in camera example)
 #define SD_CS_PIN 21
 
-#define WAV_FILE_NAME "/8bit_processing.wav"
+#define WAV_FILE_NAME "/11kHz_processing.wav"
 
 int16_t amplitude = 32767;  // Maximum amplitude for 16-bit audio (can be changed via Serial)
 
@@ -52,11 +53,11 @@ void setup() {
   
   // Check if WAV file exists
   if (!SD.exists(WAV_FILE_NAME)) {
-    Serial.println("[ERROR] processing.wav not found!");
+    Serial.println("[ERROR] 11kHz_processing.wav not found!");
     return;
   }
   
-  setupI2S(8000);  // Fixed 8kHz for 16-bit audio
+  setupI2S(11025);  // Fixed 11025Hz for 16-bit audio
   Serial.println("Ready! Commands: 'p' = play, number = volume (0-32767)");
 }
 
@@ -168,11 +169,27 @@ void playWAVFile() {
     return;
   }
   
-  // Dynamically configure I2S for the file's sample rate (prefer 8kHz)
-  if (header.sampleRate != 8000) {
-    Serial.printf("[WARN] Expected 8kHz, got %d Hz - reconfiguring I2S\n", header.sampleRate);
+  // Dynamically configure I2S for the file's sample rate (prefer 11025Hz)
+  if (header.sampleRate != 11025) {
+    Serial.printf("[WARN] Expected 11025Hz, got %d Hz - reconfiguring I2S\n", header.sampleRate);
     setupI2S(header.sampleRate);
   }
+  
+  // Clear I2S buffers with a gentle ramp to avoid pops
+  const int rampSamples = 64;  // Short ramp to clear buffers
+  for (int i = 0; i < rampSamples; i++) {
+    int16_t rampSample = (int16_t)((i * 32) / rampSamples);  // Gentle ramp from 0 to 32
+    i2s.write((uint8_t*)&rampSample, sizeof(int16_t));
+  }
+  
+  // Send a few samples of low-level signal
+  int16_t lowLevel = 16;
+  for (int i = 0; i < 32; i++) {
+    i2s.write((uint8_t*)&lowLevel, sizeof(int16_t));
+  }
+  
+  // Small delay to let the amplifier stabilize
+  delay(5);
   
   // Calculate duration and samples
   uint32_t totalSamples = header.dataSize / (header.bitsPerSample / 8) / header.numChannels;
@@ -233,7 +250,7 @@ void handleSerialInput() {
         Serial.printf("[INFO] Volume set to %d (%.1f%%)\n", amplitude, (float)amplitude / 327.67);
       } else {
         Serial.println("[INFO] Commands: 'p' = play, number = volume (0-32767)");
-        Serial.println("[INFO] Supports 8kHz, 16-bit PCM_S16LE WAV files!");
+        Serial.println("[INFO] Supports 11kHz, 16kHz, 16-bit PCM_S16LE WAV files!");
       }
     }
   }
