@@ -415,8 +415,7 @@ class _SolariScreenState extends State<SolariScreen>
     });
 
     try {
-      // Start processing sound during VLM processing
-      await _speakerService.startProcessingSound();
+      // Sound effects removed - no processing/done sounds
       
       debugPrint('[AI] Passing image to VlmService for processing...');
       final response = await _vlmService.processImage(
@@ -424,8 +423,7 @@ class _SolariScreenState extends State<SolariScreen>
         prompt: prompt,
       );
       
-      // Stop processing sound and play done sound when VLM processing completes
-      await _speakerService.playDoneSound();
+      // Sound effects removed - no processing/done sounds
       
       if (response != null && mounted) {
         debugPrint('[AI] Image description complete: $response');
@@ -441,7 +439,7 @@ class _SolariScreenState extends State<SolariScreen>
     } catch (e) {
       debugPrint('[AI] Error processing image: $e');
       // Stop processing sound on error
-      await _speakerService.playDoneSound();
+      // Sound effects removed
     } finally {
       if (mounted) {
         setState(() {

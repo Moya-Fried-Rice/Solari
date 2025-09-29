@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
@@ -83,8 +82,7 @@ class SpeakerService {
   bool _isSpeaking = false;
   String _currentFilePath = "";
   bool _useBleTransmission = false;
-  bool _isProcessing = false;
-  bool _isProcessingSoundActive = false; // Track if processing sound is currently being sent
+  // Audio processing variables removed
 
   /// Initialize the TTS engine
   Future<void> initialize() async {
@@ -112,30 +110,7 @@ class SpeakerService {
   /// Get current speaking status
   bool get isSpeaking => _isSpeaking;
 
-  /// Start playing processing sound loop via BLE (for VLM processing feedback)
-  Future<void> startProcessingSound() async {
-    if (_useBleTransmission && _bleService.isReady) {
-      _isProcessing = true;
-      debugPrint('🔄 Starting VLM processing sound loop via BLE...');
-      _loopProcessingSound();
-    }
-  }
-
-  /// Stop processing sound and play done sound via BLE (when VLM processing completes)
-  Future<void> playDoneSound() async {
-    _isProcessing = false; // Stop processing sound loop
-    
-    // Wait for any active processing sound transmission to complete before sending done sound
-    while (_isProcessingSoundActive) {
-      debugPrint('⏳ Waiting for processing sound to complete before sending done sound...');
-      await Future.delayed(const Duration(milliseconds: 100));
-    }
-    
-    if (_useBleTransmission && _bleService.isReady) {
-      debugPrint('✅ Playing VLM done sound via BLE...');
-      await _playDoneSound();
-    }
-  }
+  // Sound effects removed - no longer playing processing/done sounds
 
   /// Enable BLE transmission mode (sends audio to connected BLE device)
   Future<void> enableBleTransmission(dynamic bleDevice) async {
@@ -221,8 +196,6 @@ class SpeakerService {
   /// Stop current speech playback
   Future<void> stopSpeaking() async {
     try {
-      _isProcessing = false; // Stop processing sound loop
-      _isProcessingSoundActive = false; // Clear processing sound flag
       await _audioPlayer.stop();
       await _flutterTts.stop();
       _isSpeaking = false;
@@ -521,77 +494,7 @@ class SpeakerService {
 
 
 
-  /// Background method to continuously loop processing sound
-  void _loopProcessingSound() async {
-    while (_isProcessing) {
-      try {
-        if (!_isProcessing) break;
-        
-        // Load processing.wav from assets and send via BLE
-        final audioData = await _loadAssetAudio('assets/audio/11kHz_processing.wav');
-        if (audioData != null && _isProcessing) {
-          _isProcessingSoundActive = true; // Mark processing sound as active
-          
-          await _bleService.sendAudioData(
-            audioData,
-            onStart: () => debugPrint('🔄 Sending processing sound via BLE...'),
-            onProgress: (sent, total) {}, // Silent progress for processing sound
-            onComplete: () {
-              debugPrint('🔄 Processing sound sent');
-              _isProcessingSoundActive = false; // Mark processing sound as completed
-            },
-            onError: (error) {
-              debugPrint('Error sending processing sound: $error');
-              _isProcessingSoundActive = false; // Mark processing sound as completed even on error
-            },
-          );
-        }
-        
-        // Longer delay between loops to reduce irritating audio pops/explosions
-        if (_isProcessing) {
-          await Future.delayed(const Duration(milliseconds: 1000)); // Increased from 100ms to 800ms
-        }
-      } catch (e) {
-        debugPrint('Error in processing sound loop: $e');
-        _isProcessingSoundActive = false; // Ensure flag is cleared on exception
-        break;
-      }
-    }
-    _isProcessingSoundActive = false; // Ensure flag is cleared when loop ends
-    debugPrint('🔄 Processing sound loop ended');
-  }
-
-  /// Play done sound via BLE
-  Future<void> _playDoneSound() async {
-    try {
-      final audioData = await _loadAssetAudio('assets/audio/11kHz_done.wav');
-      if (audioData != null) {
-        await _bleService.sendAudioData(
-          audioData,
-          onStart: () => debugPrint('✅ Sending done sound via BLE...'),
-          onProgress: (sent, total) {
-            int percent = ((sent * 100) / total).round();
-            debugPrint('Done sound transmission: $percent%');
-          },
-          onComplete: () => debugPrint('✅ Done sound sent successfully'),
-          onError: (error) => debugPrint('Error sending done sound: $error'),
-        );
-      }
-    } catch (e) {
-      debugPrint('Error playing done sound: $e');
-    }
-  }
-
-  /// Load audio file from assets
-  Future<Uint8List?> _loadAssetAudio(String assetPath) async {
-    try {
-      final data = await rootBundle.load(assetPath);
-      return data.buffer.asUint8List();
-    } catch (e) {
-      debugPrint('Error loading asset audio $assetPath: $e');
-      return null;
-    }
-  }
+  // Audio loading and sound effect methods removed
 
   /// Send the compressed audio file to BLE device
   Future<void> _playSpokenTts() async {
