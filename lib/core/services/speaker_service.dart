@@ -27,13 +27,21 @@ class SpeakerService {
   // static const String _qualityName = 'Low Quality';
   // static const String _filePostfix = 'low';
   
-  // === STANDARD QUALITY (Good Balance) ===
-  static const int _sampleRate = 16000;
+  // === CUSTOM QUALITY (11.025kHz for Smart Glasses) === CURRENT ACTIVE
+  static const int _sampleRate = 11025;
   static const int _bitDepth = 16;
   static const String _codec = 'pcm_s16le';
   static const int _bytesPerSample = 2;
-  static const String _qualityName = 'Standard';
-  static const String _filePostfix = 'std';
+  static const String _qualityName = 'Custom 11kHz';
+  static const String _filePostfix = '11k';
+  
+  // === STANDARD QUALITY (Good Balance) ===
+  // static const int _sampleRate = 16000;
+  // static const int _bitDepth = 16;
+  // static const String _codec = 'pcm_s16le';
+  // static const int _bytesPerSample = 2;
+  // static const String _qualityName = 'Standard';
+  // static const String _filePostfix = 'std';
   
   // === HIGH QUALITY (Music Quality) ===
   // static const int _sampleRate = 22050;
@@ -520,7 +528,7 @@ class SpeakerService {
         if (!_isProcessing) break;
         
         // Load processing.wav from assets and send via BLE
-        final audioData = await _loadAssetAudio('assets/audio/16kHz_processing.wav');
+        final audioData = await _loadAssetAudio('assets/audio/11kHz_processing.wav');
         if (audioData != null && _isProcessing) {
           _isProcessingSoundActive = true; // Mark processing sound as active
           
@@ -556,7 +564,7 @@ class SpeakerService {
   /// Play done sound via BLE
   Future<void> _playDoneSound() async {
     try {
-      final audioData = await _loadAssetAudio('assets/audio/16kHz_done.wav');
+      final audioData = await _loadAssetAudio('assets/audio/11kHz_done.wav');
       if (audioData != null) {
         await _bleService.sendAudioData(
           audioData,
