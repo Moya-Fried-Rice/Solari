@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import '../../../core/providers/device_info_provider.dart';
 import '../../../core/providers/theme_provider.dart';
+import '../../../core/services/speaker_service.dart';
 import '../../../widgets/app_bar.dart';
 import '../../../widgets/settings_button.dart';
 
@@ -99,6 +100,78 @@ class _DeviceStatusPageState extends State<DeviceStatusPage> {
                             style: TextStyle(
                               fontSize: theme.fontSize + 20,
                               fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+
+                        _buildDivider(theme),
+
+                        // Audio Test Section
+                        Text(
+                          "Audio Test",
+                          style: TextStyle(
+                            fontSize: theme.fontSize,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 15),
+                        Center(
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: CustomButton(
+                              label: 'Test Done Sound',
+                              icon: Icons.volume_up,
+                              fontSize: theme.fontSize,
+                              labelAlignment: Alignment.center,
+                              enableVibration: true,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 15,
+                                vertical: 20,
+                              ),
+                              onPressed: () async {
+                                try {
+                                  final speakerService = SpeakerService();
+                                  
+                                  // Check if BLE is enabled and device is connected
+                                  if (widget.device.isConnected) {
+                                    // Enable BLE transmission for the done sound
+                                    await speakerService.enableBleTransmission(widget.device);
+                                  }
+                                  
+                                  // Play the done sound
+                                  await speakerService.playDoneSound();
+                                  
+                                  // Show success message
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          widget.device.isConnected 
+                                            ? 'Done sound sent to device!'
+                                            : 'Done sound played locally!',
+                                          style: TextStyle(fontSize: theme.fontSize),
+                                        ),
+                                        backgroundColor: Colors.green,
+                                        duration: const Duration(seconds: 2),
+                                      ),
+                                    );
+                                  }
+                                } catch (e) {
+                                  // Show error message
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Error playing done sound: $e',
+                                          style: TextStyle(fontSize: theme.fontSize),
+                                        ),
+                                        backgroundColor: Colors.red,
+                                        duration: const Duration(seconds: 3),
+                                      ),
+                                    );
+                                  }
+                                }
+                              },
                             ),
                           ),
                         ),
