@@ -14,7 +14,6 @@
 
   #define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
   #define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
-  #define SPEAKER_CHARACTERISTIC_UUID "12345678-1234-1234-1234-123456789abc"
   #define TEMP_CHARACTERISTIC_UUID "00002A6E-0000-1000-8000-00805F9B34FB"
 
   #define CAPTURE_DEBOUNCE_MS 500
@@ -25,10 +24,7 @@
 
   #define BUTTON_PIN D4
 
-// I2S Speaker Pin Definitions
-#define I2S_BCLK   D1       // I2S BCLK
-#define I2S_LRC    D0       // I2S LRC / WS  
-#define I2S_DOUT   D2       // I2S Data Out
+
 
   // ============================================================================
   // LED and Button Globals
@@ -57,29 +53,9 @@
   bool deviceConnected = false;
   bool systemInitialized = false;
   BLECharacteristic* pCharacteristic;
-  BLECharacteristic* pSpeakerCharacteristic;
   BLECharacteristic* pTempCharacteristic;
   int negotiatedChunkSize = 23;
   I2SClass i2s;
-  I2SClass i2s_speaker; // Separate I2S instance for speaker output
-
-
-
-  // ============================================================================
-  // Audio Playback Globals
-  // ============================================================================
-  
-  // Audio buffer for incoming BLE audio data
-  #define AUDIO_BUFFER_SIZE 8192  // 8KB buffer for audio chunks
-  uint8_t audioBuffer[AUDIO_BUFFER_SIZE];
-  size_t audioBufferIndex = 0;
-  bool audioReceiving = false;
-  size_t expectedAudioSize = 0;
-  
-  // Audio format constants (matching Flutter app output)
-  const int SPEAKER_SAMPLE_RATE = 11025;
-  const int SPEAKER_BIT_DEPTH = 16;
-  const int SPEAKER_CHANNELS = 1; // Mono
 
 
 
@@ -244,94 +220,24 @@
     }
   };
 
-  // VQA Characteristic Callback - Handles VQA commands and data
-  class VQACharacteristicCallbacks : public BLECharacteristicCallbacks {
+  class MyCharacteristicCallbacks : public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic* pCharacteristic) override {
       String value = pCharacteristic->getValue().c_str();
       uint8_t* data = pCharacteristic->getData();
       size_t length = pCharacteristic->getLength();
       
-      logDebug("VQA-BLE", "Data received: \"" + value + "\" (" + String(length) + " bytes)");
-      
-      // Handle VQA commands
-      if (value == "VQA_START") {
-        logInfo("VQA", "Start command received");
-        if (!vqaState.isRunning) {
-          startVqaStreaming();
-        } else {
-          logWarn("VQA", "VQA already running");
-        }
-      } else if (value == "VQA_STOP") {
-        logInfo("VQA", "Stop command received");
-        if (vqaState.isRunning) {
-          vqaState.stopRequested = true;
-        } else {
-          logWarn("VQA", "No VQA session to stop");
-        }
-      } else {
-        // Log other VQA data for debugging
-        logDebug("VQA-BLE", "Unknown VQA command: \"" + value + "\"");
+      // Output raw data to serial for VQA commands
+      Serial.print("VQA BLE Data Received: ");
+      for (size_t i = 0; i < length; i++) {
+        Serial.print("0x");
+        if (data[i] < 16) Serial.print("0");
+        Serial.print(data[i], HEX);
+        Serial.print(" ");
       }
-    }
-  };
-
-  // Speaker Characteristic Callback - Handles audio data for playback
-  class SpeakerCharacteristicCallbacks : public BLECharacteristicCallbacks {
-    void onWrite(BLECharacteristic* pCharacteristic) override {
-      String value = pCharacteristic->getValue().c_str();
-      uint8_t* data = pCharacteristic->getData();
-      size_t length = pCharacteristic->getLength();
-      
-      // Check if this is an audio transmission start
-      if (value.startsWith("S_START:")) {
-        // Audio start header - extract expected size
-        String sizeStr = value.substring(8); // Remove "S_START:" prefix
-        expectedAudioSize = sizeStr.toInt();
-        audioBufferIndex = 0;
-        audioReceiving = true;
-        logInfo("AUDIO", "Started receiving audio data, expected size: " + String(expectedAudioSize) + " bytes");
-        return;
-      }
-      
-      // Check if this is an audio transmission end
-      if (value == "S_END") {
-        // Audio end header - play the received audio
-        audioReceiving = false;
-        logInfo("AUDIO", "Finished receiving audio data, total received: " + String(audioBufferIndex) + " bytes");
-        
-        if (audioBufferIndex > 0) {
-          playReceivedAudio();
-        } else {
-          logWarn("AUDIO", "No audio data received to play");
-        }
-        return;
-      }
-      
-      // Handle audio data chunks
-      if (audioReceiving && length > 0) {
-        // Ensure we don't overflow the buffer
-        size_t bytesToCopy = min(length, AUDIO_BUFFER_SIZE - audioBufferIndex);
-        if (bytesToCopy > 0) {
-          memcpy(audioBuffer + audioBufferIndex, data, bytesToCopy);
-          audioBufferIndex += bytesToCopy;
-          
-          // Log progress occasionally
-          static unsigned long lastProgressLog = 0;
-          if (millis() - lastProgressLog > 500) { // Log every 500ms
-            int percent = expectedAudioSize > 0 ? (audioBufferIndex * 100) / expectedAudioSize : 0;
-            logDebug("AUDIO", "Audio progress: " + String(percent) + "% (" + String(audioBufferIndex) + "/" + String(expectedAudioSize) + " bytes)");
-            lastProgressLog = millis();
-          }
-        } else {
-          logWarn("AUDIO", "Audio buffer overflow - chunk ignored");
-        }
-        return;
-      }
-      
-      // Handle non-audio data (for debugging)
-      if (!audioReceiving) {
-        logDebug("SPEAKER-BLE", "Non-audio data received: \"" + value + "\" (" + String(length) + " bytes)");
-      }
+      Serial.print("| String: \"");
+      Serial.print(value);
+      Serial.print("\" | Length: ");
+      Serial.println(length);
     }
   };
 
@@ -353,9 +259,6 @@
 
     // Initialize Microphone
     initMicrophone();
-    
-    // Initialize Speaker
-    initSpeaker();
 
     systemInitialized = true;
     logInfo("SYS", "========================== System initialization complete ==========================");
@@ -399,9 +302,6 @@
     // Stop I2S (microphone only)
     i2s.end();
     logInfo("SYS", "Microphone deinitialized");
-    
-    // Deinitialize speaker
-    deinitSpeaker();
     
     systemInitialized = false;
     logInfo("SYS", "========================== System cleanup complete ==========================");
@@ -522,13 +422,6 @@
       );
       pCharacteristic->addDescriptor(new BLE2902());
 
-      // Speaker Characteristic for audio playback
-      pSpeakerCharacteristic = pService->createCharacteristic(
-          SPEAKER_CHARACTERISTIC_UUID,
-          BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_WRITE_NR
-      );
-      pSpeakerCharacteristic->addDescriptor(new BLE2902());
-
       // Temperature Characteristic
       pTempCharacteristic = pService->createCharacteristic(
           TEMP_CHARACTERISTIC_UUID,
@@ -536,8 +429,7 @@
       );
       pTempCharacteristic->addDescriptor(new BLE2902());
 
-      pCharacteristic->setCallbacks(new VQACharacteristicCallbacks());
-      pSpeakerCharacteristic->setCallbacks(new SpeakerCharacteristicCallbacks());
+      pCharacteristic->setCallbacks(new MyCharacteristicCallbacks());
       pService->start();
 
       BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
@@ -551,96 +443,6 @@
 
       logInfo("SYS", "========================== BLE initialization complete - waiting for connections ==========================");
       Serial.println();
-  }
-
-
-
-  // ============================================================================
-  // Audio Playback Functions
-  // ============================================================================
-  
-  /// Initialize the I2S speaker output
-  void initSpeaker() {
-    logInfo("SPEAKER", "Initializing I2S speaker...");
-    
-    // Configure I2S pins for speaker output
-    i2s_speaker.setPins(I2S_BCLK, I2S_LRC, I2S_DOUT);
-    
-    // Initialize I2S in standard mode for speaker output
-    if (!i2s_speaker.begin(I2S_MODE_STD, SPEAKER_SAMPLE_RATE, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO)) {
-      logError("SPEAKER", "I2S speaker initialization failed!");
-      return;
-    }
-    
-    logInfo("SPEAKER", "I2S speaker initialized successfully");
-    logDebug("SPEAKER", "Sample rate: " + String(SPEAKER_SAMPLE_RATE) + " Hz, 16-bit, mono");
-    logMemory("SPEAKER");
-  }
-  
-  /// Play received audio data through the speaker
-  void playReceivedAudio() {
-    if (audioBufferIndex == 0) {
-      logWarn("AUDIO", "No audio data to play");
-      return;
-    }
-    
-    logInfo("AUDIO", "Starting audio playback: " + String(audioBufferIndex) + " bytes");
-    
-    // Play the raw audio data in chunks
-    const size_t PLAY_BUFFER_SIZE = 512;
-    size_t bytesPlayed = 0;
-    
-    while (bytesPlayed < audioBufferIndex) {
-      size_t bytesToPlay = min(PLAY_BUFFER_SIZE, audioBufferIndex - bytesPlayed);
-      
-      // Write audio data to I2S speaker
-      size_t bytesWritten = i2s_speaker.write(audioBuffer + bytesPlayed, bytesToPlay);
-      bytesPlayed += bytesWritten;
-      
-      // Small delay to prevent overwhelming the I2S buffer
-      vTaskDelay(pdMS_TO_TICKS(1));
-    }
-    
-    // Add silence at the end to avoid clicking (50ms of silence)
-    int silenceSamples = SPEAKER_SAMPLE_RATE / 20; // 50ms of silence
-    for (int i = 0; i < silenceSamples; i++) {
-      int16_t silence = 0;
-      i2s_speaker.write((uint8_t *)&silence, sizeof(silence));
-    }
-    
-    logInfo("AUDIO", "Audio playback completed: " + String(bytesPlayed) + " bytes played");
-    
-    // Reset audio buffer
-    audioBufferIndex = 0;
-    expectedAudioSize = 0;
-  }
-  
-  /// Clean up speaker resources
-  void deinitSpeaker() {
-    logInfo("SPEAKER", "Deinitializing I2S speaker...");
-    i2s_speaker.end();
-    logInfo("SPEAKER", "I2S speaker deinitialized");
-  }
-  
-  /// Start VQA streaming (referenced in BLE callback)
-  void startVqaStreaming() {
-    if (vqaState.isRunning) {
-      logWarn("VQA", "VQA already running");
-      return;
-    }
-    
-    logInfo("VQA", "Starting VQA streaming task...");
-    
-    // Create VQA streaming task
-    xTaskCreatePinnedToCore(
-      vqaStreamTask,
-      "vqaStreamTask",
-      8192,  // Stack size
-      NULL,  // Parameters
-      2,     // Priority
-      &vqaState.vqaTaskHandle,
-      1      // Core
-    );
   }
 
 
