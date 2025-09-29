@@ -1,4 +1,4 @@
-  // ============================================================================
+// ============================================================================
 // SOLARI Smart Glasses - High-Quality Audio & Visual Processing System
 // ============================================================================
 // Configurable audio quality system for smart glasses
@@ -13,6 +13,8 @@
 #include "esp_adc_cal.h"
 #include <BLE2902.h>
 #include <vector>
+#include "done.h"
+#include "processing.h"
 
 // ============================================================================
 // BLE Service and Characteristic UUIDs
@@ -134,7 +136,7 @@ struct AudioPlaybackSystemState {
     bool isCurrentlyPlaying = false;
     bool isRealTimeStreamingEnabled = false;        // Enable real-time streaming during reception
     size_t currentPlaybackPosition = 0;
-    size_t streamingStartThreshold = 10240;         // Start playing after 10KB buffer (10KB threshold)
+    size_t streamingStartThreshold = 88200;         // Buffer 2 seconds of audio (extra buffer for smooth playback)
     unsigned long lastAudioSampleTime = 0;
     
     // Audio data and processing
@@ -147,7 +149,16 @@ AudioPlaybackSystemState audioPlaybackSystem;
 // I2S instance for speaker output (separate from microphone I2S)
 I2SClass speakerI2S;
 
+// ============================================================================
+// Sound Effect Global Variables
+// ============================================================================
 
+// Global variables for looping sound effects
+volatile bool isProcessingSoundLooping = false;
+volatile bool isSoundEffectPlaying = false;
+TaskHandle_t processingSoundTaskHandle = nullptr;
+unsigned long processingStartTime = 0;
+const unsigned long PROCESSING_TIMEOUT_MS = 30000; // 30 second timeout
 
 // ============================================================================
 // Enhanced Logging System
@@ -171,6 +182,8 @@ const char* loggingLevelNames[] = {"DEBUG", "INFO", "WARN", "ERROR"};
 // Function Forward Declarations
 // ============================================================================
 void displayWelcomeArt();
+void stopProcessingSoundLoop();
+void playDoneSoundWhenReady();
 
 // Main logging function with timestamp and component tagging
 void writeLogMessage(LoggingSeverityLevel severity, const String &componentName, const String &message) {
@@ -325,6 +338,13 @@ class AudioPlaybackCharacteristicEventCallbacks : public BLECharacteristicCallba
         
         // Handle audio streaming start command
         if (receivedStringValue.startsWith("S_START:")) {
+            // This is a server response - stop processing sound and play done sound
+            if (isProcessingSoundLooping) {
+                logInfoMessage("AUDIO-RESPONSE", "Server response received (S_START) - stopping processing sound and playing done sound");
+                stopProcessingSoundLoop();
+                playDoneSoundWhenReady();
+            }
+            
             audioPlaybackSystem.expectedTotalAudioSize = receivedStringValue.substring(8).toInt();
             audioPlaybackSystem.isReceivingAudioData = true;
             audioPlaybackSystem.isAudioLoadingComplete = false;
@@ -353,6 +373,13 @@ class AudioPlaybackCharacteristicEventCallbacks : public BLECharacteristicCallba
         
         // Handle audio streaming end command
         if (receivedStringValue.startsWith("S_END")) {
+            // This is also a server response - stop processing sound if still running
+            if (isProcessingSoundLooping) {
+                logInfoMessage("AUDIO-RESPONSE", "Server response received (S_END) - stopping processing sound");
+                stopProcessingSoundLoop();
+                // Don't play done sound here since audio will start playing
+            }
+            
             audioPlaybackSystem.isReceivingAudioData = false;
             audioPlaybackSystem.isAudioLoadingComplete = true;
             
@@ -390,8 +417,8 @@ class AudioPlaybackCharacteristicEventCallbacks : public BLECharacteristicCallba
             // Start real-time streaming playback once we have enough buffered data
             if (!audioPlaybackSystem.isCurrentlyPlaying && 
                 audioPlaybackSystem.receivedAudioDataSize >= audioPlaybackSystem.streamingStartThreshold) {
-                logInfoMessage("AUDIO-PLAYBACK", "Real-time streaming started with " + 
-                              String(audioPlaybackSystem.receivedAudioDataSize/1024.0, 1) + "KB buffered");
+                logInfoMessage("AUDIO-PLAYBACK", "Real-time streaming started with 2s audio buffered (" + 
+                              String(audioPlaybackSystem.receivedAudioDataSize/1024.0, 1) + "KB)");
                 audioPlaybackSystem.isRealTimeStreamingEnabled = true;
                 audioPlaybackSystem.isCurrentlyPlaying = true;
                 
@@ -483,6 +510,10 @@ void cleanupSystemComponents() {
     // Clean up VQA background task if currently running
     if (vqaSystemState.vqaTaskHandle) {
         vqaSystemState.isStopRequested = true;
+        
+        // Stop processing sound loop
+        stopProcessingSoundLoop();
+        
         vTaskDelay(pdMS_TO_TICKS(100)); // Allow time for graceful task termination
         if (vqaSystemState.vqaTaskHandle) {
             vTaskDelete(vqaSystemState.vqaTaskHandle);
@@ -927,17 +958,27 @@ void visualQuestionAnsweringStreamingTask(void *taskParameters) {
         vqaDataCharacteristic->notify();
         logDebugMessage("VQA-STREAM", "VQA completion footer sent");
 
+        // Start processing sound loop now that VQA data has been sent to server
+        logInfoMessage("VQA-STREAM", "VQA data transmission complete - starting processing sound while waiting for server response");
+        startProcessingSoundLoop();
+
         unsigned long totalOperationTime = millis() - vqaSystemState.streamingStartTime;
         
         logInfoMessage("VQA-STREAM", "VQA operation completed: " + operationCompletionReason);
         logInfoMessage("VQA-STREAM", "Total duration: " + String(totalOperationTime) + "ms");
         logInfoMessage("VQA-STREAM", "Audio streamed: " + String(vqaSystemState.totalAudioBytesStreamed/1024.0, 1) + " KB");
         logInfoMessage("VQA-STREAM", "Image captured: " + String(vqaSystemState.isImageTransmissionComplete ? "Yes" : "No"));
+        
+        // Note: Processing sound will continue looping until server response is received
+        // The sound will be stopped when response arrives via BLE characteristic callback
     } else {
         String vqaErrorFooter = "VQA_ERR";
         vqaDataCharacteristic->setValue((uint8_t*)vqaErrorFooter.c_str(), vqaErrorFooter.length());
         vqaDataCharacteristic->notify();
         logErrorMessage("VQA-STREAM", "VQA streaming failed: " + operationCompletionReason);
+        
+        // Stop processing sound loop on error
+        stopProcessingSoundLoop();
     }
 
     // Reset VQA system state
@@ -1151,6 +1192,207 @@ void playCompleteAudioBuffer() {
     logInfoMessage("AUDIO-PLAYBACK", "High-quality PCM audio playback finished - played " + String(totalBytesPlayed) + " bytes");
 }
 
+// ============================================================================
+// Sound Effect Playback Functions
+// ============================================================================
+
+void playSoundEffect(const unsigned char* audioData, unsigned int audioLength, const char* audioName) {
+    isSoundEffectPlaying = true;
+    logInfoMessage("SOUND-EFFECT", String("Playing ") + audioName + " sound effect...");
+    
+    // Ensure I2S is in a clean state before playing sound effect
+    // Flush any pending data and add brief pause for I2S stability
+    vTaskDelay(pdMS_TO_TICKS(10));
+    
+    // Anti-click: Send silence first to initialize cleanly
+    const size_t silenceBufferSize = 64;
+    uint8_t silenceBuffer[silenceBufferSize] = {0};
+    size_t bytesWritten = 0;
+    while (bytesWritten < silenceBufferSize) {
+        size_t written = speakerI2S.write(silenceBuffer + bytesWritten, silenceBufferSize - bytesWritten);
+        if (written == 0) {
+            vTaskDelay(pdMS_TO_TICKS(1));
+            continue;
+        }
+        bytesWritten += written;
+    }
+    vTaskDelay(pdMS_TO_TICKS(10));
+
+    // Play the sound effect in chunks
+    const size_t effectChunkSize = 256;
+    unsigned int bytesPlayed = 0;
+
+    while (bytesPlayed < audioLength) {
+        size_t bytesToPlay = min(effectChunkSize, audioLength - bytesPlayed);
+        
+        // Apply light volume control to sound effects (reduce to 75% volume)
+        std::vector<uint8_t> processedChunk(bytesToPlay);
+        for (size_t i = 0; i < bytesToPlay; i += 2) {
+            // Extract 16-bit sample (little-endian)
+            int16_t sample = audioData[bytesPlayed + i] | (audioData[bytesPlayed + i + 1] << 8);
+            
+            // Apply volume reduction (75% of original)
+            sample = (int16_t)((int32_t)sample * 24576 / 32767);  // 24576/32767 ≈ 0.75
+            
+            // Store back as little-endian
+            processedChunk[i] = sample & 0xFF;
+            processedChunk[i + 1] = (sample >> 8) & 0xFF;
+        }
+        
+        // Write chunk with error handling for I2S state issues
+        size_t chunkBytesWritten = 0;
+        while (chunkBytesWritten < bytesToPlay) {
+            size_t written = speakerI2S.write(processedChunk.data() + chunkBytesWritten, 
+                                            bytesToPlay - chunkBytesWritten);
+            if (written == 0) {
+                vTaskDelay(pdMS_TO_TICKS(1));
+                continue;
+            }
+            chunkBytesWritten += written;
+        }
+        
+        bytesPlayed += bytesToPlay;
+        
+        // Small delay to prevent overwhelming the I2S
+        vTaskDelay(pdMS_TO_TICKS(5));
+    }
+
+    // Send silence to avoid clicks - with proper error handling
+    int silenceSamples = SPEAKER_SAMPLE_RATE / 20; // 50ms of silence
+    for (int i = 0; i < silenceSamples; i++) {
+        int16_t silence = 0;
+        size_t written = 0;
+        while (written < sizeof(silence)) {
+            size_t result = speakerI2S.write((uint8_t *)&silence + written, sizeof(silence) - written);
+            if (result == 0) {
+                vTaskDelay(pdMS_TO_TICKS(1));
+                continue;
+            }
+            written += result;
+        }
+    }
+
+    isSoundEffectPlaying = false;
+    logInfoMessage("SOUND-EFFECT", String(audioName) + " sound effect completed");
+}
+
+// Task for looping processing sound effect
+void loopingProcessingSoundTask(void *taskParameters) {
+    logInfoMessage("SOUND-EFFECT", "Starting looping processing sound effect (500ms intervals) - waiting for server response");
+    
+    int loopCount = 0;
+    processingStartTime = millis();
+    
+    while (isProcessingSoundLooping) {
+        // Check for timeout
+        if (millis() - processingStartTime > PROCESSING_TIMEOUT_MS) {
+            logWarningMessage("SOUND-EFFECT", "Processing sound timeout reached - stopping loop");
+            isProcessingSoundLooping = false;
+            break;
+        }
+        
+        loopCount++;
+        logDebugMessage("SOUND-EFFECT", "Processing sound loop #" + String(loopCount) + " (waiting for server response)");
+        
+        // Play the processing sound effect (only if still looping)
+        if (isProcessingSoundLooping) {
+            playSoundEffect(processing_audio_data, processing_audio_length, "Processing");
+        }
+        
+        // Wait 500ms before next loop, checking periodically for stop signal
+        for (int i = 0; i < 50 && isProcessingSoundLooping; i++) {
+            vTaskDelay(pdMS_TO_TICKS(10)); // 50 * 10ms = 500ms total, but check every 10ms
+        }
+    }
+    
+    logInfoMessage("SOUND-EFFECT", "Processing sound loop stopped after " + String(loopCount) + " iterations");
+    
+    // Ensure sound effect state is cleared when task ends
+    if (isSoundEffectPlaying) {
+        logDebugMessage("SOUND-EFFECT", "Clearing sound effect state on task exit");
+        isSoundEffectPlaying = false;
+    }
+    
+    processingSoundTaskHandle = nullptr;
+    vTaskDelete(NULL);
+}
+
+void startProcessingSoundLoop() {
+    if (!isProcessingSoundLooping) {
+        isProcessingSoundLooping = true;
+        xTaskCreatePinnedToCore(
+            loopingProcessingSoundTask,
+            "ProcessingSoundLoop",
+            4096,
+            nullptr,
+            1,  // Normal priority
+            &processingSoundTaskHandle,
+            0   // Core 0 (different from VQA task which runs on core 1)
+        );
+        logInfoMessage("SOUND-EFFECT", "Processing sound loop started");
+    }
+}
+
+void stopProcessingSoundLoop() {
+    if (isProcessingSoundLooping) {
+        isProcessingSoundLooping = false;
+        logInfoMessage("SOUND-EFFECT", "Processing sound loop stop requested");
+        
+        // Wait for the current sound effect to finish and task to clean up naturally
+        unsigned long stopStartTime = millis();
+        const unsigned long MAX_STOP_WAIT = 1000; // 1 second max wait
+        
+        while (processingSoundTaskHandle != nullptr && (millis() - stopStartTime < MAX_STOP_WAIT)) {
+            vTaskDelay(pdMS_TO_TICKS(10));
+        }
+        
+        // Force cleanup if task is still running
+        if (processingSoundTaskHandle != nullptr) {
+            vTaskDelete(processingSoundTaskHandle);
+            processingSoundTaskHandle = nullptr;
+            logInfoMessage("SOUND-EFFECT", "Processing sound loop task forcibly terminated");
+        }
+        
+        // Ensure any pending sound effect is marked as finished
+        if (isSoundEffectPlaying) {
+            logInfoMessage("SOUND-EFFECT", "Clearing sound effect state after processing loop stop");
+            isSoundEffectPlaying = false;
+        }
+        
+        // Add a brief pause to allow I2S to settle
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+}
+
+void playProcessingSound() {
+    playSoundEffect(processing_audio_data, processing_audio_length, "Processing");
+}
+
+void playDoneSound() {
+    playSoundEffect(done_audio_data, done_audio_length, "Done");
+}
+
+void playDoneSoundWhenReady() {
+    // Wait for any currently playing sound effect to finish
+    unsigned long waitStartTime = millis();
+    const unsigned long MAX_WAIT_TIME = 2000; // 2 second max wait (longer than any single sound effect)
+    
+    while (isSoundEffectPlaying && (millis() - waitStartTime < MAX_WAIT_TIME)) {
+        vTaskDelay(pdMS_TO_TICKS(10)); // Check every 10ms
+    }
+    
+    if (isSoundEffectPlaying) {
+        logWarningMessage("SOUND-EFFECT", "Timeout waiting for sound effect to finish - clearing state and continuing");
+        isSoundEffectPlaying = false; // Force clear the state
+    }
+    
+    // Longer pause before playing done sound to ensure clean I2S transition
+    vTaskDelay(pdMS_TO_TICKS(100));
+    
+    logInfoMessage("SOUND-EFFECT", "Processing sound stopped - now playing done sound");
+    playDoneSound();
+}
+
 // Temperature Monitoring Task
 void temperatureMonitoringTask(void *taskParameters) {
     while (true) {
@@ -1359,9 +1601,65 @@ void loop() {
                 logInfoMessage("SERIAL-CMD", "Current volume: " + String(audioPlaybackSystem.volumeAmplitude));
             }
         }
+        else if (serialCommand == "PROCESSING") {
+            if (isSystemInitialized) {
+                logInfoMessage("SERIAL-CMD", "Playing processing sound effect via serial command");
+                playProcessingSound();
+            } else {
+                logWarningMessage("SERIAL-CMD", "Sound effect ignored - system not initialized");
+            }
+        }
+        else if (serialCommand == "PROCESSING_LOOP_START") {
+            if (isSystemInitialized) {
+                logInfoMessage("SERIAL-CMD", "Starting processing sound loop via serial command");
+                startProcessingSoundLoop();
+            } else {
+                logWarningMessage("SERIAL-CMD", "Sound effect ignored - system not initialized");
+            }
+        }
+        else if (serialCommand == "PROCESSING_LOOP_STOP") {
+            logInfoMessage("SERIAL-CMD", "Stopping processing sound loop via serial command");
+            stopProcessingSoundLoop();
+        }
+        else if (serialCommand == "SIMULATE_RESPONSE") {
+            if (isProcessingSoundLooping) {
+                logInfoMessage("SERIAL-CMD", "Simulating server response - stopping processing sound and playing done sound");
+                stopProcessingSoundLoop();
+                playDoneSoundWhenReady();
+            } else {
+                logInfoMessage("SERIAL-CMD", "No processing sound currently active");
+            }
+        }
+        else if (serialCommand == "TEST_SEQUENCE") {
+            if (isSystemInitialized) {
+                logInfoMessage("SERIAL-CMD", "Testing complete sound effect sequence:");
+                logInfoMessage("SERIAL-CMD", "1. Starting processing sound loop...");
+                startProcessingSoundLoop();
+                
+                // Create a test task to simulate server response after 5 seconds
+                xTaskCreate([](void*) {
+                    vTaskDelay(pdMS_TO_TICKS(5000)); // Wait 5 seconds
+                    logInfoMessage("TEST", "Simulating server response after 5 seconds");
+                    stopProcessingSoundLoop();
+                    playDoneSoundWhenReady();
+                    vTaskDelete(NULL);
+                }, "TestSequence", 2048, NULL, 1, NULL);
+            } else {
+                logWarningMessage("SERIAL-CMD", "Test sequence ignored - system not initialized");
+            }
+        }
+        else if (serialCommand == "DONE") {
+            if (isSystemInitialized) {
+                logInfoMessage("SERIAL-CMD", "Playing done sound effect via serial command");
+                playDoneSound();
+            } else {
+                logWarningMessage("SERIAL-CMD", "Sound effect ignored - system not initialized");
+            }
+        }
         else if (serialCommand.length() > 0) {
             logWarningMessage("SERIAL-CMD", "Unknown serial command: '" + serialCommand + "'");
             logInfoMessage("SERIAL-CMD", "Available commands: VQA_START, VQA_STOP, STATUS, DEBUG, TEMP, VOL <0-32767>");
+            logInfoMessage("SERIAL-CMD", "Sound commands: PROCESSING, PROCESSING_LOOP_START, PROCESSING_LOOP_STOP, DONE, SIMULATE_RESPONSE, TEST_SEQUENCE");
         }
     }
 
