@@ -7,7 +7,6 @@ import 'package:provider/provider.dart';
 
 import '../../../core/providers/device_info_provider.dart';
 import '../../../core/providers/theme_provider.dart';
-import '../../../core/services/speaker_service.dart';
 import '../../../widgets/app_bar.dart';
 import '../../../widgets/settings_button.dart';
 
