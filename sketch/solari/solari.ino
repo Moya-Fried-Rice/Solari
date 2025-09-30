@@ -15,6 +15,7 @@
 #include <vector>
 #include "done.h"
 #include "processing.h"
+#include "start.h"
 
 // ============================================================================
 // BLE Service and Characteristic UUIDs
@@ -184,6 +185,7 @@ const char* loggingLevelNames[] = {"DEBUG", "INFO", "WARN", "ERROR"};
 void displayWelcomeArt();
 void stopProcessingSoundLoop();
 void playDoneSoundWhenReady();
+void playStartSound();
 
 // Main logging function with timestamp and component tagging
 void writeLogMessage(LoggingSeverityLevel severity, const String &componentName, const String &message) {
@@ -751,12 +753,19 @@ void visualQuestionAnsweringStreamingTask(void *taskParameters) {
     logDebugMessage("VQA-STREAM", "Stream configuration: " + String(audioChunkSizeBytes) + " bytes/chunk, " + 
                    String(audioChunkDurationMs) + "ms/chunk, image capture after audio stops");
 
+    // Play start sound to indicate VQA operation beginning
+    logInfoMessage("VQA-STREAM", "Playing start sound to indicate VQA operation beginning");
+    playStartSound();
+    
     // Send VQA operation start header
     String vqaStartHeader = "VQA_START";
     vqaDataCharacteristic->setValue((uint8_t*)vqaStartHeader.c_str(), vqaStartHeader.length());
     vqaDataCharacteristic->notify();
     vTaskDelay(pdMS_TO_TICKS(20));
     logDebugMessage("VQA-STREAM", "VQA start header transmitted");
+
+    // Brief pause after start sound to ensure clean transition
+    vTaskDelay(pdMS_TO_TICKS(100));
 
     // Initialize audio streaming state
     vqaSystemState.isAudioStreamingActive = true;
@@ -1371,6 +1380,12 @@ void playProcessingSound() {
 void playDoneSound() {
     playSoundEffect(done_audio_data, done_audio_length, "Done");
 }
+
+void playStartSound() {
+    playSoundEffect(start_data, start_length, "Start");
+}
+
+
 
 void playDoneSoundWhenReady() {
     // Wait for any currently playing sound effect to finish
