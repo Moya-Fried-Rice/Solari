@@ -417,7 +417,7 @@ class _SolariScreenState extends State<SolariScreen>
     try {
       // Sound effects removed - no processing/done sounds
       
-      debugPrint('[AI] Passing image to VlmService for processing...');
+      debugPrint('[AI] Passing image to VlmService for processing....');
       final response = await _vlmService.processImage(
         imageData,
         prompt: prompt,
