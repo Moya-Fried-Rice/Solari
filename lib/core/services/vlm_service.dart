@@ -48,7 +48,7 @@ class VlmService {
       await _vlm!.completion(
         [ChatMessage(role: 'user', content: prompt)],
         imagePaths: [tempFile.path],
-        maxTokens: 200,
+        maxTokens: 50,
         onToken: (token) {
           response += token;
           return true;

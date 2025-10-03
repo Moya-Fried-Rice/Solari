@@ -6,8 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:flutter_tts/flutter_tts.dart';
-import 'package:audioplayers/audioplayers.dart';
 import 'package:image_picker/image_picker.dart';
 
 // Providers
@@ -22,6 +20,7 @@ import 'tabs/solari_tab.dart';
 // Services
 import '../core/services/vibration_service.dart';
 import '../core/services/vlm_service.dart';
+import '../core/services/speaker_service.dart';
 
 // Other
 import '../utils/extra.dart';
@@ -46,8 +45,6 @@ class SolariScreen extends StatefulWidget {
 class _SolariScreenState extends State<SolariScreen>
     with SingleTickerProviderStateMixin {
   final ImagePicker _picker = ImagePicker();
-  // Track if TTS is currently speaking
-  bool _isSpeaking = false;
   // Subscription to device connection state
   StreamSubscription<BluetoothConnectionState>? _connectionStateSubscription;
 
@@ -76,8 +73,8 @@ class _SolariScreenState extends State<SolariScreen>
   // VLM Service
   final VlmService _vlmService = VlmService();
 
-  // TTS
-  final FlutterTts _flutterTts = FlutterTts();
+  // Speaker Service
+  final SpeakerService _speakerService = SpeakerService();
 
   // Downloading state
   bool _downloadingModel = false;
@@ -96,7 +93,7 @@ class _SolariScreenState extends State<SolariScreen>
         "⚠️ SolariScreen running in MOCK MODE — skipping BLE connect.",
       );
       _initModel();
-      _initializeTts();
+      _initializeSpeaker();
       // Optionally set mock values so UI looks alive
       setState(() {
         _currentTemp = 25.5; // Fake temperature
@@ -125,7 +122,7 @@ class _SolariScreenState extends State<SolariScreen>
           _requestMtu();
           _subscribeToService();
           _initModel();
-          _initializeTts();
+          _initializeSpeaker();
         });
   }
 
@@ -139,7 +136,7 @@ class _SolariScreenState extends State<SolariScreen>
     _audioBuffer.clear();
     _imageBuffer.clear();
     _vlmService.dispose();
-    _flutterTts.stop();
+    _speakerService.dispose();
     super.dispose();
   }
   // ================================================================================================================================
@@ -181,43 +178,61 @@ class _SolariScreenState extends State<SolariScreen>
   // =================================================================================================================================
 
   // =================================================================================================================================
-  // Initialize TTS
-  void _initializeTts() {
-    _flutterTts.setLanguage("en-US");
-    _flutterTts.setSpeechRate(0.5);
-    _flutterTts.setVolume(1.0);
-    _flutterTts.setPitch(1.0);
+  // Initialize Speaker Service
+  Future<void> _initializeSpeaker() async {
+    try {
+      await _speakerService.initialize();
+      debugPrint('Speaker service initialized successfully');
+      
+      // Enable BLE transmission if not in mock mode
+      if (!widget.isMock) {
+        await _speakerService.enableBleTransmission(widget.device);
+        debugPrint('BLE transmission enabled for speaker service');
+      }
+      
+      // Test FFmpeg to debug issues
+      await _speakerService.testFFmpeg();
+    } catch (e) {
+      debugPrint('Error initializing speaker service: $e');
+    }
   }
 
   Future<void> _speakText(String text) async {
     try {
-      setState(() {
-        _isSpeaking = true;
-      });
       // Play done.wav at the same time as TTS starts speaking
       final player = AudioPlayer();
       await player.play(
         AssetSource('audio/done.wav'),
         volume: 1.0,
       );
-      await _flutterTts.speak(text);
-      // Optionally, listen for completion
-      _flutterTts.setCompletionHandler(() {
-        if (mounted) {
-          setState(() {
-            _isSpeaking = false;
-          });
-        }
-      });
-      _flutterTts.setCancelHandler(() {
-        if (mounted) {
-          setState(() {
-            _isSpeaking = false;
-          });
-        }
-      });
+
+      await _speakerService.speakText(
+        text,
+        onStart: () {
+          if (mounted) {
+            setState(() {
+              _isSpeaking = true; // Explicitly track speaking state
+            });
+          }
+        },
+        onComplete: () {
+          if (mounted) {
+            setState(() {
+              _isSpeaking = false;
+            });
+          }
+        },
+        onError: (error) {
+          debugPrint('Error speaking text: $error');
+          if (mounted) {
+            setState(() {
+              _isSpeaking = false;
+            });
+          }
+        },
+      );
     } catch (e) {
-      debugPrint('Error speaking text: $e');
+      debugPrint('Error in _speakText: $e');
       if (mounted) {
         setState(() {
           _isSpeaking = false;
@@ -449,7 +464,7 @@ class _SolariScreenState extends State<SolariScreen>
   List<Widget> get _tabs => [
     SolariTab(
       temperature: _currentTemp,
-      speaking: _isSpeaking,
+      speaking: _speakerService.isSpeaking,
       processing: _processingImage,
       image: _receivedImage,
       downloadingModel: _downloadingModel,
