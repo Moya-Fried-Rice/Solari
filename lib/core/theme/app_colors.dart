@@ -10,7 +10,7 @@ class AppColors {
   static const Color lightUnselectedColor = Color(0xFF64b5f6);
   
   // Dark theme colors
-  static const Color darkPrimary = Color(0xFF00a3ff);
+  static const Color darkPrimary = Color(0xFF0fa9ff);
   static const Color darkText = Colors.white;
   static const Color darkBackground = Color(0xFF121212);
   static const Color darkButtonText = Colors.black;

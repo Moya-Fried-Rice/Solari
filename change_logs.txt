@@ -101,3 +101,6 @@ Additional Features (TBD)
 09/26/25
 * Updated audio visualizer
 * Added loading sound
+---
+10/04/25
+* Changed color to 0fa9ff in dark mode
