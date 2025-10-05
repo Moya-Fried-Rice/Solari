@@ -20,7 +20,8 @@ import 'tabs/solari_tab.dart';
 // Services
 import '../core/services/vibration_service.dart';
 import '../core/services/vlm_service.dart';
-import '../core/services/speaker_service.dart';
+import '../core/services/tts_service.dart';
+import '../core/services/ble_service.dart';
 
 // Other
 import '../utils/extra.dart';
@@ -73,8 +74,11 @@ class _SolariScreenState extends State<SolariScreen>
   // VLM Service
   final VlmService _vlmService = VlmService();
 
-  // Speaker Service
-  final SpeakerService _speakerService = SpeakerService();
+  // TTS Service
+  final TtsService _ttsService = TtsService();
+
+  // BLE Service
+  final BleService _bleService = BleService();
 
   // Downloading state
   bool _downloadingModel = false;
@@ -136,7 +140,7 @@ class _SolariScreenState extends State<SolariScreen>
     _audioBuffer.clear();
     _imageBuffer.clear();
     _vlmService.dispose();
-    _speakerService.dispose();
+    _ttsService.dispose();
     super.dispose();
   }
   // ================================================================================================================================
@@ -178,28 +182,40 @@ class _SolariScreenState extends State<SolariScreen>
   // =================================================================================================================================
 
   // =================================================================================================================================
-  // Initialize Speaker Service
+  // Initialize TTS Service and BLE Service
   Future<void> _initializeSpeaker() async {
     try {
-      await _speakerService.initialize();
-      debugPrint('Speaker service initialized successfully');
+      // Initialize TTS service
+      await _ttsService.initialize();
       
-      // Enable BLE transmission if not in mock mode
-      if (!widget.isMock) {
-        await _speakerService.enableBleTransmission(widget.device);
-        debugPrint('BLE transmission enabled for speaker service');
+      // Initialize BLE service with connected device for audio transmission
+      if (widget.device.isConnected) {
+        debugPrint('🔗 Initializing BLE service for audio transmission...');
+        await _bleService.initialize(widget.device);
+        debugPrint('✅ BLE service initialized successfully');
+      } else {
+        debugPrint('⚠️ Device not connected, BLE audio transmission unavailable');
       }
       
-      // Test FFmpeg to debug issues
-      await _speakerService.testFFmpeg();
+      // Log Sherpa ONNX engine information
+      final engineInfo = _ttsService.getEngineInfo();
+      debugPrint('✅ Sherpa ONNX TTS service initialized successfully');
+      debugPrint('   Engine: ${engineInfo['engine']}');
+      debugPrint('   Model: ${engineInfo['model']}');
+      debugPrint('   Type: ${engineInfo['type']}');
+      debugPrint('   Offline: ${engineInfo['offline']}');
+      debugPrint('   Speed: ${engineInfo['speed']}x');
+      debugPrint('   Transmission: ${engineInfo['transmission']}');
+      debugPrint('   Sample Rate: ${engineInfo['sampleRate']}');
+      
     } catch (e) {
-      debugPrint('Error initializing speaker service: $e');
+      debugPrint('❌ Error initializing TTS/BLE services: $e');
     }
   }
 
   Future<void> _speakText(String text) async {
     try {
-      await _speakerService.speakText(
+      await _ttsService.speakText(
         text,
         onStart: () {
           if (mounted) {
@@ -457,7 +473,7 @@ class _SolariScreenState extends State<SolariScreen>
   List<Widget> get _tabs => [
     SolariTab(
       temperature: _currentTemp,
-      speaking: _speakerService.isSpeaking,
+      speaking: _ttsService.isSpeaking,
       processing: _processingImage,
       image: _receivedImage,
       downloadingModel: _downloadingModel,

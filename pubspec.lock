@@ -177,22 +177,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.1.4"
-  ffmpeg_kit_flutter_new:
-    dependency: "direct main"
-    description:
-      name: ffmpeg_kit_flutter_new
-      sha256: a6f881b2a41c8900733afef1806e069f58ab48e395174552e98157eb10d8adc0
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.2.0"
-  ffmpeg_kit_flutter_platform_interface:
-    dependency: transitive
-    description:
-      name: ffmpeg_kit_flutter_platform_interface
-      sha256: addf046ae44e190ad0101b2fde2ad909a3cd08a2a109f6106d2f7048b7abedee
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.2.1"
   file:
     dependency: transitive
     description:
@@ -561,7 +545,7 @@ packages:
     source: hosted
     version: "3.2.1"
   path:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: path
       sha256: "75cca69d1490965be98c73ceaea117e8a04dd21217b37b292c9ddbec0d955bc5"
@@ -720,6 +704,54 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.4.1"
+  sherpa_onnx:
+    dependency: "direct main"
+    description:
+      name: sherpa_onnx
+      sha256: "26e25439303ae0d678689db841eff342eedb1ba14d72a7917fb675658471e6ed"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.12.14"
+  sherpa_onnx_android:
+    dependency: transitive
+    description:
+      name: sherpa_onnx_android
+      sha256: a55af6d388ffe637d1f4d6647cf86bcab4b33680bba6bc64d0d93de5af5ee9a9
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.12.14"
+  sherpa_onnx_ios:
+    dependency: transitive
+    description:
+      name: sherpa_onnx_ios
+      sha256: "3b5ca0cd1803230882edad5390844e3aab7555131522737eab72073de91da9eb"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.12.14"
+  sherpa_onnx_linux:
+    dependency: transitive
+    description:
+      name: sherpa_onnx_linux
+      sha256: "6354e49337f5f245e57d08637dbb5d07df4db473049801dd24340ca6e859d0b8"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.12.14"
+  sherpa_onnx_macos:
+    dependency: transitive
+    description:
+      name: sherpa_onnx_macos
+      sha256: "3a552479984819c325e371904d3dfbdea5a127960530eab32c6685e9e1a4ba6d"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.12.14"
+  sherpa_onnx_windows:
+    dependency: transitive
+    description:
+      name: sherpa_onnx_windows
+      sha256: "901d3086a37d7bf5def38eecc25db77069b26e89fe4488353c1dca550faf4da1"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.12.14"
   sky_engine:
     dependency: transitive
     description: flutter
