@@ -91,12 +91,63 @@ class _HistoryTabState extends State<HistoryTab>
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    history[i].text,
-                                    style: TextStyle(
-                                      fontSize: theme.fontSize,
-                                      fontWeight: FontWeight.bold,
+                                  // Show question if available (from STT)
+                                  if (history[i].question != null && history[i].question!.isNotEmpty) ...[
+                                    Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: theme.primaryColor.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                          color: theme.primaryColor.withOpacity(0.3),
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Icon(
+                                            Icons.mic,
+                                            size: 16,
+                                            color: theme.primaryColor,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              'Question: "${history[i].question}"',
+                                              style: TextStyle(
+                                                fontSize: theme.fontSize * 0.9,
+                                                fontStyle: FontStyle.italic,
+                                                color: theme.textColor.withOpacity(0.8),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
+                                    const SizedBox(height: 12),
+                                  ],
+                                  // Show response
+                                  Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Icon(
+                                        Icons.smart_toy,
+                                        size: 16,
+                                        color: theme.primaryColor,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          history[i].response,
+                                          style: TextStyle(
+                                            fontSize: theme.fontSize,
+                                            fontWeight: FontWeight.bold,
+                                            color: theme.textColor,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                   const SizedBox(height: 8),
                                   RichText(

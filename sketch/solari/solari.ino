@@ -118,7 +118,7 @@ const int SPEAKER_AUDIO_CHUNK_SIZE = 1024;          // Increased chunk size for 
 const int SPEAKER_PLAYBACK_DELAY_MS = 12;           // Reduced delay for higher quality playback
 
 // Microphone Input Configuration (for VQA recording)
-const int MICROPHONE_SAMPLE_RATE = 8000;            // Lower sample rate for efficient VQA transmission
+const int MICROPHONE_SAMPLE_RATE = 16000;            // Lower sample rate for efficient VQA transmission
 const int MICROPHONE_BIT_DEPTH = 16;                // Microphone bit depth
 const i2s_data_bit_width_t I2S_SPEAKER_BIT_WIDTH = I2S_DATA_BIT_WIDTH_16BIT;
   
