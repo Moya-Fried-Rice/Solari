@@ -7,8 +7,8 @@ class HistoryProvider extends ChangeNotifier {
 
   List<HistoryEntry> get history => List.unmodifiable(_history);
 
-  void addEntry(Uint8List image, String text) {
-    _history.insert(0, HistoryEntry.fromSolari(text, image));
+  void addEntry(Uint8List image, String response, {String? question}) {
+    _history.insert(0, HistoryEntry.fromSolari(response, image, question: question));
     notifyListeners();
   }
 

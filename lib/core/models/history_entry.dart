@@ -1,13 +1,16 @@
 
 import 'dart:typed_data';
 
-/// Model class for representing a history entry (image + message)
+/// Model class for representing a history entry (image + question + response)
 class HistoryEntry {
   /// The sender of the message (e.g., "Solari")
   final String sender;
 
-  /// The content/description of the message
-  final String text;
+  /// The user's question (from STT transcription)
+  final String? question;
+
+  /// The AI response/description
+  final String response;
 
   /// When the message was created
   final DateTime time;
@@ -17,18 +20,23 @@ class HistoryEntry {
 
   HistoryEntry({
     required this.sender,
-    required this.text,
+    this.question,
+    required this.response,
     required this.time,
     required this.image,
   });
 
-  /// Create a history entry from Solari (the AI)
-  factory HistoryEntry.fromSolari(String text, Uint8List image) {
+  /// Create a history entry from Solari (the AI) with optional question
+  factory HistoryEntry.fromSolari(String response, Uint8List image, {String? question}) {
     return HistoryEntry(
       sender: 'Solari',
-      text: text,
+      question: question,
+      response: response,
       time: DateTime.now(),
       image: image,
     );
   }
+
+  /// Legacy getter for backward compatibility
+  String get text => response;
 }

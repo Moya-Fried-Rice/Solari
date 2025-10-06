@@ -74,4 +74,5 @@ flutter:
     - assets/vits-piper-en_US-libritts_r-medium/espeak-ng-data/lang/zlw/
     - assets/vits-piper-en_US-libritts_r-medium/espeak-ng-data/voices/
     - assets/vits-piper-en_US-libritts_r-medium/espeak-ng-data/voices/!v/
+    - assets/sherpa-onnx-streaming-zipformer-en-2023-06-26/
     # Audio assets removed - no longer using sound effects
