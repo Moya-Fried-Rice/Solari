@@ -110,12 +110,12 @@ VisualQuestionAnsweringState vqaSystemState;
 // ============================================================================
 
 // Speaker Audio Output Configuration
-const int SPEAKER_SAMPLE_RATE = 11025;              // Sample rate for audio playback
+const int SPEAKER_SAMPLE_RATE = 22050;              // Sample rate for audio playback (upgraded to 22050Hz)
 const int SPEAKER_BIT_DEPTH = 16;                   // Bit depth for audio samples
 const int SPEAKER_BYTES_PER_SAMPLE = 2;             // Bytes per audio sample (16-bit = 2 bytes)
-const char* SPEAKER_AUDIO_QUALITY_NAME = "Low Quality";
-const int SPEAKER_AUDIO_CHUNK_SIZE = 512;           // Chunk size for audio processing
-const int SPEAKER_PLAYBACK_DELAY_MS = 16;           // Target delay between audio chunks
+const char* SPEAKER_AUDIO_QUALITY_NAME = "High Quality";
+const int SPEAKER_AUDIO_CHUNK_SIZE = 1024;          // Increased chunk size for higher sample rate
+const int SPEAKER_PLAYBACK_DELAY_MS = 12;           // Reduced delay for higher quality playback
 
 // Microphone Input Configuration (for VQA recording)
 const int MICROPHONE_SAMPLE_RATE = 8000;            // Lower sample rate for efficient VQA transmission
@@ -159,7 +159,7 @@ volatile bool isProcessingSoundLooping = false;
 volatile bool isSoundEffectPlaying = false;
 TaskHandle_t processingSoundTaskHandle = nullptr;
 unsigned long processingStartTime = 0;
-const unsigned long PROCESSING_TIMEOUT_MS = 30000; // 30 second timeout
+const unsigned long PROCESSING_TIMEOUT_MS = 60000; // 30 second timeout
 
 // ============================================================================
 // Enhanced Logging System
@@ -342,9 +342,9 @@ class AudioPlaybackCharacteristicEventCallbacks : public BLECharacteristicCallba
         if (receivedStringValue.startsWith("S_START:")) {
             // This is a server response - stop processing sound and play done sound
             if (isProcessingSoundLooping) {
-                logInfoMessage("AUDIO-RESPONSE", "Server response received (S_START) - stopping processing sound and playing done sound");
-                stopProcessingSoundLoop();
-                playDoneSoundWhenReady();
+                logInfoMessage("AUDIO-RESPONSE", "Server response received (S_START) - sound effects disabled for testing");
+                // stopProcessingSoundLoop(); // COMMENTED OUT FOR TESTING
+                // playDoneSoundWhenReady(); // COMMENTED OUT FOR TESTING
             }
             
             audioPlaybackSystem.expectedTotalAudioSize = receivedStringValue.substring(8).toInt();
@@ -377,8 +377,8 @@ class AudioPlaybackCharacteristicEventCallbacks : public BLECharacteristicCallba
         if (receivedStringValue.startsWith("S_END")) {
             // This is also a server response - stop processing sound if still running
             if (isProcessingSoundLooping) {
-                logInfoMessage("AUDIO-RESPONSE", "Server response received (S_END) - stopping processing sound");
-                stopProcessingSoundLoop();
+                logInfoMessage("AUDIO-RESPONSE", "Server response received (S_END) - sound effects disabled for testing");
+                // stopProcessingSoundLoop(); // COMMENTED OUT FOR TESTING
                 // Don't play done sound here since audio will start playing
             }
             
@@ -514,7 +514,7 @@ void cleanupSystemComponents() {
         vqaSystemState.isStopRequested = true;
         
         // Stop processing sound loop
-        stopProcessingSoundLoop();
+        // stopProcessingSoundLoop(); // COMMENTED OUT FOR TESTING
         
         vTaskDelay(pdMS_TO_TICKS(100)); // Allow time for graceful task termination
         if (vqaSystemState.vqaTaskHandle) {
@@ -754,8 +754,8 @@ void visualQuestionAnsweringStreamingTask(void *taskParameters) {
                    String(audioChunkDurationMs) + "ms/chunk, image capture after audio stops");
 
     // Play start sound to indicate VQA operation beginning
-    logInfoMessage("VQA-STREAM", "Playing start sound to indicate VQA operation beginning");
-    playStartSound();
+    logInfoMessage("VQA-STREAM", "Start sound disabled for testing");
+    // playStartSound(); // COMMENTED OUT FOR TESTING
     
     // Send VQA operation start header
     String vqaStartHeader = "VQA_START";
@@ -968,8 +968,8 @@ void visualQuestionAnsweringStreamingTask(void *taskParameters) {
         logDebugMessage("VQA-STREAM", "VQA completion footer sent");
 
         // Start processing sound loop now that VQA data has been sent to server
-        logInfoMessage("VQA-STREAM", "VQA data transmission complete - starting processing sound while waiting for server response");
-        startProcessingSoundLoop();
+        logInfoMessage("VQA-STREAM", "VQA data transmission complete - processing sound disabled for testing");
+        // startProcessingSoundLoop(); // COMMENTED OUT FOR TESTING
 
         unsigned long totalOperationTime = millis() - vqaSystemState.streamingStartTime;
         
@@ -987,7 +987,7 @@ void visualQuestionAnsweringStreamingTask(void *taskParameters) {
         logErrorMessage("VQA-STREAM", "VQA streaming failed: " + operationCompletionReason);
         
         // Stop processing sound loop on error
-        stopProcessingSoundLoop();
+        // stopProcessingSoundLoop(); // COMMENTED OUT FOR TESTING
     }
 
     // Reset VQA system state
