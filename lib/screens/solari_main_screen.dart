@@ -62,7 +62,6 @@ class _SolariScreenState extends State<SolariScreen>
   final List<int> _audioBuffer = [];
   bool _audioStreaming = false;
   String? _transcribedText;
-  bool _processingAudio = false;
 
   // Image receiving
   final List<int> _imageBuffer = [];
@@ -357,7 +356,6 @@ class _SolariScreenState extends State<SolariScreen>
       
       setState(() {
         _transcribedText = null; // Reset transcription for new session
-        _processingAudio = false;
         _lastTranscriptionDisplayed = null; // Clear tracking
       });
       return;
@@ -373,7 +371,6 @@ class _SolariScreenState extends State<SolariScreen>
       
       setState(() {
         _transcribedText = null; // Reset previous transcription
-        _processingAudio = true;
         _lastTranscriptionDisplayed = null; // Reset tracking
       });
       return;
@@ -496,7 +493,6 @@ class _SolariScreenState extends State<SolariScreen>
       final finalTranscription = await _sttService.finalizeTranscription();
       
       setState(() {
-        _processingAudio = false; // Audio processing is complete
         if (finalTranscription != null && finalTranscription.isNotEmpty) {
           _transcribedText = finalTranscription;
           debugPrint('[STT] Final transcription: "$finalTranscription"');
@@ -510,7 +506,6 @@ class _SolariScreenState extends State<SolariScreen>
       debugPrint('[STT] Error finalizing transcription: $e');
       setState(() {
         _transcribedText = null;
-        _processingAudio = false;
       });
     }
   }
