@@ -110,12 +110,12 @@ VisualQuestionAnsweringState vqaSystemState;
 // ============================================================================
 
 // Speaker Audio Output Configuration
-const int SPEAKER_SAMPLE_RATE = 11025;              // Sample rate for audio playback
+const int SPEAKER_SAMPLE_RATE = 22050;              // Sample rate for audio playback (matches TTS output)
 const int SPEAKER_BIT_DEPTH = 16;                   // Bit depth for audio samples
 const int SPEAKER_BYTES_PER_SAMPLE = 2;             // Bytes per audio sample (16-bit = 2 bytes)
-const char* SPEAKER_AUDIO_QUALITY_NAME = "Low Quality";
+const char* SPEAKER_AUDIO_QUALITY_NAME = "Medium Quality";
 const int SPEAKER_AUDIO_CHUNK_SIZE = 512;           // Chunk size for audio processing
-const int SPEAKER_PLAYBACK_DELAY_MS = 16;           // Target delay between audio chunks
+const int SPEAKER_PLAYBACK_DELAY_MS = 12;           // Target delay between audio chunks (reduced for higher sample rate)
 
 // Microphone Input Configuration (for VQA recording)
 const int MICROPHONE_SAMPLE_RATE = 16000;            // Lower sample rate for efficient VQA transmission
