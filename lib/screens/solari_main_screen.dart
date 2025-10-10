@@ -329,7 +329,7 @@ class _SolariScreenState extends State<SolariScreen>
 
   // =================================================================================================================================
   // Handle incoming data from characteristics
-  void _handleIncomingData(List<int> value) {
+  Future<void> _handleIncomingData(List<int> value) async {
     if (value.isEmpty) return;
 
     String asString = String.fromCharCodes(value);
@@ -366,11 +366,11 @@ class _SolariScreenState extends State<SolariScreen>
       _audioStreaming = true;
       _audioBuffer.clear();
       
-      // Reset STT session completely for new audio
-      _sttService.reset();
+      // Start recording for offline transcription
+      _sttService.startRecording();
       
       setState(() {
-        _transcribedText = null; // Reset previous transcription
+        _transcribedText = 'Recording audio...'; // Show recording status
         _lastTranscriptionDisplayed = null; // Reset tracking
       });
       return;
@@ -380,8 +380,8 @@ class _SolariScreenState extends State<SolariScreen>
       debugPrint("Audio streaming ended");
       _audioStreaming = false;
       
-      // Finalize the real-time transcription
-      _finalizeTranscription();
+      // Stop recording and transcribe the collected audio
+      await _finalizeTranscription();
       return;
     }
 
@@ -461,51 +461,51 @@ class _SolariScreenState extends State<SolariScreen>
   // ================================================================================================================================
 
   // ================================================================================================================================
-  // Process streaming audio data in real-time for speech-to-text
+  // Collect audio data for offline transcription
   Future<void> _processStreamingAudio(List<int> audioChunk) async {
     if (!_audioStreaming) return;
     
     try {
-      // Process the audio chunk in real-time
-      final partialTranscription = await _sttService.processAudioChunk(audioChunk);
+      // Collect audio chunk for offline processing
+      final statusMessage = await _sttService.processAudioChunk(audioChunk);
       
-      if (partialTranscription != null && 
-          partialTranscription.isNotEmpty && 
-          partialTranscription != _lastTranscriptionDisplayed) {
+      if (statusMessage != null && 
+          statusMessage.isNotEmpty && 
+          statusMessage != _lastTranscriptionDisplayed) {
         setState(() {
-          _transcribedText = partialTranscription;
-          _lastTranscriptionDisplayed = partialTranscription;
+          _transcribedText = statusMessage; // Show recording duration
+          _lastTranscriptionDisplayed = statusMessage;
         });
-        // Reduce debug frequency to avoid performance impact
-        if (partialTranscription.split(':').length <= 2) {
-          debugPrint('[STT] Real-time transcription: "$partialTranscription"');
-        }
       }
       
     } catch (e) {
-      debugPrint('[STT] Error processing streaming audio: $e');
+      debugPrint('[STT] Error collecting audio chunk: $e');
     }
   }
 
-  // Finalize the transcription when audio streaming ends
+  // Stop recording and transcribe the collected audio
   Future<void> _finalizeTranscription() async {
     try {
-      final finalTranscription = await _sttService.finalizeTranscription();
+      setState(() {
+        _transcribedText = 'Transcribing...';
+      });
+      
+      final finalTranscription = await _sttService.stopRecordingAndTranscribe();
       
       setState(() {
         if (finalTranscription != null && finalTranscription.isNotEmpty) {
           _transcribedText = finalTranscription;
           debugPrint('[STT] Final transcription: "$finalTranscription"');
         } else {
-          _transcribedText = null;
+          _transcribedText = 'No speech detected';
           debugPrint('[STT] No speech detected in audio session');
         }
       });
       
     } catch (e) {
-      debugPrint('[STT] Error finalizing transcription: $e');
+      debugPrint('[STT] Error transcribing audio: $e');
       setState(() {
-        _transcribedText = null;
+        _transcribedText = 'Transcription failed';
       });
     }
   }

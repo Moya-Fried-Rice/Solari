@@ -5,16 +5,19 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sherpa_onnx/sherpa_onnx.dart' as sherpa_onnx;
+import '../../utils/punctuation_helper.dart';
 
 class SttService {
-  sherpa_onnx.OnlineRecognizer? _recognizer;
-  sherpa_onnx.OnlineStream? _stream;
+  sherpa_onnx.OfflineRecognizer? _recognizer;
   bool _isInitialized = false;
   final int _sampleRate = 16000; // Sherpa ONNX model expects 16kHz audio
   
-  // Text accumulation variables (exactly like reference)
-  String _lastResult = '';
-  int _segmentIndex = 0;
+  // Audio collection for offline processing
+  final List<double> _audioBuffer = [];
+  bool _isRecording = false;
+  
+  // Punctuation enhancement setting
+  bool _enhancePunctuation = true;
 
   /// Copy the asset file from src to dst
   Future<String> _copyAssetFile(String src, [String? dst]) async {
@@ -53,34 +56,34 @@ class SttService {
     return values;
   }
 
-  /// Get the online model configuration for the English Zipformer model
-  Future<sherpa_onnx.OnlineModelConfig> _getOnlineModelConfig() async {
-    // Using the English model that's already in assets
-    final modelDir = 'assets/sherpa-onnx-streaming-zipformer-en-2023-06-26';
+  /// Get the offline model configuration for the GigaSpeech Zipformer model
+  Future<sherpa_onnx.OfflineModelConfig> _getOfflineModelConfig() async {
+    // Using the new GigaSpeech model for higher accuracy
+    final modelDir = 'assets/sherpa-onnx-zipformer-gigaspeech-2023-12-12';
     
-    return sherpa_onnx.OnlineModelConfig(
-      transducer: sherpa_onnx.OnlineTransducerModelConfig(
+    return sherpa_onnx.OfflineModelConfig(
+      transducer: sherpa_onnx.OfflineTransducerModelConfig(
         encoder: await _copyAssetFile(
-            '$modelDir/encoder-epoch-99-avg-1-chunk-16-left-128.int8.onnx'),
+            '$modelDir/encoder-epoch-30-avg-1.onnx'),
         decoder: await _copyAssetFile(
-            '$modelDir/decoder-epoch-99-avg-1-chunk-16-left-128.onnx'),
+            '$modelDir/decoder-epoch-30-avg-1.onnx'),
         joiner: await _copyAssetFile(
-            '$modelDir/joiner-epoch-99-avg-1-chunk-16-left-128.onnx'),
+            '$modelDir/joiner-epoch-30-avg-1.onnx'),
       ),
       tokens: await _copyAssetFile('$modelDir/tokens.txt'),
       modelType: 'zipformer2',
     );
   }
 
-  /// Create online recognizer configuration for the English model
-  Future<sherpa_onnx.OnlineRecognizer> _createOnlineRecognizer() async {
-    final modelConfig = await _getOnlineModelConfig();
-    final config = sherpa_onnx.OnlineRecognizerConfig(
+  /// Create offline recognizer configuration for the GigaSpeech model
+  Future<sherpa_onnx.OfflineRecognizer> _createOfflineRecognizer() async {
+    final modelConfig = await _getOfflineModelConfig();
+    final config = sherpa_onnx.OfflineRecognizerConfig(
       model: modelConfig,
       ruleFsts: '',
     );
 
-    return sherpa_onnx.OnlineRecognizer(config);
+    return sherpa_onnx.OfflineRecognizer(config);
   }
 
   /// Initialize the STT service with Sherpa ONNX
@@ -89,18 +92,18 @@ class SttService {
       if (_isInitialized) return;
       
       debugPrint('🎤 Initializing STT service...');
+      debugPrint('🔄 Using offline GigaSpeech model for higher accuracy');
       debugPrint('⚠️  IMPORTANT: Ensure Arduino microphone is configured for ${_sampleRate}Hz sample rate');
       debugPrint('⚠️  Current Arduino config shows MICROPHONE_SAMPLE_RATE = 8000 (should be $_sampleRate)');
       
       // Initialize Sherpa ONNX bindings
       sherpa_onnx.initBindings();
       
-      // Create the online recognizer
-      _recognizer = await _createOnlineRecognizer();
-      _stream = _recognizer?.createStream();
+      // Create the offline recognizer
+      _recognizer = await _createOfflineRecognizer();
       
       _isInitialized = true;
-      debugPrint('✅ STT service initialized successfully');
+      debugPrint('✅ STT service initialized successfully with GigaSpeech model');
       
     } catch (e) {
       debugPrint('❌ Error initializing STT service: $e');
@@ -108,55 +111,46 @@ class SttService {
     }
   }
 
-  /// Process real-time audio chunk data received from BLE (EXACT match to reference streaming_asr.dart)
+  /// Start recording - collect audio chunks for offline processing
+  void startRecording() {
+    if (!_isInitialized) {
+      debugPrint('❌ STT service not initialized');
+      return;
+    }
+    
+    _audioBuffer.clear();
+    _isRecording = true;
+    debugPrint('🎤 Started recording audio for offline transcription');
+  }
+
+  /// Process and collect audio chunk data received from BLE
   Future<String?> processAudioChunk(List<int> audioChunk) async {
-    if (!_isInitialized || _recognizer == null || _stream == null) {
+    if (!_isInitialized || _recognizer == null) {
       debugPrint('❌ STT service not initialized');
       return null;
     }
 
+    if (!_isRecording) {
+      debugPrint('❌ Not currently recording');
+      return null;
+    }
+
     try {
-      // Convert the raw audio bytes to Float32List (same as reference)
+      // Convert the raw audio bytes to Float32List and add to buffer
       final audioBytes = Uint8List.fromList(audioChunk);
       final samplesFloat32 = _convertBytesToFloat32(audioBytes);
       
-      // Feed the audio chunk to Sherpa ONNX (same as reference)
-      _stream!.acceptWaveform(
-        samples: samplesFloat32,
-        sampleRate: _sampleRate,
-      );
+      // Add samples to buffer for offline processing
+      _audioBuffer.addAll(samplesFloat32);
       
-      // Process the audio chunk (same as reference)
-      while (_recognizer!.isReady(_stream!)) {
-        _recognizer!.decode(_stream!);
+      // Provide feedback that audio is being collected
+      final durationSeconds = _audioBuffer.length / _sampleRate;
+      if (_audioBuffer.length % (_sampleRate * 2) == 0) { // Log every 2 seconds
+        debugPrint('[STT] Collecting audio: ${durationSeconds.toStringAsFixed(1)}s');
       }
       
-      // Get current text result (same as reference)
-      final text = _recognizer!.getResult(_stream!).text;
-      String textToDisplay = _lastResult;
-      
-      // EXACTLY like reference - build display text
-      if (text != '') {
-        if (_lastResult == '') {
-          textToDisplay = '$_segmentIndex: $text';
-        } else {
-          textToDisplay = '$_segmentIndex: $text\n$_lastResult';
-        }
-      }
-      
-      // Check for endpoint (sentence completion) - EXACTLY like reference
-      if (_recognizer!.isEndpoint(_stream!)) {
-        debugPrint('[STT] Endpoint detected! Resetting stream...');
-        _recognizer!.reset(_stream!);
-        if (text != '') {
-          _lastResult = textToDisplay;
-          _segmentIndex += 1;
-          debugPrint('[STT] Segment completed: "$text"');
-        }
-      }
-      
-      // Always return the current display text (like reference does for UI updates)
-      return textToDisplay.isNotEmpty ? textToDisplay : null;
+      // Return status message for UI
+      return 'Recording: ${durationSeconds.toStringAsFixed(1)}s';
       
     } catch (e) {
       debugPrint('[STT] Error processing audio chunk: $e');
@@ -164,111 +158,97 @@ class SttService {
     }
   }
 
-  /// Finalize the transcription when audio streaming ends
-  Future<String?> finalizeTranscription() async {
-    if (!_isInitialized || _recognizer == null || _stream == null) {
+  /// Stop recording and transcribe the collected audio
+  Future<String?> stopRecordingAndTranscribe() async {
+    if (!_isInitialized || _recognizer == null) {
       debugPrint('❌ STT service not initialized');
       return null;
     }
 
+    if (!_isRecording) {
+      debugPrint('❌ Not currently recording');
+      return null;
+    }
+
+    _isRecording = false;
+
     try {
-      // Get any remaining text and finalize
-      final result = _recognizer!.getResult(_stream!);
-      final remainingText = result.text.trim();
-      
-      String finalTranscription = _lastResult;
-      
-      // Include any remaining partial text
-      if (remainingText.isNotEmpty && !_lastResult.contains(remainingText)) {
-        if (_lastResult.isEmpty) {
-          finalTranscription = '$_segmentIndex: $remainingText';
-        } else {
-          finalTranscription = '$_segmentIndex: $remainingText\n$_lastResult';
-        }
-      }
-      
-      // Extract just the text content without segment numbers for VLM prompt
-      final cleanTranscription = _extractCleanText(finalTranscription);
-      
-      // Reset for next session
-      _resetSession();
-      
-      if (cleanTranscription.isNotEmpty) {
-        debugPrint('[STT] Final transcription: "$cleanTranscription"');
-        return cleanTranscription;
-      } else {
-        debugPrint('[STT] No speech detected in session');
+      if (_audioBuffer.isEmpty) {
+        debugPrint('[STT] No audio data collected');
         return null;
       }
+
+      final durationSeconds = _audioBuffer.length / _sampleRate;
+      debugPrint('[STT] Transcribing ${durationSeconds.toStringAsFixed(1)}s of audio...');
+
+      // Create an offline stream for processing
+      final stream = _recognizer!.createStream();
       
+      // Feed all collected audio to the stream
+      stream.acceptWaveform(
+        samples: Float32List.fromList(_audioBuffer),
+        sampleRate: _sampleRate,
+      );
+      
+      // Process the audio and get the result
+      _recognizer!.decode(stream);
+      final result = _recognizer!.getResult(stream);
+      final transcription = result.text.trim();
+
+      // Clean up
+      stream.free();
+      _audioBuffer.clear();
+
+      if (transcription.isNotEmpty) {
+        String finalText = transcription;
+        
+        // Add punctuation to improve VLM prompt quality
+        if (_enhancePunctuation) {
+          finalText = PunctuationHelper.addPunctuationAdvanced(transcription);
+          debugPrint('[STT] Raw transcription: "$transcription"');
+          debugPrint('[STT] With punctuation: "$finalText"');
+        } else {
+          debugPrint('[STT] Transcription completed: "$transcription"');
+        }
+        
+        return finalText;
+      } else {
+        debugPrint('[STT] No speech detected in audio');
+        return null;
+      }
+
     } catch (e) {
-      debugPrint('[STT] Error finalizing transcription: $e');
+      debugPrint('[STT] Error during transcription: $e');
+      _audioBuffer.clear();
       return null;
     }
   }
-  
-  /// Extract clean text without segment numbers in correct chronological order
-  String _extractCleanText(String segmentedText) {
-    if (segmentedText.isEmpty) return '';
-    
-    final lines = segmentedText.split('\n');
-    final Map<int, String> segmentMap = {};
-    
-    // Parse segments into a map with their indices
-    for (final line in lines) {
-      final colonIndex = line.indexOf(': ');
-      if (colonIndex != -1) {
-        final segmentNumberStr = line.substring(0, colonIndex);
-        final segmentNumber = int.tryParse(segmentNumberStr);
-        final segmentText = line.substring(colonIndex + 2).trim();
-        
-        if (segmentNumber != null && segmentText.isNotEmpty) {
-          segmentMap[segmentNumber] = segmentText;
-        }
-      }
-    }
-    
-    // Sort segments by index (0, 1, 2, ...) and join them in correct order
-    final sortedKeys = segmentMap.keys.toList()..sort();
-    final orderedSegments = sortedKeys.map((key) => segmentMap[key]!).toList();
-    
-    return orderedSegments.join(' ').trim();
-  }
-  
-  /// Reset session variables
-  void _resetSession() {
-    _lastResult = '';
-    _segmentIndex = 0;
-  }
 
-  /// Reset the STT stream and session completely
+
+  /// Reset the audio buffer and recording state
   void reset() {
-    if (_stream != null && _recognizer != null) {
-      try {
-        // Free the current stream and create a new one for complete reset
-        _stream!.free();
-        _stream = _recognizer!.createStream();
-        _resetSession();
-        debugPrint('[STT] Stream recreated and session reset completely');
-      } catch (e) {
-        debugPrint('[STT] Error during reset: $e');
-        // Fallback to simple reset
-        _recognizer!.reset(_stream!);
-        _resetSession();
-      }
-    }
+    _audioBuffer.clear();
+    _isRecording = false;
+    debugPrint('[STT] Audio buffer cleared and recording state reset');
   }
 
   /// Dispose of resources
   void dispose() {
     try {
-      _stream?.free();
       _recognizer?.free();
+      _audioBuffer.clear();
       _isInitialized = false;
       debugPrint('🎤 STT service disposed');
     } catch (e) {
       debugPrint('Error disposing STT service: $e');
     }
+  }
+
+  /// Enable or disable punctuation enhancement
+  /// This improves VLM prompt quality by adding appropriate punctuation
+  void setPunctuationEnhancement(bool enabled) {
+    _enhancePunctuation = enabled;
+    debugPrint('[STT] Punctuation enhancement ${enabled ? 'enabled' : 'disabled'}');
   }
 
   /// Get service status information
@@ -277,8 +257,11 @@ class SttService {
       'initialized': _isInitialized,
       'sampleRate': _sampleRate,
       'engine': 'Sherpa ONNX',
-      'modelType': 'zipformer2',
-      'online': true,
+      'modelType': 'zipformer2-gigaspeech',
+      'processingMode': 'offline',
+      'isRecording': _isRecording,
+      'audioBufferDuration': _audioBuffer.length / _sampleRate,
+      'punctuationEnhancement': _enhancePunctuation,
     };
   }
 }
