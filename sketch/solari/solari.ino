@@ -29,7 +29,7 @@
 // Timing and Control Constants
 // ============================================================================
 #define IMAGE_CAPTURE_DEBOUNCE_MS           500
-#define BLE_CHUNK_SEND_DELAY_MS             10
+#define BLE_CHUNK_SEND_DELAY_MS             20
 #define VQA_AUDIO_CHUNK_DURATION_MS         150  // Audio chunk duration for VQA streaming
 #define VQA_STREAMING_BUFFER_COUNT          4    // Number of buffers for smooth streaming
 #define BUTTON_DEBOUNCE_MS                  200  // Button debounce time
@@ -1431,7 +1431,7 @@ void temperatureMonitoringTask(void *taskParameters) {
             logDebugMessage("TEMPERATURE", "Current system temperature: " + String(currentSystemTemperature, 1) + " °C");
         }
 
-        vTaskDelay(pdMS_TO_TICKS(10000)); // Check every 10 seconds
+        vTaskDelay(pdMS_TO_TICKS(3000)); // Check every 3 seconds
     }
 }
 
@@ -1671,9 +1671,24 @@ void loop() {
                 logWarningMessage("SERIAL-CMD", "Sound effect ignored - system not initialized");
             }
         }
+        else if (serialCommand == "DEEP_SLEEP") {
+            logInfoMessage("SERIAL-CMD", "Entering deep sleep mode - device will restart when power cycled");
+            // Stop all active operations before deep sleep
+            if (vqaSystemState.isOperationActive) {
+                vqaSystemState.isStopRequested = true;
+                logInfoMessage("SERIAL-CMD", "Stopping VQA operation before deep sleep");
+            }
+            if (isProcessingSoundLooping) {
+                stopProcessingSoundLoop();
+                logInfoMessage("SERIAL-CMD", "Stopping processing sound before deep sleep");
+            }
+            // Allow some time for cleanup
+            delay(1000);
+            esp_deep_sleep_start();
+        }
         else if (serialCommand.length() > 0) {
             logWarningMessage("SERIAL-CMD", "Unknown serial command: '" + serialCommand + "'");
-            logInfoMessage("SERIAL-CMD", "Available commands: VQA_START, VQA_STOP, STATUS, DEBUG, TEMP, VOL <0-32767>");
+            logInfoMessage("SERIAL-CMD", "Available commands: VQA_START, VQA_STOP, STATUS, DEBUG, TEMP, VOL <0-32767>, DEEP_SLEEP");
             logInfoMessage("SERIAL-CMD", "Sound commands: PROCESSING, PROCESSING_LOOP_START, PROCESSING_LOOP_STOP, DONE, SIMULATE_RESPONSE, TEST_SEQUENCE");
         }
     }
