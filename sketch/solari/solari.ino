@@ -317,7 +317,35 @@ class VqaCharacteristicEventCallbacks : public BLECharacteristicCallbacks {
         uint8_t* receivedBinaryData = vqaCharacteristic->getData();
         size_t receivedDataLength = vqaCharacteristic->getLength();
         
-        // Output raw binary data to serial for VQA command debugging
+        // Handle VQA_START command
+        if (receivedStringValue.equals("VQA_START")) {
+            logInfoMessage("VQA-CONTROL", "VQA_START command received - starting VQA streaming task");
+            
+            // Only start if not already active
+            if (!vqaSystemState.isOperationActive) {
+                playStartSound();
+                xTaskCreate(visualQuestionAnsweringStreamingTask, "VQAStreamingTask", 16384, NULL, 1, &vqaSystemState.vqaTaskHandle);
+            } else {
+                logWarningMessage("VQA-CONTROL", "VQA session already active, ignoring START command");
+            }
+            return;
+        }
+        
+        // Handle VQA_END command  
+        if (receivedStringValue.equals("VQA_END")) {
+            logInfoMessage("VQA-CONTROL", "VQA_END command received - stopping VQA streaming task");
+            
+            // Stop the VQA task if it's running
+            if (vqaSystemState.isOperationActive && vqaSystemState.vqaTaskHandle != nullptr) {
+                vqaSystemState.isStopRequested = true;
+                logInfoMessage("VQA-CONTROL", "Stop requested for active VQA session");
+            } else {
+                logWarningMessage("VQA-CONTROL", "No active VQA session to stop");
+            }
+            return;
+        }
+        
+        // Output raw binary data to serial for VQA command debugging (for unknown commands)
         Serial.print("VQA BLE Data Received: ");
         for (size_t i = 0; i < receivedDataLength; i++) {
             Serial.print("0x");
