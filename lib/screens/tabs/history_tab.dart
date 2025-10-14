@@ -25,6 +25,18 @@ class _HistoryTabState extends State<HistoryTab>
   @override
   bool get wantKeepAlive => true;
 
+  /// Helper method to get text shadows for high contrast mode
+  List<Shadow>? _getTextShadows(ThemeProvider theme) {
+    if (!theme.isHighContrast) return null;
+    final shadowColor = theme.isDarkMode ? Colors.white : Colors.black;
+    return [
+      Shadow(offset: const Offset(0, -1), blurRadius: 3.0, color: shadowColor),
+      Shadow(offset: const Offset(0, 1), blurRadius: 3.0, color: shadowColor),
+      Shadow(offset: const Offset(-1, 0), blurRadius: 3.0, color: shadowColor),
+      Shadow(offset: const Offset(1, 0), blurRadius: 3.0, color: shadowColor),
+    ];
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -55,6 +67,7 @@ class _HistoryTabState extends State<HistoryTab>
                         fontSize: theme.fontSize + 4,
                         fontWeight: FontWeight.w500,
                         color: theme.textColor,
+                        shadows: _getTextShadows(theme),
                       ),
                     ),
                   ],
@@ -91,12 +104,65 @@ class _HistoryTabState extends State<HistoryTab>
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    history[i].text,
-                                    style: TextStyle(
-                                      fontSize: theme.fontSize,
-                                      fontWeight: FontWeight.bold,
+                                  // Show question if available (from STT)
+                                  if (history[i].question != null && history[i].question!.isNotEmpty) ...[
+                                    Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: theme.primaryColor.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                          color: theme.primaryColor.withOpacity(0.3),
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Icon(
+                                            Icons.mic,
+                                            size: 16,
+                                            color: theme.primaryColor,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              'Question: "${history[i].question}"',
+                                              style: TextStyle(
+                                                fontSize: theme.fontSize * 0.9,
+                                                fontStyle: FontStyle.italic,
+                                                color: theme.textColor.withOpacity(0.8),
+                                                shadows: _getTextShadows(theme),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
+                                    const SizedBox(height: 12),
+                                  ],
+                                  // Show response
+                                  Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Icon(
+                                        Icons.smart_toy,
+                                        size: 16,
+                                        color: theme.primaryColor,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          history[i].response,
+                                          style: TextStyle(
+                                            fontSize: theme.fontSize,
+                                            fontWeight: FontWeight.bold,
+                                            color: theme.textColor,
+                                            shadows: _getTextShadows(theme),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                   const SizedBox(height: 8),
                                   RichText(
@@ -108,6 +174,7 @@ class _HistoryTabState extends State<HistoryTab>
                                             fontSize: theme.fontSize * 0.85,
                                             color: theme.primaryColor,
                                             fontWeight: FontWeight.bold,
+                                            shadows: _getTextShadows(theme),
                                           ),
                                         ),
                                         TextSpan(
@@ -115,6 +182,7 @@ class _HistoryTabState extends State<HistoryTab>
                                           style: TextStyle(
                                             fontSize: theme.fontSize * 0.85,
                                             color: Colors.grey[600],
+                                            shadows: _getTextShadows(theme),
                                           ),
                                         ),
                                       ],

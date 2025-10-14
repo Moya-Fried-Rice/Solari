@@ -1,14 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../../../../core/constants/app_constants.dart';
-import '../../../../../core/providers/theme_provider.dart';
-import '../../../../../widgets/app_bar.dart';
+import '../../../../core/constants/app_constants.dart';
+import '../../../../core/providers/theme_provider.dart';
+import '../../../../widgets/app_bar.dart';
 
 /// FAQs screen with answers to common questions
 class FAQsScreen extends StatelessWidget {
   /// Creates an FAQs screen
   const FAQsScreen({super.key});
+
+  static List<Shadow>? _getTextShadows(ThemeProvider theme) {
+    if (!theme.isHighContrast) return null;
+    final shadowColor = theme.isDarkMode ? Colors.white : Colors.black;
+    return [
+      Shadow(offset: const Offset(0, -1), blurRadius: 5.0, color: shadowColor),
+      Shadow(offset: const Offset(0, 1), blurRadius: 5.0, color: shadowColor),
+      Shadow(offset: const Offset(-1, 0), blurRadius: 5.0, color: shadowColor),
+      Shadow(offset: const Offset(1, 0), blurRadius: 5.0, color: shadowColor),
+    ];
+  }
 
   /// Build a single FAQ item with question and answer
   Widget buildFAQ(BuildContext context, String question, String answer,
@@ -27,6 +38,7 @@ class FAQsScreen extends StatelessWidget {
                   fontSize: theme.fontSize + 8,
                   fontWeight: FontWeight.bold,
                   color: theme.textColor,
+                  shadows: _getTextShadows(theme),
                 ),
               ),
               TextSpan(
@@ -35,6 +47,7 @@ class FAQsScreen extends StatelessWidget {
                   fontSize: theme.fontSize + 4,
                   color: theme.textColor,
                   height: theme.lineHeight,
+                  shadows: _getTextShadows(theme),
                 ),
               ),
             ],
@@ -50,6 +63,7 @@ class FAQsScreen extends StatelessWidget {
                   fontSize: theme.fontSize + 8,
                   fontWeight: FontWeight.bold,
                   color: theme.textColor,
+                  shadows: _getTextShadows(theme),
                 ),
               ),
               TextSpan(
@@ -58,6 +72,7 @@ class FAQsScreen extends StatelessWidget {
                   fontSize: theme.fontSize + 4,
                   color: theme.textColor,
                   height: theme.lineHeight,
+                  shadows: _getTextShadows(theme),
                 ),
               ),
             ],

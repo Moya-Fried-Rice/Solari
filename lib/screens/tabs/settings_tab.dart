@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
-import '../../widgets/settings_button.dart';
+import '../../core/constants/app_constants.dart';
+import '../../widgets/feature_card.dart';
 import 'settings/device_status.dart';
 import 'settings/preference.dart';
-import 'settings/help.dart';
 import 'settings/about.dart';
 import 'settings/terms_of_use.dart';
+import 'settings/contact.dart';
+import 'settings/faqs.dart';
+import 'settings/tutorials.dart';
 import '../../core/providers/theme_provider.dart';
 
 class SettingsTab extends StatelessWidget {
@@ -21,69 +24,81 @@ class SettingsTab extends StatelessWidget {
     final List<Map<String, dynamic>> items = [
       {'label': 'Device Status', 'icon': Icons.bluetooth},
       {'label': 'Preferences', 'icon': Icons.tune},
-      {'label': 'Help', 'icon': Icons.help_outline},
       {'label': 'About Solari', 'icon': Icons.info_outline},
+      {'label': 'FAQs', 'icon': Icons.question_answer_outlined},
+      {'label': 'Tutorials', 'icon': Icons.video_library_outlined},
+      {'label': 'Contact', 'icon': Icons.support_agent},
       {'label': 'Terms of Use', 'icon': Icons.description_outlined},
     ];
 
     return Scaffold(
-      body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              SizedBox(height: 32),
-              for (var i = 0; i < items.length; i++) ...[
-                CustomButton(
-                  label: items[i]["label"] as String,
-                  icon: items[i]["icon"] as IconData,
-                  fontSize: themeProvider.fontSize,
-                  labelAlignment: Alignment.centerLeft,
-                  enableVibration: false,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 15,
-                    vertical: 20,
-                  ),
-                  onPressed: () {
-                    final label = items[i]["label"];
-                    if (label == 'Device Status') {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => DeviceStatusPage(device: device),
-                        ),
-                      );
-                    } else if (label == 'Preferences') {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => const PreferencePage(),
-                        ),
-                      );
-                    } else if (label == 'Help') {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => const HelpPage(),
-                        ),
-                      );
-                    } else if (label == 'About Solari') {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => const AboutPage(),
-                        ),
-                      );
-                    } else if (label == 'Terms of Use') {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => const TermsOfUsePage(),
-                        ),
-                      );
-                    }
-                  },
-                ),
-                SizedBox(height: 16),
-              ],
-            ],
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(AppConstants.largePadding),
+          child: GridView.builder(
+            physics: const BouncingScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: 0.9,
+            ),
+            itemCount: items.length,
+            itemBuilder: (context, index) {
+              final item = items[index];
+              return FeatureCard(
+                theme: themeProvider,
+                icon: item['icon'] as IconData,
+                label: item['label'] as String,
+                onTap: () {
+                  final label = item['label'];
+                  if (label == 'Device Status') {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => DeviceStatusPage(device: device),
+                      ),
+                    );
+                  } else if (label == 'Preferences') {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => const PreferencePage(),
+                      ),
+                    );
+                  } else if (label == 'About Solari') {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => const AboutPage(),
+                      ),
+                    );
+                  } else if (label == 'Contact') {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => const ContactScreen(),
+                      ),
+                    );
+                  } else if (label == 'FAQs') {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => const FAQsScreen(),
+                      ),
+                    );
+                  } else if (label == 'Tutorials') {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => const TutorialsScreen(),
+                      ),
+                    );
+                  } else if (label == 'Terms of Use') {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => const TermsOfUsePage(),
+                      ),
+                    );
+                  }
+                },
+              );
+            },
           ),
         ),
       ),

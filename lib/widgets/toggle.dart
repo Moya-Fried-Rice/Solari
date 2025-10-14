@@ -48,6 +48,16 @@ class Toggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Provider.of<ThemeProvider>(context);
+    
+    final textShadows = theme.isHighContrast
+        ? [
+            Shadow(offset: const Offset(0, -1), blurRadius: 5.0, color: theme.isDarkMode ? Colors.black : Colors.white),
+            Shadow(offset: const Offset(0, 1), blurRadius: 5.0, color: theme.isDarkMode ? Colors.black : Colors.white),
+            Shadow(offset: const Offset(-1, 0), blurRadius: 5.0, color: theme.isDarkMode ? Colors.black : Colors.white),
+            Shadow(offset: const Offset(1, 0), blurRadius: 5.0, color: theme.isDarkMode ? Colors.black : Colors.white),
+          ]
+        : null;
+    
     return Semantics(
       label: semanticLabel,
       excludeSemantics: true,
@@ -64,6 +74,8 @@ class Toggle extends StatelessWidget {
                     label,
                     style: TextStyle(
                       fontSize: fontSize ?? AppConstants.bodyFontSize,
+                      color: theme.buttonTextColor,
+                      shadows: textShadows,
                     ),
                     softWrap: true,
                     overflow: TextOverflow.visible,
@@ -78,9 +90,9 @@ class Toggle extends StatelessWidget {
                       }
                       onChanged(newValue);
                     },
-                    activeColor: theme.primaryColor,
+                    activeColor: theme.buttonTextColor,
                     inactiveThumbColor: theme.unselectedColor,
-                    activeTrackColor: theme.primaryColor.withOpacity(0.4),
+                    activeTrackColor: theme.buttonTextColor.withOpacity(0.4),
                     inactiveTrackColor: theme.unselectedColor.withOpacity(0.4),
                   ),
                 ),

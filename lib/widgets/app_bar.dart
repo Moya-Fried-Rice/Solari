@@ -54,6 +54,12 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
             fontSize: 28.0,
             fontWeight: FontWeight.bold,
             color: theme.labelColor,
+            shadows: theme.isHighContrast ? [
+              Shadow(offset: const Offset(0, -1), blurRadius: 5.0, color: theme.isDarkMode ? Colors.black : Colors.white),
+              Shadow(offset: const Offset(0, 1), blurRadius: 5.0, color: theme.isDarkMode ? Colors.black : Colors.white),
+              Shadow(offset: const Offset(-1, 0), blurRadius: 5.0, color: theme.isDarkMode ? Colors.black : Colors.white),
+              Shadow(offset: const Offset(1, 0), blurRadius: 5.0, color: theme.isDarkMode ? Colors.black : Colors.white),
+            ] : null,
           ),
           textAlign: TextAlign.center,
         ),

@@ -10,6 +10,18 @@ class AboutPage extends StatelessWidget {
   /// Creates an about screen
   const AboutPage({super.key});
 
+  /// Helper method to get text shadows for high contrast mode
+  static List<Shadow>? _getTextShadows(ThemeProvider theme) {
+    if (!theme.isHighContrast) return null;
+    final shadowColor = theme.isDarkMode ? Colors.white : Colors.black;
+    return [
+      Shadow(offset: const Offset(0, -1), blurRadius: 5.0, color: shadowColor),
+      Shadow(offset: const Offset(0, 1), blurRadius: 5.0, color: shadowColor),
+      Shadow(offset: const Offset(-1, 0), blurRadius: 5.0, color: shadowColor),
+      Shadow(offset: const Offset(1, 0), blurRadius: 5.0, color: shadowColor),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Provider.of<ThemeProvider>(context);
@@ -34,6 +46,7 @@ class AboutPage extends StatelessWidget {
                   fontSize: theme.fontSize + 4,
                   color: theme.textColor,
                   height: theme.lineHeight,
+                  shadows: _getTextShadows(theme),
                 ),
               ),
             ),
