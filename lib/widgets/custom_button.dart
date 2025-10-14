@@ -75,6 +75,12 @@ class _CustomButtonState extends State<CustomButton> {
       fontSize: widget.fontSize,
       fontWeight: FontWeight.w800,
       color: theme.buttonTextColor,
+      shadows: theme.isHighContrast ? [
+        Shadow(offset: const Offset(0, -1), blurRadius: 3.0, color: theme.isDarkMode ? Colors.black : Colors.white),
+        Shadow(offset: const Offset(0, 1), blurRadius: 3.0, color: theme.isDarkMode ? Colors.black : Colors.white),
+        Shadow(offset: const Offset(-1, 0), blurRadius: 3.0, color: theme.isDarkMode ? Colors.black : Colors.white),
+        Shadow(offset: const Offset(1, 0), blurRadius: 3.0, color: theme.isDarkMode ? Colors.black : Colors.white),
+      ] : null,
     );
 
     Widget content;

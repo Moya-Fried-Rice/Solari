@@ -181,17 +181,29 @@ class _SolariScreenState extends State<SolariScreen>
   // Initialize Speaker Service
   Future<void> _initializeSpeaker() async {
     try {
-      await _speakerService.initialize();
-      debugPrint('Speaker service initialized successfully');
+      // Initialize TTS service
+      await _ttsService.initialize();
       
-      // Enable BLE transmission if not in mock mode
-      if (!widget.isMock) {
-        await _speakerService.enableBleTransmission(widget.device);
-        debugPrint('BLE transmission enabled for speaker service');
+      // Initialize BLE service with connected device for audio transmission
+      if (widget.device.isConnected) {
+        debugPrint('🔗 Initializing BLE service for audio transmission...');
+        await _bleService.initialize(widget.device);
+        debugPrint('✅ BLE service initialized successfully');
+      } else {
+        debugPrint('⚠️ Device not connected, BLE audio transmission unavailable');
       }
       
-      // Test FFmpeg to debug issues
-      await _speakerService.testFFmpeg();
+      // Log Sherpa ONNX engine information
+      final engineInfo = _ttsService.getEngineInfo();
+      debugPrint('✅ TTS service initialized successfully');
+      debugPrint('   Engine: ${engineInfo['engine']}');
+      debugPrint('   Model: ${engineInfo['model']}');
+      debugPrint('   Type: ${engineInfo['type']}');
+      debugPrint('   Offline: ${engineInfo['offline']}');
+      debugPrint('   Speed: ${engineInfo['speed']}x');
+      debugPrint('   Transmission: ${engineInfo['transmission']}');
+      debugPrint('   Sample Rate: ${engineInfo['sampleRate']}');
+      
     } catch (e) {
       debugPrint('Error initializing speaker service: $e');
     }
@@ -587,18 +599,31 @@ class _SolariScreenState extends State<SolariScreen>
           setState(() => _currentIndex = index);
         },
         iconSize: 64,
-        selectedItemColor: theme.iconColor,
+        selectedItemColor: theme.buttonTextColor,
         unselectedItemColor: theme.unselectedColor,
         backgroundColor: theme.primaryColor,
         elevation: 0,
-        selectedLabelStyle: theme.labelStyle.copyWith(
+        selectedLabelStyle: TextStyle(
           fontSize: 20,
           fontWeight: FontWeight.bold,
+          color: theme.buttonTextColor,
+          shadows: theme.isHighContrast ? [
+            Shadow(offset: const Offset(0, -1), blurRadius: 5.0, color: theme.isDarkMode ? Colors.black : Colors.white),
+            Shadow(offset: const Offset(0, 1), blurRadius: 5.0, color: theme.isDarkMode ? Colors.black : Colors.white),
+            Shadow(offset: const Offset(-1, 0), blurRadius: 5.0, color: theme.isDarkMode ? Colors.black : Colors.white),
+            Shadow(offset: const Offset(1, 0), blurRadius: 5.0, color: theme.isDarkMode ? Colors.black : Colors.white),
+          ] : null,
         ),
-        unselectedLabelStyle: theme.labelStyle.copyWith(
+        unselectedLabelStyle: TextStyle(
           fontSize: 20,
           color: theme.unselectedColor,
           fontWeight: FontWeight.normal,
+          shadows: theme.isHighContrast ? [
+            Shadow(offset: const Offset(0, -1), blurRadius: 5.0, color: theme.unselectedColor),
+            Shadow(offset: const Offset(0, 1), blurRadius: 5.0, color: theme.unselectedColor),
+            Shadow(offset: const Offset(-1, 0), blurRadius: 5.0, color: theme.unselectedColor),
+            Shadow(offset: const Offset(1, 0), blurRadius: 5.0, color: theme.unselectedColor),
+          ] : null,
         ),
         items: const [
           BottomNavigationBarItem(

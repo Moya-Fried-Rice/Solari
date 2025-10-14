@@ -10,13 +10,25 @@ class TermsOfUsePage extends StatelessWidget {
   /// Creates a terms and conditions screen
   const TermsOfUsePage({super.key});
 
+   /// Helper method to get text shadows for high contrast mode
+  static List<Shadow>? _getTextShadows(ThemeProvider theme) {
+    if (!theme.isHighContrast) return null;
+    final shadowColor = theme.isDarkMode ? Colors.white : Colors.black;
+    return [
+      Shadow(offset: const Offset(0, -1), blurRadius: 5.0, color: shadowColor),
+      Shadow(offset: const Offset(0, 1), blurRadius: 5.0, color: shadowColor),
+      Shadow(offset: const Offset(-1, 0), blurRadius: 5.0, color: shadowColor),
+      Shadow(offset: const Offset(1, 0), blurRadius: 5.0, color: shadowColor),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Provider.of<ThemeProvider>(context);
     
     return Scaffold(
       appBar: const CustomAppBar(
-        title: 'Terms & Conditions',
+        title: 'Terms of Use',
         showBackButton: true,
       ),
       body: SafeArea(
@@ -39,6 +51,7 @@ class TermsOfUsePage extends StatelessWidget {
                         fontSize: theme.fontSize + 8, 
                         fontWeight: FontWeight.bold,
                         color: theme.textColor,
+                        shadows: _getTextShadows(theme),
                       ),
                     ),
                   ),
@@ -49,6 +62,7 @@ class TermsOfUsePage extends StatelessWidget {
                       fontSize: theme.fontSize + 4,
                       color: theme.textColor,
                       height: theme.lineHeight,
+                      shadows: _getTextShadows(theme),
                     ),
                   ),
                   const SizedBox(height: 30),
@@ -61,6 +75,7 @@ class TermsOfUsePage extends StatelessWidget {
                         fontSize: theme.fontSize + 8, 
                         fontWeight: FontWeight.bold,
                         color: theme.textColor,
+                        shadows: _getTextShadows(theme),
                       ),
                     ),
                   ),
@@ -71,6 +86,7 @@ class TermsOfUsePage extends StatelessWidget {
                       fontSize: theme.fontSize + 4,
                       color: theme.textColor,
                       height: theme.lineHeight,
+                      shadows: _getTextShadows(theme),
                     ),
                   ),
                   const SizedBox(height: 30),
@@ -83,6 +99,7 @@ class TermsOfUsePage extends StatelessWidget {
                         fontSize: theme.fontSize + 8, 
                         fontWeight: FontWeight.bold,
                         color: theme.textColor,
+                        shadows: _getTextShadows(theme),
                       ),
                     ),
                   ),
@@ -94,6 +111,7 @@ class TermsOfUsePage extends StatelessWidget {
                       fontSize: theme.fontSize + 4,
                       color: theme.textColor,
                       height: theme.lineHeight,
+                      shadows: _getTextShadows(theme),
                     ),
                   ),
                   const SizedBox(height: 30),
@@ -106,6 +124,7 @@ class TermsOfUsePage extends StatelessWidget {
                         fontSize: theme.fontSize + 8, 
                         fontWeight: FontWeight.bold,
                         color: theme.textColor,
+                        shadows: _getTextShadows(theme),
                       ),
                     ),
                   ),
@@ -116,6 +135,7 @@ class TermsOfUsePage extends StatelessWidget {
                       fontSize: theme.fontSize + 4,
                       color: theme.textColor,
                       height: theme.lineHeight,
+                      shadows: _getTextShadows(theme),
                     ),
                   ),
                   const SizedBox(height: 30),
@@ -128,6 +148,7 @@ class TermsOfUsePage extends StatelessWidget {
                         fontSize: theme.fontSize + 8, 
                         fontWeight: FontWeight.bold,
                         color: theme.textColor,
+                        shadows: _getTextShadows(theme),
                       ),
                     ),
                   ),
@@ -138,6 +159,7 @@ class TermsOfUsePage extends StatelessWidget {
                       fontSize: theme.fontSize + 4,
                       color: theme.textColor,
                       height: theme.lineHeight,
+                      shadows: _getTextShadows(theme),
                     ),
                   ),
                   const SizedBox(height: 30),
@@ -150,6 +172,7 @@ class TermsOfUsePage extends StatelessWidget {
                         fontSize: theme.fontSize + 8, 
                         fontWeight: FontWeight.bold,
                         color: theme.textColor,
+                        shadows: _getTextShadows(theme),
                       ),
                     ),
                   ),
@@ -160,6 +183,7 @@ class TermsOfUsePage extends StatelessWidget {
                       fontSize: theme.fontSize + 4,
                       color: theme.textColor,
                       height: theme.lineHeight,
+                      shadows: _getTextShadows(theme),
                     ),
                   ),
                   const SizedBox(height: 30),
@@ -172,6 +196,7 @@ class TermsOfUsePage extends StatelessWidget {
                         fontSize: theme.fontSize + 8, 
                         fontWeight: FontWeight.bold,
                         color: theme.textColor,
+                        shadows: _getTextShadows(theme),
                       ),
                     ),
                   ),
@@ -185,6 +210,7 @@ class TermsOfUsePage extends StatelessWidget {
                       fontSize: theme.fontSize + 4,
                       color: theme.textColor,
                       height: theme.lineHeight,
+                      shadows: _getTextShadows(theme),
                     ),
                   ),
                 ],

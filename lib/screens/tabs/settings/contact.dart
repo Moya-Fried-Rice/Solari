@@ -1,16 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../../../../core/constants/app_constants.dart';
-import '../../../../../core/providers/theme_provider.dart';
-import '../../../../../core/services/vibration_service.dart';
-import '../../../../../widgets/app_bar.dart';
-import '../../../../../widgets/settings_button.dart';
+import '../../../../core/constants/app_constants.dart';
+import '../../../../core/providers/theme_provider.dart';
+import '../../../../core/services/vibration_service.dart';
+import '../../../../widgets/app_bar.dart';
+import '../../../../widgets/custom_button.dart';
 
 /// Contact support screen
 class ContactScreen extends StatelessWidget {
   /// Creates a contact screen
   const ContactScreen({super.key});
+
+  /// Helper method to get text shadows for high contrast mode
+  static List<Shadow>? _getTextShadows(ThemeProvider theme) {
+    if (!theme.isHighContrast) return null;
+    final shadowColor = theme.isDarkMode ? Colors.white : Colors.black;
+    return [
+      Shadow(offset: const Offset(0, -1), blurRadius: 3.0, color: shadowColor),
+      Shadow(offset: const Offset(0, 1), blurRadius: 3.0, color: shadowColor),
+      Shadow(offset: const Offset(-1, 0), blurRadius: 3.0, color: shadowColor),
+      Shadow(offset: const Offset(1, 0), blurRadius: 3.0, color: shadowColor),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -39,13 +51,15 @@ class ContactScreen extends StatelessWidget {
                       style: TextStyle(
                         fontSize: themeProvider.fontSize + 8,
                         fontWeight: FontWeight.bold,
+                        color: themeProvider.textColor,
+                        shadows: _getTextShadows(themeProvider),
                       ),
                     ),
                   ),
                   const SizedBox(height: 15),
                   Text(
                     "09XXXXXXXXX",
-                    style: TextStyle(fontSize: themeProvider.fontSize + 4),
+                    style: TextStyle(fontSize: themeProvider.fontSize + 4, color: themeProvider.textColor, shadows: _getTextShadows(themeProvider)),
                   ),
 
                   _buildDivider(themeProvider),
@@ -58,13 +72,15 @@ class ContactScreen extends StatelessWidget {
                       style: TextStyle(
                         fontSize: themeProvider.fontSize + 8,
                         fontWeight: FontWeight.bold,
+                        color: themeProvider.textColor,
+                        shadows: _getTextShadows(themeProvider),
                       ),
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     "support@solari.com",
-                    style: TextStyle(fontSize: themeProvider.fontSize + 4),
+                    style: TextStyle(fontSize: themeProvider.fontSize + 4, color: themeProvider.textColor, shadows: _getTextShadows(themeProvider)),
                   ),
 
                   _buildDivider(themeProvider),
@@ -77,6 +93,8 @@ class ContactScreen extends StatelessWidget {
                       style: TextStyle(
                         fontSize: themeProvider.fontSize + 8,
                         fontWeight: FontWeight.bold,
+                        color: themeProvider.textColor,
+                        shadows: _getTextShadows(themeProvider),
                       ),
                     ),
                   ),
@@ -86,6 +104,12 @@ class ContactScreen extends StatelessWidget {
                     style: TextStyle(
                       fontSize: themeProvider.fontSize + 4,
                       color: Colors.black,
+                      shadows: themeProvider.isHighContrast ? [
+                        const Shadow(offset: Offset(0, -1), blurRadius: 3.0, color: Colors.white),
+                        const Shadow(offset: Offset(0, 1), blurRadius: 3.0, color: Colors.white),
+                        const Shadow(offset: Offset(-1, 0), blurRadius: 3.0, color: Colors.white),
+                        const Shadow(offset: Offset(1, 0), blurRadius: 3.0, color: Colors.white),
+                      ] : null,
                     ),
                     cursorColor: themeProvider.dividerColor,
                     onTap: () {
@@ -112,22 +136,34 @@ class ContactScreen extends StatelessWidget {
                       hintStyle: TextStyle(
                         fontSize: themeProvider.fontSize + 4,
                         color: Colors.grey,
+                        shadows: themeProvider.isHighContrast ? [
+                          const Shadow(offset: Offset(0, -1), blurRadius: 3.0, color: Colors.white),
+                          const Shadow(offset: Offset(0, 1), blurRadius: 3.0, color: Colors.white),
+                          const Shadow(offset: Offset(-1, 0), blurRadius: 3.0, color: Colors.white),
+                          const Shadow(offset: Offset(1, 0), blurRadius: 3.0, color: Colors.white),
+                        ] : null,
                       ),
                     ),
                   ),
                   const SizedBox(height: 20),
-                  CustomButton(
-                    label: "Save",
-                    icon: Icons.send,
-                    fontSize: themeProvider.fontSize + 8,
-                    labelAlignment: Alignment.center,
-                    padding: const EdgeInsets.symmetric(vertical: 50),
-                    enableVibration:
-                        false, // Disable built-in vibration since we handle it in onPressed
-                    onPressed: () {
-                      VibrationService.mediumFeedback(); // Add medium vibration when feedback is submitted
-                      // Show custom message dialog
-                      showDialog(
+                  Center(
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: CustomButton(
+                        label: "Save",
+                        icon: Icons.send,
+                        fontSize: themeProvider.fontSize + 8,
+                        labelAlignment: Alignment.center,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 15,
+                          vertical: 20,
+                        ),
+                        enableVibration:
+                            false, // Disable built-in vibration since we handle it in onPressed
+                        onPressed: () {
+                          VibrationService.mediumFeedback(); // Add medium vibration when feedback is submitted
+                          // Show custom message dialog
+                          showDialog(
                         context: context,
                         builder: (context) => Dialog(
                           child: Container(
@@ -145,7 +181,7 @@ class ContactScreen extends StatelessWidget {
                                   style: TextStyle(
                                     fontSize: themeProvider.fontSize + 8,
                                     fontWeight: FontWeight.bold,
-                                    color: themeProvider.labelColor,
+                                    color: themeProvider.buttonTextColor,
                                   ),
                                   textAlign: TextAlign.center,
                                 ),
@@ -154,7 +190,7 @@ class ContactScreen extends StatelessWidget {
                                   'Feedback submitted successfully.',
                                   style: TextStyle(
                                     fontSize: themeProvider.fontSize + 4,
-                                    color: themeProvider.labelColor,
+                                    color: themeProvider.buttonTextColor,
                                   ),
                                   textAlign: TextAlign.center,
                                 ),
@@ -165,7 +201,7 @@ class ContactScreen extends StatelessWidget {
                                     Navigator.of(context).pop();
                                   },
                                   style: TextButton.styleFrom(
-                                    backgroundColor: themeProvider.labelColor,
+                                    backgroundColor: themeProvider.buttonTextColor,
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(12),
                                     ),
@@ -190,6 +226,8 @@ class ContactScreen extends StatelessWidget {
                         ),
                       );
                     },
+                  ),
+                    ),
                   ),
                 ],
               ),

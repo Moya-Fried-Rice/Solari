@@ -8,7 +8,7 @@ import 'package:provider/provider.dart';
 import '../../../core/providers/device_info_provider.dart';
 import '../../../core/providers/theme_provider.dart';
 import '../../../widgets/app_bar.dart';
-import '../../../widgets/settings_button.dart';
+import '../../../widgets/custom_button.dart';
 
 class DeviceStatusPage extends StatefulWidget {
   final BluetoothDevice device;
@@ -29,14 +29,26 @@ class _DeviceStatusPageState extends State<DeviceStatusPage> {
   void initState() {
     super.initState();
 
-  _deviceInfoProvider = DeviceInfoProvider(widget.device);
-  _deviceInfoProvider.fetchDeviceInfo();
+    _deviceInfoProvider = DeviceInfoProvider(widget.device);
+    _deviceInfoProvider.fetchDeviceInfo();
   }
 
   @override
   void dispose() {
-  _stateSub?.cancel();
-  super.dispose();
+    _stateSub?.cancel();
+    super.dispose();
+  }
+
+  /// Helper method to get text shadows for high contrast mode
+  List<Shadow>? _getTextShadows(ThemeProvider theme) {
+    if (!theme.isHighContrast) return null;
+    final shadowColor = theme.isDarkMode ? Colors.white : Colors.black;
+    return [
+      Shadow(offset: const Offset(0, -1), blurRadius: 3.0, color: shadowColor),
+      Shadow(offset: const Offset(0, 1), blurRadius: 3.0, color: shadowColor),
+      Shadow(offset: const Offset(-1, 0), blurRadius: 3.0, color: shadowColor),
+      Shadow(offset: const Offset(1, 0), blurRadius: 3.0, color: shadowColor),
+    ];
   }
 
   @override
@@ -44,10 +56,7 @@ class _DeviceStatusPageState extends State<DeviceStatusPage> {
     final theme = Provider.of<ThemeProvider>(context);
 
     return Scaffold(
-      appBar: const CustomAppBar(
-        title: 'Device Status',
-        showBackButton: true,
-      ),
+      appBar: const CustomAppBar(title: 'Device Status', showBackButton: true),
       body: ChangeNotifierProvider<DeviceInfoProvider>.value(
         value: _deviceInfoProvider,
         child: Consumer<DeviceInfoProvider>(
@@ -60,22 +69,35 @@ class _DeviceStatusPageState extends State<DeviceStatusPage> {
                 physics: const AlwaysScrollableScrollPhysics(),
                 child: ConstrainedBox(
                   constraints: BoxConstraints(
-                    minHeight: MediaQuery.of(context).size.height - kToolbarHeight - 80,
+                    minHeight:
+                        MediaQuery.of(context).size.height -
+                        kToolbarHeight -
+                        80,
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(24.0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-
                         // Device Status
-                        Text(
-                          info.isConnected ? "Connected" : "Disconnected",
-                          style: TextStyle(
-                            fontSize: theme.fontSize,
-                            fontWeight: FontWeight.bold,
-                            color: info.isConnected ? Colors.green : Colors.red,
-                          ),
+                        Builder(
+                          builder: (context) {
+                            final statusColor = info.isConnected ? Colors.green : Colors.red;
+                            return Text(
+                              info.isConnected ? "Connected" : "Disconnected",
+                              style: TextStyle(
+                                fontSize: theme.fontSize,
+                                fontWeight: FontWeight.bold,
+                                color: statusColor,
+                                shadows: theme.isHighContrast ? [
+                                  Shadow(offset: const Offset(0, -1), blurRadius: 5.0, color: statusColor),
+                                  Shadow(offset: const Offset(0, 1), blurRadius: 5.0, color: statusColor),
+                                  Shadow(offset: const Offset(-1, 0), blurRadius: 5.0, color: statusColor),
+                                  Shadow(offset: const Offset(1, 0), blurRadius: 5.0, color: statusColor),
+                                ] : null,
+                              ),
+                            );
+                          },
                         ),
 
                         _buildDivider(theme),
@@ -88,6 +110,8 @@ class _DeviceStatusPageState extends State<DeviceStatusPage> {
                             style: TextStyle(
                               fontSize: theme.fontSize,
                               fontWeight: FontWeight.bold,
+                              color: theme.textColor,
+                              shadows: _getTextShadows(theme),
                             ),
                           ),
                         ),
@@ -99,6 +123,8 @@ class _DeviceStatusPageState extends State<DeviceStatusPage> {
                             style: TextStyle(
                               fontSize: theme.fontSize + 20,
                               fontWeight: FontWeight.w600,
+                              color: theme.textColor,
+                              shadows: _getTextShadows(theme),
                             ),
                           ),
                         ),
@@ -120,6 +146,8 @@ class _DeviceStatusPageState extends State<DeviceStatusPage> {
                                 style: TextStyle(
                                   fontSize: theme.fontSize,
                                   fontWeight: FontWeight.bold,
+                                  color: theme.textColor,
+                                  shadows: _getTextShadows(theme),
                                 ),
                               ),
                               FaIcon(
@@ -142,47 +170,92 @@ class _DeviceStatusPageState extends State<DeviceStatusPage> {
                                 children: [
                                   Text(
                                     "Device ID:  ",
-                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: theme.fontSize),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: theme.fontSize,
+                                      color: theme.buttonTextColor,
+                                      shadows: _getTextShadows(theme),
+                                    ),
                                   ),
                                   Text(
                                     info.id ?? "-",
-                                    style: TextStyle(fontSize: theme.fontSize),
+                                    style: TextStyle(
+                                      fontSize: theme.fontSize,
+                                      color: theme.buttonTextColor,
+                                      shadows: _getTextShadows(theme),
+                                    ),
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
                                     "Device Name:  ",
-                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: theme.fontSize),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: theme.fontSize,
+                                      color: theme.buttonTextColor,
+                                      shadows: _getTextShadows(theme),
+                                    ),
                                   ),
                                   Text(
                                     info.name ?? "-",
-                                    style: TextStyle(fontSize: theme.fontSize),
+                                    style: TextStyle(
+                                      fontSize: theme.fontSize,
+                                      color: theme.buttonTextColor,
+                                      shadows: _getTextShadows(theme),
+                                    ),
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
                                     "MTU:  ",
-                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: theme.fontSize),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: theme.fontSize,
+                                      color: theme.buttonTextColor,
+                                      shadows: _getTextShadows(theme),
+                                    ),
                                   ),
                                   Text(
                                     "${info.mtu ?? "-"}",
-                                    style: TextStyle(fontSize: theme.fontSize),
+                                    style: TextStyle(
+                                      fontSize: theme.fontSize,
+                                      color: theme.buttonTextColor,
+                                      shadows: _getTextShadows(theme),
+                                    ),
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
                                     "RSSI:  ",
-                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: theme.fontSize),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: theme.fontSize,
+                                      color: theme.buttonTextColor,
+                                      shadows: _getTextShadows(theme),
+                                    ),
                                   ),
                                   Text(
                                     "${info.rssi ?? "-"}",
-                                    style: TextStyle(fontSize: theme.fontSize),
+                                    style: TextStyle(
+                                      fontSize: theme.fontSize,
+                                      color: theme.buttonTextColor,
+                                      shadows: _getTextShadows(theme),
+                                    ),
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
                                     "Services:  ",
-                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: theme.fontSize),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: theme.fontSize,
+                                      color: theme.buttonTextColor,
+                                      shadows: _getTextShadows(theme),
+                                    ),
                                   ),
                                   Text(
                                     "${info.services?.length ?? 0}",
-                                    style: TextStyle(fontSize: theme.fontSize),
+                                    style: TextStyle(
+                                      fontSize: theme.fontSize,
+                                      color: theme.buttonTextColor,
+                                      shadows: _getTextShadows(theme),
+                                    ),
                                   ),
                                 ],
                               ),
@@ -197,6 +270,8 @@ class _DeviceStatusPageState extends State<DeviceStatusPage> {
                           style: TextStyle(
                             fontSize: theme.fontSize,
                             fontWeight: FontWeight.bold,
+                            color: theme.textColor,
+                            shadows: _getTextShadows(theme),
                           ),
                         ),
                         const SizedBox(height: 15),
@@ -233,16 +308,16 @@ class _DeviceStatusPageState extends State<DeviceStatusPage> {
   }
 
   Widget _buildDivider(ThemeProvider theme) => Column(
-        children: [
-          const SizedBox(height: 20),
-          Container(
-            height: 10,
-            decoration: BoxDecoration(
-              color: theme.dividerColor,
-              borderRadius: BorderRadius.circular(5),
-            ),
-          ),
-          const SizedBox(height: 20),
-        ],
-      );
+    children: [
+      const SizedBox(height: 20),
+      Container(
+        height: 10,
+        decoration: BoxDecoration(
+          color: theme.dividerColor,
+          borderRadius: BorderRadius.circular(5),
+        ),
+      ),
+      const SizedBox(height: 20),
+    ],
+  );
 }

@@ -13,6 +13,8 @@ class ThemeProvider extends ChangeNotifier {
   double _fontSize = AppConstants.defaultFontSize;
   bool _hasUserSetFontSize = false;
   double _lineHeight = 1.2; // Default line height
+  bool _isHighContrast = false; // High contrast mode
+  bool _isColorInverted = false; // Color inversion (persisted)
 
   /// Whether the app is in dark mode
   bool get isDarkMode => _isDarkMode;
@@ -28,6 +30,12 @@ class ThemeProvider extends ChangeNotifier {
   
   /// Current line height
   double get lineHeight => _lineHeight;
+  
+  /// Whether high contrast mode is enabled
+  bool get isHighContrast => _isHighContrast;
+
+  /// Whether color inversion is enabled
+  bool get isColorInverted => _isColorInverted;
 
   /// Constructor - loads saved theme preferences and sets up system listeners
   ThemeProvider() {
@@ -114,18 +122,40 @@ class ThemeProvider extends ChangeNotifier {
     _saveLineHeight();
     notifyListeners();
   }
+  
+  /// Toggle high contrast mode
+  Future<void> setHighContrast(bool value) async {
+    _isHighContrast = value;
+    await _saveHighContrast();
+    notifyListeners();
+  }
+
+  /// Toggle color inversion (persisted)
+  Future<void> setColorInversion(bool value) async {
+    _isColorInverted = value;
+    await _saveColorInversion();
+    notifyListeners();
+  }
 
   /// Primary color based on theme
-  Color get primaryColor => _isDarkMode ? AppColors.darkPrimary : AppColors.lightPrimary;
+  Color get primaryColor {
+    return _isDarkMode ? AppColors.darkPrimary : AppColors.lightPrimary;
+  }
   
   /// Text color based on theme
-  Color get textColor => _isDarkMode ? AppColors.darkText : AppColors.lightText;
+  Color get textColor {
+    return _isDarkMode ? AppColors.darkText : AppColors.lightText;
+  }
   
   /// Label color based on theme (contrast with background)
-  Color get labelColor => _isDarkMode ? AppColors.darkButtonText : AppColors.lightButtonText;
+  Color get labelColor {
+    return _isDarkMode ? AppColors.darkButtonText : AppColors.lightButtonText;
+  }
   
   /// Unselected item color
-  Color get unselectedColor => _isDarkMode ? AppColors.darkUnselectedColor : AppColors.lightUnselectedColor;
+  Color get unselectedColor {
+    return _isDarkMode ? AppColors.darkUnselectedColor : AppColors.lightUnselectedColor;
+  }
   
   /// Divider color
   Color get dividerColor => primaryColor;
@@ -142,7 +172,29 @@ class ThemeProvider extends ChangeNotifier {
   TextStyle get headerStyle => TextStyle(
     fontSize: AppConstants.defaultFontSize + 8, 
     fontWeight: FontWeight.bold, 
-    color: labelColor
+    color: labelColor,
+    shadows: _isHighContrast ? [
+      Shadow(
+        offset: const Offset(0, 1),
+        blurRadius: 3.0,
+        color: _isDarkMode ? Colors.white : Colors.black,
+      ),
+      Shadow(
+        offset: const Offset(0, -1),
+        blurRadius: 3.0,
+        color: _isDarkMode ? Colors.white : Colors.black,
+      ),
+      Shadow(
+        offset: const Offset(1, 0),
+        blurRadius: 3.0,
+        color: _isDarkMode ? Colors.white : Colors.black,
+      ),
+      Shadow(
+        offset: const Offset(-1, 0),
+        blurRadius: 3.0,
+        color: _isDarkMode ? Colors.white : Colors.black,
+      ),
+    ] : null,
   );
   
   /// Subheader text style - affected by user font size and line height
@@ -150,14 +202,58 @@ class ThemeProvider extends ChangeNotifier {
     fontSize: _fontSize + 8, 
     fontWeight: FontWeight.bold, 
     color: textColor,
-    height: _lineHeight
+    height: _lineHeight,
+    shadows: _isHighContrast ? [
+      Shadow(
+        offset: const Offset(0, 1),
+        blurRadius: 3.0,
+        color: _isDarkMode ? Colors.white : Colors.black,
+      ),
+      Shadow(
+        offset: const Offset(0, -1),
+        blurRadius: 3.0,
+        color: _isDarkMode ? Colors.white : Colors.black,
+      ),
+      Shadow(
+        offset: const Offset(1, 0),
+        blurRadius: 3.0,
+        color: _isDarkMode ? Colors.white : Colors.black,
+      ),
+      Shadow(
+        offset: const Offset(-1, 0),
+        blurRadius: 3.0,
+        color: _isDarkMode ? Colors.white : Colors.black,
+      ),
+    ] : null,
   );
   
   /// Label text style - affected by user font size and line height
   TextStyle get labelStyle => TextStyle(
     fontSize: _fontSize + 4, 
     color: textColor,
-    height: _lineHeight
+    height: _lineHeight,
+    shadows: _isHighContrast ? [
+      Shadow(
+        offset: const Offset(0, 1),
+        blurRadius: 3.0,
+        color: _isDarkMode ? Colors.white : Colors.black,
+      ),
+      Shadow(
+        offset: const Offset(0, -1),
+        blurRadius: 3.0,
+        color: _isDarkMode ? Colors.white : Colors.black,
+      ),
+      Shadow(
+        offset: const Offset(1, 0),
+        blurRadius: 3.0,
+        color: _isDarkMode ? Colors.white : Colors.black,
+      ),
+      Shadow(
+        offset: const Offset(-1, 0),
+        blurRadius: 3.0,
+        color: _isDarkMode ? Colors.white : Colors.black,
+      ),
+    ] : null,
   );
   
   /// Button text style - affected by user font size
@@ -165,7 +261,29 @@ class ThemeProvider extends ChangeNotifier {
     fontSize: _fontSize + 4, 
     fontWeight: FontWeight.w800, 
     color: buttonTextColor,
-    height: _lineHeight
+    height: _lineHeight,
+    shadows: _isHighContrast ? [
+      Shadow(
+        offset: const Offset(0, 1),
+        blurRadius: 3.0,
+        color: _isDarkMode ? Colors.white : Colors.black,
+      ),
+      Shadow(
+        offset: const Offset(0, -1),
+        blurRadius: 3.0,
+        color: _isDarkMode ? Colors.white : Colors.black,
+      ),
+      Shadow(
+        offset: const Offset(1, 0),
+        blurRadius: 3.0,
+        color: _isDarkMode ? Colors.white : Colors.black,
+      ),
+      Shadow(
+        offset: const Offset(-1, 0),
+        blurRadius: 3.0,
+        color: _isDarkMode ? Colors.white : Colors.black,
+      ),
+    ] : null,
   );
 
   // --- Persistence ---
@@ -178,6 +296,8 @@ class ThemeProvider extends ChangeNotifier {
     _fontSize = prefs.getDouble('fontSize') ?? AppConstants.defaultFontSize;
     _hasUserSetFontSize = prefs.getBool('hasUserSetFontSize') ?? false;
     _lineHeight = prefs.getDouble('lineHeight') ?? 1.2; // Default is 1.2
+    _isHighContrast = prefs.getBool('isHighContrast') ?? false; // Default is false
+    _isColorInverted = prefs.getBool('isColorInverted') ?? false; // Default is false
     notifyListeners();
   }
 
@@ -200,4 +320,17 @@ class ThemeProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble('lineHeight', _lineHeight);
   }
+  
+  /// Save high contrast setting
+  Future<void> _saveHighContrast() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('isHighContrast', _isHighContrast);
+  }
+
+  /// Save color inversion setting
+  Future<void> _saveColorInversion() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('isColorInverted', _isColorInverted);
+  }
 }
+

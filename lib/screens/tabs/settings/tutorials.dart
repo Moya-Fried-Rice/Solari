@@ -1,14 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../../../../core/constants/app_constants.dart';
-import '../../../../../core/providers/theme_provider.dart';
-import '../../../../../widgets/app_bar.dart';
+import '../../../../core/constants/app_constants.dart';
+import '../../../../core/providers/theme_provider.dart';
+import '../../../../widgets/app_bar.dart';
 
 /// Tutorials screen with guidance on using Solari glasses
 class TutorialsScreen extends StatelessWidget {
   /// Creates a tutorials screen
   const TutorialsScreen({super.key});
+
+  /// Helper method to get text shadows for high contrast mode
+  static List<Shadow>? _getTextShadows(ThemeProvider theme) {
+    if (!theme.isHighContrast) return null;
+    final shadowColor = theme.isDarkMode ? Colors.white : Colors.black;
+    return [
+      Shadow(offset: const Offset(0, -1), blurRadius: 5.0, color: shadowColor),
+      Shadow(offset: const Offset(0, 1), blurRadius: 5.0, color: shadowColor),
+      Shadow(offset: const Offset(-1, 0), blurRadius: 5.0, color: shadowColor),
+      Shadow(offset: const Offset(1, 0), blurRadius: 5.0, color: shadowColor),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -36,6 +48,8 @@ class TutorialsScreen extends StatelessWidget {
                 style: TextStyle(
                   fontSize: theme.fontSize + 8,
                   fontWeight: FontWeight.bold,
+                  color: theme.textColor,
+                  shadows: _getTextShadows(theme),
                 ),
               ),
             ),
@@ -52,6 +66,8 @@ class TutorialsScreen extends StatelessWidget {
                 style: TextStyle(
                   fontSize: theme.fontSize + 8,
                   fontWeight: FontWeight.bold,
+                  color: theme.textColor,
+                  shadows: _getTextShadows(theme),
                 ),
               ),
             ),
@@ -68,6 +84,8 @@ class TutorialsScreen extends StatelessWidget {
                 style: TextStyle(
                   fontSize: theme.fontSize + 8,
                   fontWeight: FontWeight.bold,
+                  color: theme.textColor,
+                  shadows: _getTextShadows(theme),
                 ),
               ),
             ),
@@ -84,6 +102,7 @@ class TutorialsScreen extends StatelessWidget {
                       fontSize: theme.fontSize + 4,
                       color: theme.textColor,
                       height: theme.lineHeight,
+                      shadows: _getTextShadows(theme),
                     ),
                   ),
                 ),
@@ -100,6 +119,7 @@ class TutorialsScreen extends StatelessWidget {
                           fontSize: theme.fontSize + 4,
                           fontWeight: FontWeight.bold,
                           color: theme.textColor,
+                          shadows: _getTextShadows(theme),
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -109,6 +129,7 @@ class TutorialsScreen extends StatelessWidget {
                           fontSize: theme.fontSize + 4,
                           color: theme.textColor,
                           height: theme.lineHeight,
+                          shadows: _getTextShadows(theme),
                         ),
                       ),
                     ],
@@ -127,6 +148,7 @@ class TutorialsScreen extends StatelessWidget {
                           fontSize: theme.fontSize + 4,
                           fontWeight: FontWeight.bold,
                           color: theme.textColor,
+                          shadows: _getTextShadows(theme),
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -136,6 +158,7 @@ class TutorialsScreen extends StatelessWidget {
                           fontSize: theme.fontSize + 4,
                           color: theme.textColor,
                           height: theme.lineHeight,
+                          shadows: _getTextShadows(theme),
                         ),
                       ),
                     ],
@@ -154,6 +177,7 @@ class TutorialsScreen extends StatelessWidget {
                           fontSize: theme.fontSize + 4,
                           fontWeight: FontWeight.bold,
                           color: theme.textColor,
+                          shadows: _getTextShadows(theme),
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -163,6 +187,7 @@ class TutorialsScreen extends StatelessWidget {
                           fontSize: theme.fontSize + 4,
                           color: theme.textColor,
                           height: theme.lineHeight,
+                          shadows: _getTextShadows(theme),
                         ),
                       ),
                     ],
@@ -181,6 +206,7 @@ class TutorialsScreen extends StatelessWidget {
                           fontSize: theme.fontSize + 4,
                           fontWeight: FontWeight.bold,
                           color: theme.textColor,
+                          shadows: _getTextShadows(theme),
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -190,6 +216,7 @@ class TutorialsScreen extends StatelessWidget {
                           fontSize: theme.fontSize + 4,
                           color: theme.textColor,
                           height: theme.lineHeight,
+                          shadows: _getTextShadows(theme),
                         ),
                       ),
                     ],
@@ -208,6 +235,7 @@ class TutorialsScreen extends StatelessWidget {
                           fontSize: theme.fontSize + 4,
                           fontWeight: FontWeight.bold,
                           color: theme.textColor,
+                          shadows: _getTextShadows(theme),
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -217,6 +245,7 @@ class TutorialsScreen extends StatelessWidget {
                           fontSize: theme.fontSize + 4,
                           color: theme.textColor,
                           height: theme.lineHeight,
+                          shadows: _getTextShadows(theme),
                         ),
                       ),
                     ],
@@ -241,6 +270,7 @@ class TutorialsScreen extends StatelessWidget {
                                 fontSize: theme.fontSize + 4,
                                 fontWeight: FontWeight.bold,
                                 color: theme.textColor,
+                                shadows: _getTextShadows(theme),
                               ),
                             ),
                             const SizedBox(height: 8),
@@ -250,6 +280,7 @@ class TutorialsScreen extends StatelessWidget {
                                 fontSize: theme.fontSize + 4,
                                 color: theme.textColor,
                                 height: theme.lineHeight,
+                                shadows: _getTextShadows(theme),
                               ),
                             ),
                           ],
@@ -268,6 +299,7 @@ class TutorialsScreen extends StatelessWidget {
                                 fontSize: theme.fontSize + 4,
                                 fontWeight: FontWeight.bold,
                                 color: theme.textColor,
+                                shadows: _getTextShadows(theme),
                               ),
                             ),
                             const SizedBox(height: 8),
@@ -277,6 +309,7 @@ class TutorialsScreen extends StatelessWidget {
                                 fontSize: theme.fontSize + 4,
                                 color: theme.textColor,
                                 height: theme.lineHeight,
+                                shadows: _getTextShadows(theme),
                               ),
                             ),
                           ],
@@ -295,6 +328,7 @@ class TutorialsScreen extends StatelessWidget {
                                 fontSize: theme.fontSize + 4,
                                 fontWeight: FontWeight.bold,
                                 color: theme.textColor,
+                                shadows: _getTextShadows(theme),
                               ),
                             ),
                             const SizedBox(height: 8),
@@ -304,6 +338,7 @@ class TutorialsScreen extends StatelessWidget {
                                 fontSize: theme.fontSize + 4,
                                 color: theme.textColor,
                                 height: theme.lineHeight,
+                                shadows: _getTextShadows(theme),
                               ),
                             ),
                           ],
@@ -325,6 +360,7 @@ class TutorialsScreen extends StatelessWidget {
                           fontSize: theme.fontSize + 4,
                           fontWeight: FontWeight.bold,
                           color: theme.textColor,
+                          shadows: _getTextShadows(theme),
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -334,6 +370,7 @@ class TutorialsScreen extends StatelessWidget {
                           fontSize: theme.fontSize + 4,
                           color: theme.textColor,
                           height: theme.lineHeight,
+                          shadows: _getTextShadows(theme),
                         ),
                       ),
                     ],
@@ -352,6 +389,7 @@ class TutorialsScreen extends StatelessWidget {
                           fontSize: theme.fontSize + 4,
                           fontWeight: FontWeight.bold,
                           color: theme.textColor,
+                          shadows: _getTextShadows(theme),
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -361,6 +399,7 @@ class TutorialsScreen extends StatelessWidget {
                           fontSize: theme.fontSize + 4,
                           color: theme.textColor,
                           height: theme.lineHeight,
+                          shadows: _getTextShadows(theme),
                         ),
                       ),
                     ],
@@ -379,6 +418,7 @@ class TutorialsScreen extends StatelessWidget {
                           fontSize: theme.fontSize + 4,
                           fontWeight: FontWeight.bold,
                           color: theme.textColor,
+                          shadows: _getTextShadows(theme),
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -388,6 +428,7 @@ class TutorialsScreen extends StatelessWidget {
                           fontSize: theme.fontSize + 4,
                           color: theme.textColor,
                           height: theme.lineHeight,
+                          shadows: _getTextShadows(theme),
                         ),
                       ),
                     ],
@@ -403,6 +444,7 @@ class TutorialsScreen extends StatelessWidget {
                       fontSize: theme.fontSize + 4,
                       color: theme.textColor,
                       height: theme.lineHeight,
+                      shadows: _getTextShadows(theme),
                     ),
                   ),
                 ),

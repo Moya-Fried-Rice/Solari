@@ -102,5 +102,32 @@ Additional Features (TBD)
 * Updated audio visualizer
 * Added loading sound
 ---
-10/04/25
-* Changed color to 0fa9ff in dark mode
+10/14/25
+* Restructured settings_tab and preference pages
+* Removed help page
+* Transferred contact, faqs, and tutorials to settings page
+* Added new accessibility features:
+    * Speech settings
+    * Select to speak
+    * Magnification
+    * Color inversion
+    * High contrast
+    * Audio description
+* Added functionality:
+    * High contrast
+    * Color inversion (Partially)
+
+Next step(s):
+* 10/15/25:
+    * Select to speak
+* 10/16/25:
+    * Speech setting
+    * Screen reader (Partially)
+* 10/17/25:
+    * Screen reader
+    * Magnification
+    * System sync (All features)
+* 10/18/25:
+    * Update texts
+    * Add audio tutorial
+    * Audio description

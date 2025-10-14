@@ -73,15 +73,35 @@ class _SolariAppState extends State<SolariApp> {
   Widget build(BuildContext context) {
     return Consumer<ThemeProvider>(
       builder: (context, themeProvider, _) {
+        // Standard color inversion matrix (inverts RGB channels)
+        final invertMatrix = <double>[
+          -1,  0,  0, 0, 255,
+           0, -1,  0, 0, 255,
+           0,  0, -1, 0, 255,
+           0,  0,  0, 1,   0,
+        ];
+
+        // Build a single MaterialApp instance and apply the ColorFiltered
+        // in the `builder` so toggling inversion doesn't recreate the app
+        // (which would reset navigation state).
         return MaterialApp(
           debugShowCheckedModeBanner: false,
-          title: AppStrings.appName, // or 'Solari', whichever you prefer
+          title: AppStrings.appName,
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
           themeMode: themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
           // navigatorKey: NavigationService.navigatorKey,
           home: const LaunchScreen(),
           navigatorObservers: [BluetoothAdapterStateObserver()],
+          builder: (context, child) {
+            final content = child ?? const SizedBox.shrink();
+            return themeProvider.isColorInverted
+                ? ColorFiltered(
+                    colorFilter: ColorFilter.matrix(invertMatrix),
+                    child: content,
+                  )
+                : content;
+          },
         );
       },
     );
