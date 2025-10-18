@@ -7,6 +7,8 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:provider/provider.dart';
 import 'core/providers/history_provider.dart';
 import 'core/services/system_preferences_service.dart';
+import 'core/services/screen_reader_service.dart';
+import 'core/services/select_to_speak_service.dart';
 
 // Screens
 import 'screens/onboarding/launch_screen.dart';
@@ -16,9 +18,13 @@ import 'core/constants/app_strings.dart';
 import 'core/theme/app_theme.dart';
 import 'core/providers/theme_provider.dart';
 
-void main() {
+void main() async {
   // Ensure Flutter binding is initialized
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize accessibility services
+  await ScreenReaderService().initialize();
+  await SelectToSpeakService().initialize();
   
   // Lock orientation to portrait mode only
   SystemChrome.setPreferredOrientations([

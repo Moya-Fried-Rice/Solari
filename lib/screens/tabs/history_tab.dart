@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import '../../widgets/select_to_speak_text.dart';
+import '../../widgets/screen_reader_gesture_detector.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/providers/history_provider.dart';
 import '../../core/providers/theme_provider.dart';
+import '../../widgets/screen_reader_focusable.dart';
 
 String timeAgo(DateTime dateTime) {
   final now = DateTime.now();
@@ -52,16 +55,21 @@ class _HistoryTabState extends State<HistoryTab>
     final theme = Provider.of<ThemeProvider>(context);
 
     return Scaffold(
-      body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-        child: history.isEmpty
+      body: ScreenReaderGestureDetector(
+        child: GestureDetector(
+          onTap: () {
+            clearSelectToSpeakSelection();
+          },
+          child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          child: history.isEmpty
             ? Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(Icons.history, size: 64, color: theme.primaryColor),
                     const SizedBox(height: 16),
-                    Text(
+                    SelectToSpeakText(
                       'No history yet.',
                       style: TextStyle(
                         fontSize: theme.fontSize + 4,
@@ -79,8 +87,11 @@ class _HistoryTabState extends State<HistoryTab>
                   children: [
                     const SizedBox(height: 32),
                     for (int i = 0; i < history.length; i++) ...[
-                      Card(
-                        shape: RoundedRectangleBorder(
+                      ScreenReaderFocusable(
+                        label: 'History entry ${i + 1}',
+                        hint: '${history[i].sender} said: ${history[i].text}, ${timeAgo(history[i].time)}',
+                        child: Card(
+                          shape: RoundedRectangleBorder(
                           borderRadius: const BorderRadius.only(
                             topLeft: Radius.circular(0.0),
                             topRight: Radius.circular(0.0),
@@ -104,44 +115,7 @@ class _HistoryTabState extends State<HistoryTab>
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  // Show question if available (from STT)
-                                  if (history[i].question != null && history[i].question!.isNotEmpty) ...[
-                                    Container(
-                                      padding: const EdgeInsets.all(12),
-                                      decoration: BoxDecoration(
-                                        color: theme.primaryColor.withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(
-                                          color: theme.primaryColor.withOpacity(0.3),
-                                          width: 1,
-                                        ),
-                                      ),
-                                      child: Row(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Icon(
-                                            Icons.mic,
-                                            size: 16,
-                                            color: theme.primaryColor,
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Expanded(
-                                            child: Text(
-                                              'Question: "${history[i].question}"',
-                                              style: TextStyle(
-                                                fontSize: theme.fontSize * 0.9,
-                                                fontStyle: FontStyle.italic,
-                                                color: theme.textColor.withOpacity(0.8),
-                                                shadows: _getTextShadows(theme),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    const SizedBox(height: 12),
-                                  ],
-                                  // Show response
+                                  // Show the text/response from Solari
                                   Row(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
@@ -152,8 +126,8 @@ class _HistoryTabState extends State<HistoryTab>
                                       ),
                                       const SizedBox(width: 8),
                                       Expanded(
-                                        child: Text(
-                                          history[i].response,
+                                        child: SelectToSpeakText(
+                                          history[i].text,
                                           style: TextStyle(
                                             fontSize: theme.fontSize,
                                             fontWeight: FontWeight.bold,
@@ -165,28 +139,26 @@ class _HistoryTabState extends State<HistoryTab>
                                     ],
                                   ),
                                   const SizedBox(height: 8),
-                                  RichText(
-                                    text: TextSpan(
-                                      children: [
-                                        TextSpan(
-                                          text: history[i].sender,
-                                          style: TextStyle(
-                                            fontSize: theme.fontSize * 0.85,
-                                            color: theme.primaryColor,
-                                            fontWeight: FontWeight.bold,
-                                            shadows: _getTextShadows(theme),
-                                          ),
+                                  Row(
+                                    children: [
+                                      SelectToSpeakText(
+                                        history[i].sender,
+                                        style: TextStyle(
+                                          fontSize: theme.fontSize * 0.85,
+                                          color: theme.primaryColor,
+                                          fontWeight: FontWeight.bold,
+                                          shadows: _getTextShadows(theme),
                                         ),
-                                        TextSpan(
-                                          text: ' • ${timeAgo(history[i].time)}',
-                                          style: TextStyle(
-                                            fontSize: theme.fontSize * 0.85,
-                                            color: Colors.grey[600],
-                                            shadows: _getTextShadows(theme),
-                                          ),
+                                      ),
+                                      SelectToSpeakText(
+                                        ' • ${timeAgo(history[i].time)}',
+                                        style: TextStyle(
+                                          fontSize: theme.fontSize * 0.85,
+                                          color: Colors.grey[600],
+                                          shadows: _getTextShadows(theme),
                                         ),
-                                      ],
-                                    ),
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),
@@ -194,12 +166,15 @@ class _HistoryTabState extends State<HistoryTab>
                           ],
                         ),
                       ),
+                      ),
                       const SizedBox(height: 16),
                       if (i < history.length - 1) _buildDivider(theme),
                     ],
                   ],
                 ),
               ),
+          ),
+        ),
       ),
     );
   }
@@ -217,3 +192,4 @@ class _HistoryTabState extends State<HistoryTab>
     ],
   );
 }
+

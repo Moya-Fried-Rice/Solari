@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../../../widgets/select_to_speak_text.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:provider/provider.dart';
@@ -9,6 +10,8 @@ import '../../../core/providers/device_info_provider.dart';
 import '../../../core/providers/theme_provider.dart';
 import '../../../widgets/app_bar.dart';
 import '../../../widgets/custom_button.dart';
+import '../../../widgets/screen_reader_gesture_detector.dart';
+import '../../../widgets/screen_reader_focusable.dart';
 
 class DeviceStatusPage extends StatefulWidget {
   final BluetoothDevice device;
@@ -57,15 +60,16 @@ class _DeviceStatusPageState extends State<DeviceStatusPage> {
 
     return Scaffold(
       appBar: const CustomAppBar(title: 'Device Status', showBackButton: true),
-      body: ChangeNotifierProvider<DeviceInfoProvider>.value(
-        value: _deviceInfoProvider,
-        child: Consumer<DeviceInfoProvider>(
-          builder: (context, info, _) {
-            if (info.isFetching) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            return SafeArea(
-              child: SingleChildScrollView(
+      body: ScreenReaderGestureDetector(
+        child: ChangeNotifierProvider<DeviceInfoProvider>.value(
+          value: _deviceInfoProvider,
+          child: Consumer<DeviceInfoProvider>(
+            builder: (context, info, _) {
+              if (info.isFetching) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              return SafeArea(
+                child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 child: ConstrainedBox(
                   constraints: BoxConstraints(
@@ -80,95 +84,120 @@ class _DeviceStatusPageState extends State<DeviceStatusPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // Device Status
-                        Builder(
-                          builder: (context) {
-                            final statusColor = info.isConnected ? Colors.green : Colors.red;
-                            return Text(
-                              info.isConnected ? "Connected" : "Disconnected",
-                              style: TextStyle(
-                                fontSize: theme.fontSize,
-                                fontWeight: FontWeight.bold,
-                                color: statusColor,
-                                shadows: theme.isHighContrast ? [
-                                  Shadow(offset: const Offset(0, -1), blurRadius: 5.0, color: statusColor),
-                                  Shadow(offset: const Offset(0, 1), blurRadius: 5.0, color: statusColor),
-                                  Shadow(offset: const Offset(-1, 0), blurRadius: 5.0, color: statusColor),
-                                  Shadow(offset: const Offset(1, 0), blurRadius: 5.0, color: statusColor),
-                                ] : null,
-                              ),
-                            );
-                          },
+                        ScreenReaderFocusable(
+                          label: 'Device connection status',
+                          hint: info.isConnected ? "Device is connected" : "Device is disconnected",
+                          child: Builder(
+                            builder: (context) {
+                              final statusColor = info.isConnected ? Colors.green : Colors.red;
+                              return SelectToSpeakText(
+                                info.isConnected ? "Connected" : "Disconnected",
+                                style: TextStyle(
+                                  fontSize: theme.fontSize,
+                                  fontWeight: FontWeight.bold,
+                                  color: statusColor,
+                                  shadows: theme.isHighContrast ? [
+                                    Shadow(offset: const Offset(0, -1), blurRadius: 5.0, color: statusColor),
+                                    Shadow(offset: const Offset(0, 1), blurRadius: 5.0, color: statusColor),
+                                    Shadow(offset: const Offset(-1, 0), blurRadius: 5.0, color: statusColor),
+                                    Shadow(offset: const Offset(1, 0), blurRadius: 5.0, color: statusColor),
+                                  ] : null,
+                                ),
+                              );
+                            },
+                          ),
                         ),
 
                         _buildDivider(theme),
 
                         // Battery Life (placeholder, as in reference)
-                        Semantics(
-                          header: true,
-                          child: Text(
-                            "Battery Life",
-                            style: TextStyle(
-                              fontSize: theme.fontSize,
-                              fontWeight: FontWeight.bold,
-                              color: theme.textColor,
-                              shadows: _getTextShadows(theme),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 15),
-                        Center(
-                          child: Text(
-                            "100%", // Placeholder
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: theme.fontSize + 20,
-                              fontWeight: FontWeight.w600,
-                              color: theme.textColor,
-                              shadows: _getTextShadows(theme),
-                            ),
+                        ScreenReaderFocusable(
+                          label: 'Battery life section',
+                          hint: 'Shows device battery level at 100 percent',
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Semantics(
+                                header: true,
+                                child: SelectToSpeakText(
+                                  "Battery Life",
+                                  style: TextStyle(
+                                    fontSize: theme.fontSize,
+                                    fontWeight: FontWeight.bold,
+                                    color: theme.textColor,
+                                    shadows: _getTextShadows(theme),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 15),
+                              Center(
+                                child: SelectToSpeakText(
+                                  "100%", // Placeholder
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: theme.fontSize + 20,
+                                    fontWeight: FontWeight.w600,
+                                    color: theme.textColor,
+                                    shadows: _getTextShadows(theme),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
 
                         _buildDivider(theme),
 
                         // Device Info Section (Show button)
-                        InkWell(
+                        ScreenReaderFocusable(
+                          label: 'Device information',
+                          hint: 'Double tap to ${_showDeviceInfo ? "hide" : "show"} device details',
                           onTap: () {
                             setState(() {
                               _showDeviceInfo = !_showDeviceInfo;
                             });
                           },
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                "Device Info",
-                                style: TextStyle(
-                                  fontSize: theme.fontSize,
-                                  fontWeight: FontWeight.bold,
-                                  color: theme.textColor,
-                                  shadows: _getTextShadows(theme),
+                          child: InkWell(
+                            onTap: () {
+                              setState(() {
+                                _showDeviceInfo = !_showDeviceInfo;
+                              });
+                            },
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                SelectToSpeakText(
+                                  "Device Info",
+                                  style: TextStyle(
+                                    fontSize: theme.fontSize,
+                                    fontWeight: FontWeight.bold,
+                                    color: theme.textColor,
+                                    shadows: _getTextShadows(theme),
+                                  ),
                                 ),
-                              ),
-                              FaIcon(
-                                _showDeviceInfo
-                                    ? FontAwesomeIcons.caretDown
-                                    : FontAwesomeIcons.caretRight,
-                                size: 32,
-                                color: theme.primaryColor,
-                              ),
-                            ],
+                                FaIcon(
+                                  _showDeviceInfo
+                                      ? FontAwesomeIcons.caretDown
+                                      : FontAwesomeIcons.caretRight,
+                                  size: 32,
+                                  color: theme.primaryColor,
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                         if (_showDeviceInfo)
-                          Card(
-                            elevation: 2,
-                            child: Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Column(
+                          ScreenReaderFocusable(
+                            label: 'Device details',
+                            hint: 'Device ID ${info.id ?? "unknown"}, Name ${info.name ?? "unknown"}, MTU ${info.mtu ?? "unknown"}, RSSI ${info.rssi ?? "unknown"}, ${info.services?.length ?? 0} services',
+                            child: Card(
+                              elevation: 2,
+                              child: Padding(
+                                padding: const EdgeInsets.all(16.0),
+                                child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
+                                  SelectToSpeakText(
                                     "Device ID:  ",
                                     style: TextStyle(
                                       fontWeight: FontWeight.bold,
@@ -177,7 +206,7 @@ class _DeviceStatusPageState extends State<DeviceStatusPage> {
                                       shadows: _getTextShadows(theme),
                                     ),
                                   ),
-                                  Text(
+                                  SelectToSpeakText(
                                     info.id ?? "-",
                                     style: TextStyle(
                                       fontSize: theme.fontSize,
@@ -186,7 +215,7 @@ class _DeviceStatusPageState extends State<DeviceStatusPage> {
                                     ),
                                   ),
                                   const SizedBox(height: 8),
-                                  Text(
+                                  SelectToSpeakText(
                                     "Device Name:  ",
                                     style: TextStyle(
                                       fontWeight: FontWeight.bold,
@@ -195,7 +224,7 @@ class _DeviceStatusPageState extends State<DeviceStatusPage> {
                                       shadows: _getTextShadows(theme),
                                     ),
                                   ),
-                                  Text(
+                                  SelectToSpeakText(
                                     info.name ?? "-",
                                     style: TextStyle(
                                       fontSize: theme.fontSize,
@@ -204,7 +233,7 @@ class _DeviceStatusPageState extends State<DeviceStatusPage> {
                                     ),
                                   ),
                                   const SizedBox(height: 8),
-                                  Text(
+                                  SelectToSpeakText(
                                     "MTU:  ",
                                     style: TextStyle(
                                       fontWeight: FontWeight.bold,
@@ -213,7 +242,7 @@ class _DeviceStatusPageState extends State<DeviceStatusPage> {
                                       shadows: _getTextShadows(theme),
                                     ),
                                   ),
-                                  Text(
+                                  SelectToSpeakText(
                                     "${info.mtu ?? "-"}",
                                     style: TextStyle(
                                       fontSize: theme.fontSize,
@@ -222,7 +251,7 @@ class _DeviceStatusPageState extends State<DeviceStatusPage> {
                                     ),
                                   ),
                                   const SizedBox(height: 8),
-                                  Text(
+                                  SelectToSpeakText(
                                     "RSSI:  ",
                                     style: TextStyle(
                                       fontWeight: FontWeight.bold,
@@ -231,7 +260,7 @@ class _DeviceStatusPageState extends State<DeviceStatusPage> {
                                       shadows: _getTextShadows(theme),
                                     ),
                                   ),
-                                  Text(
+                                  SelectToSpeakText(
                                     "${info.rssi ?? "-"}",
                                     style: TextStyle(
                                       fontSize: theme.fontSize,
@@ -240,7 +269,7 @@ class _DeviceStatusPageState extends State<DeviceStatusPage> {
                                     ),
                                   ),
                                   const SizedBox(height: 8),
-                                  Text(
+                                  SelectToSpeakText(
                                     "Services:  ",
                                     style: TextStyle(
                                       fontWeight: FontWeight.bold,
@@ -249,7 +278,7 @@ class _DeviceStatusPageState extends State<DeviceStatusPage> {
                                       shadows: _getTextShadows(theme),
                                     ),
                                   ),
-                                  Text(
+                                  SelectToSpeakText(
                                     "${info.services?.length ?? 0}",
                                     style: TextStyle(
                                       fontSize: theme.fontSize,
@@ -261,38 +290,57 @@ class _DeviceStatusPageState extends State<DeviceStatusPage> {
                               ),
                             ),
                           ),
+                        ),
 
                         _buildDivider(theme),
 
                         // Disconnect Section Title
-                        Text(
-                          "Disconnect Device",
-                          style: TextStyle(
-                            fontSize: theme.fontSize,
-                            fontWeight: FontWeight.bold,
-                            color: theme.textColor,
-                            shadows: _getTextShadows(theme),
-                          ),
-                        ),
-                        const SizedBox(height: 15),
-                        Center(
-                          child: SizedBox(
-                            width: double.infinity,
-                            child: CustomButton(
-                              label: 'Disconnect',
-                              fontSize: theme.fontSize,
-                              labelAlignment: Alignment.center,
-                              enableVibration: false,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 15,
-                                vertical: 20,
+                        ScreenReaderFocusable(
+                          label: 'Disconnect device section',
+                          hint: 'Contains disconnect button',
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              SelectToSpeakText(
+                                "Disconnect Device",
+                                style: TextStyle(
+                                  fontSize: theme.fontSize,
+                                  fontWeight: FontWeight.bold,
+                                  color: theme.textColor,
+                                  shadows: _getTextShadows(theme),
+                                ),
                               ),
-                              onPressed: () async {
-                                final navigator = Navigator.of(context);
-                                await widget.device.disconnect();
-                                if (mounted) navigator.pop();
-                              },
-                            ),
+                              const SizedBox(height: 15),
+                              Center(
+                                child: SizedBox(
+                                  width: double.infinity,
+                                  child: ScreenReaderFocusable(
+                                    label: 'Disconnect button',
+                                    hint: 'Double tap to disconnect device and return to previous screen',
+                                    onTap: () async {
+                                      final navigator = Navigator.of(context);
+                                      await widget.device.disconnect();
+                                      if (mounted) navigator.pop();
+                                    },
+                                    child: CustomButton(
+                                      label: 'Disconnect',
+                                      fontSize: theme.fontSize,
+                                      labelAlignment: Alignment.center,
+                                      enableVibration: false,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 15,
+                                        vertical: 20,
+                                      ),
+                                      onPressed: () async {
+                                        final navigator = Navigator.of(context);
+                                        await widget.device.disconnect();
+                                        if (mounted) navigator.pop();
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
@@ -304,6 +352,7 @@ class _DeviceStatusPageState extends State<DeviceStatusPage> {
           },
         ),
       ),
+    ),
     );
   }
 
@@ -321,3 +370,4 @@ class _DeviceStatusPageState extends State<DeviceStatusPage> {
     ],
   );
 }
+

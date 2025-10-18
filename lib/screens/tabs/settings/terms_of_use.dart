@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import '../../../widgets/select_to_speak_text.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/providers/theme_provider.dart';
 import '../../../widgets/app_bar.dart';
+import '../../../widgets/screen_reader_gesture_detector.dart';
+import '../../../widgets/screen_reader_focusable.dart';
 
 /// Terms and conditions screen with legal information
 class TermsOfUsePage extends StatelessWidget {
@@ -31,8 +34,9 @@ class TermsOfUsePage extends StatelessWidget {
         title: 'Terms of Use',
         showBackButton: true,
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
+      body: ScreenReaderGestureDetector(
+        child: SafeArea(
+          child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           child: ConstrainedBox(
             constraints: BoxConstraints(
@@ -40,13 +44,16 @@ class TermsOfUsePage extends StatelessWidget {
             ),
             child: Padding(
               padding: const EdgeInsets.all(AppConstants.largePadding),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Semantics(
-                    header: true,
-                    child: Text(
-                      "Terms of Use",
+              child: ScreenReaderFocusable(
+                label: 'Terms of Use document',
+                hint: 'Complete terms and conditions for using Solari Smart Glasses including acceptance, usage guidelines, privacy, updates, liability limitations, and contact information',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Semantics(
+                      header: true,
+                      child: SelectToSpeakText(
+                        "Terms of Use",
                       style: TextStyle(
                         fontSize: theme.fontSize + 8, 
                         fontWeight: FontWeight.bold,
@@ -56,7 +63,7 @@ class TermsOfUsePage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  Text(
+                  SelectToSpeakText(
                     "By using Solari Smart Glasses and the accompanying app, you agree to the following terms and conditions. Kindly read them carefully.",
                     style: TextStyle(
                       fontSize: theme.fontSize + 4,
@@ -69,7 +76,7 @@ class TermsOfUsePage extends StatelessWidget {
   
                   Semantics(
                     header: true,
-                    child: Text(
+                    child: SelectToSpeakText(
                       "Acceptance of Terms",
                       style: TextStyle(
                         fontSize: theme.fontSize + 8, 
@@ -80,7 +87,7 @@ class TermsOfUsePage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  Text(
+                  SelectToSpeakText(
                     "By using the Solari product, you acknowledge that you have read, understood, and agreed to be bound by these Terms and Conditions.",
                     style: TextStyle(
                       fontSize: theme.fontSize + 4,
@@ -93,7 +100,7 @@ class TermsOfUsePage extends StatelessWidget {
   
                   Semantics(
                     header: true,
-                    child: Text(
+                    child: SelectToSpeakText(
                       "Use of Solari Products",
                       style: TextStyle(
                         fontSize: theme.fontSize + 8, 
@@ -104,7 +111,7 @@ class TermsOfUsePage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  Text(
+                  SelectToSpeakText(
                     "Solari smart glasses are designed to assist individuals with visual impairments by providing real-time scene descriptions. They are not a medical device; it does not diagnose or treat conditions, functioning solely as a non-clinical assistive tool. "
                     "\n\nProhibited Uses: You agree not to use Solari for any unlawful, harmful, or abusive purposes.",
                     style: TextStyle(
@@ -118,7 +125,7 @@ class TermsOfUsePage extends StatelessWidget {
   
                   Semantics(
                     header: true,
-                    child: Text(
+                    child: SelectToSpeakText(
                       "Privacy and Data Collection",
                       style: TextStyle(
                         fontSize: theme.fontSize + 8, 
@@ -129,7 +136,7 @@ class TermsOfUsePage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  Text(
+                  SelectToSpeakText(
                     "Solari mitigates privacy issues by processing all visual data offline, without storing or transmitting information, complying with the Philippines' Data Privacy Act of 2012. It ensures that sensitive visual data remains private and never leaves the device.",
                     style: TextStyle(
                       fontSize: theme.fontSize + 4,
@@ -142,7 +149,7 @@ class TermsOfUsePage extends StatelessWidget {
   
                   Semantics(
                     header: true,
-                    child: Text(
+                    child: SelectToSpeakText(
                       "Accuracy and Limitations",
                       style: TextStyle(
                         fontSize: theme.fontSize + 8, 
@@ -153,7 +160,7 @@ class TermsOfUsePage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  Text(
+                  SelectToSpeakText(
                     "Solari is limited to offline functionality. Initially, it only supports the English language. The device also has some hardware limitations. Its battery life is limited and needs to be recharged regularly. It has basic processing power, which means it might not perform well with very complex tasks. Additionally, if used for a long term, the smart glasses might get warm; it is recommended to take breaks during extended use.",
                     style: TextStyle(
                       fontSize: theme.fontSize + 4,
@@ -166,7 +173,7 @@ class TermsOfUsePage extends StatelessWidget {
   
                   Semantics(
                     header: true,
-                    child: Text(
+                    child: SelectToSpeakText(
                       "Software Updates and Changes",
                       style: TextStyle(
                         fontSize: theme.fontSize + 8, 
@@ -177,7 +184,7 @@ class TermsOfUsePage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  Text(
+                  SelectToSpeakText(
                     "We may update our software, features, or terms from time to time. We'll do our best to keep you informed.",
                     style: TextStyle(
                       fontSize: theme.fontSize + 4,
@@ -190,7 +197,7 @@ class TermsOfUsePage extends StatelessWidget {
 
                   Semantics(
                     header: true,
-                    child: Text(
+                    child: SelectToSpeakText(
                       "Safety Information",
                       style: TextStyle(
                         fontSize: theme.fontSize + 8, 
@@ -201,7 +208,7 @@ class TermsOfUsePage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  Text(
+                  SelectToSpeakText(
                     "Do not use Solari Smart Glasses while driving or operating heavy "
                     "machinery. Use of these glasses by children under 13 is not "
                     "recommended. Consult your doctor if you experience eye strain, "
@@ -213,12 +220,15 @@ class TermsOfUsePage extends StatelessWidget {
                       shadows: _getTextShadows(theme),
                     ),
                   ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
         ),
       ),
+    ),
     );
   }
 }
+

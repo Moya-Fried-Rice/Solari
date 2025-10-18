@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import '../../../widgets/select_to_speak_text.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/providers/theme_provider.dart';
 import '../../../../widgets/app_bar.dart';
+import '../../../widgets/screen_reader_gesture_detector.dart';
+import '../../../widgets/screen_reader_focusable.dart';
 
 /// FAQs screen with answers to common questions
 class FAQsScreen extends StatelessWidget {
@@ -26,61 +29,59 @@ class FAQsScreen extends StatelessWidget {
       {bool isLast = false}) {
     final theme = Provider.of<ThemeProvider>(context);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        RichText(
-          text: TextSpan(
-            children: [
-              TextSpan(
-                text: "Question: ", 
-                style: TextStyle(
-                  fontSize: theme.fontSize + 8,
-                  fontWeight: FontWeight.bold,
-                  color: theme.textColor,
-                  shadows: _getTextShadows(theme),
-                ),
-              ),
-              TextSpan(
-                text: question, 
-                style: TextStyle(
-                  fontSize: theme.fontSize + 4,
-                  color: theme.textColor,
-                  height: theme.lineHeight,
-                  shadows: _getTextShadows(theme),
-                ),
-              ),
-            ],
+    return ScreenReaderFocusable(
+      label: 'FAQ: $question',
+      hint: 'Question: $question. Answer: $answer',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Question label on its own line
+          SelectToSpeakText(
+            "Question:",
+            style: TextStyle(
+              fontSize: theme.fontSize + 8,
+              fontWeight: FontWeight.bold,
+              color: theme.textColor,
+              shadows: _getTextShadows(theme),
+            ),
           ),
-        ),
-        const SizedBox(height: 20),
-        RichText(
-          text: TextSpan(
-            children: [
-              TextSpan(
-                text: "Answer: ", 
-                style: TextStyle(
-                  fontSize: theme.fontSize + 8,
-                  fontWeight: FontWeight.bold,
-                  color: theme.textColor,
-                  shadows: _getTextShadows(theme),
-                ),
-              ),
-              TextSpan(
-                text: answer, 
-                style: TextStyle(
-                  fontSize: theme.fontSize + 4,
-                  color: theme.textColor,
-                  height: theme.lineHeight,
-                  shadows: _getTextShadows(theme),
-                ),
-              ),
-            ],
+          const SizedBox(height: 8),
+          // Question text on the next line
+          SelectToSpeakText(
+            question,
+            style: TextStyle(
+              fontSize: theme.fontSize + 4,
+              color: theme.textColor,
+              height: theme.lineHeight,
+              shadows: _getTextShadows(theme),
+            ),
           ),
-        ),
-        if (!isLast) 
-          _buildDivider(theme),
-      ],
+          const SizedBox(height: 20),
+          // Answer label on its own line
+          SelectToSpeakText(
+            "Answer:",
+            style: TextStyle(
+              fontSize: theme.fontSize + 8,
+              fontWeight: FontWeight.bold,
+              color: theme.textColor,
+              shadows: _getTextShadows(theme),
+            ),
+          ),
+          const SizedBox(height: 8),
+          // Answer text on the next line
+          SelectToSpeakText(
+            answer,
+            style: TextStyle(
+              fontSize: theme.fontSize + 4,
+              color: theme.textColor,
+              height: theme.lineHeight,
+              shadows: _getTextShadows(theme),
+            ),
+          ),
+          if (!isLast) 
+            _buildDivider(theme),
+        ],
+      ),
     );
   }
 
@@ -88,8 +89,13 @@ class FAQsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: const CustomAppBar(title: "FAQs", showBackButton: true),
-      body: SafeArea(
-        child: SingleChildScrollView(
+      body: ScreenReaderGestureDetector(
+        child: GestureDetector(
+          onTap: () {
+            clearSelectToSpeakSelection();
+          },
+          child: SafeArea(
+            child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           child: ConstrainedBox(
             constraints: BoxConstraints(
@@ -122,6 +128,8 @@ class FAQsScreen extends StatelessWidget {
           ),
         ),
       ),
+      ),
+    ),
     );
   }
 
@@ -139,3 +147,4 @@ class FAQsScreen extends StatelessWidget {
         ],
       );
 }
+

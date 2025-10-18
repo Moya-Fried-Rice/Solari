@@ -2,7 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:sherpa_onnx/sherpa_onnx.dart' as sherpa_onnx;
+// import 'package:sherpa_onnx/sherpa_onnx.dart' as sherpa_onnx; // DISABLED - package not available
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
@@ -19,13 +19,17 @@ class TtsService {
   static const bool _useSherpaOnnx = false; // TEMPORARILY DISABLED - using Flutter TTS
 
   final BleService _bleService = BleService();
-  sherpa_onnx.OfflineTts? _sherpaEngine;
+  dynamic _sherpaEngine; // sherpa_onnx.OfflineTts? - Disabled until package available
   FlutterTts? _flutterTts;
   
   bool _isInitialized = false;
   bool _isSpeaking = false;
   double _speechSpeed = 0.8;
   bool _useBleTransmission = true; // Prefer BLE over local playback
+  
+  // Callbacks for current TTS operation
+  Function()? _currentOnComplete;
+  Function(String)? _currentOnError;
 
   /// Initialize the Sherpa ONNX TTS engine
   Future<void> initialize() async {
@@ -33,6 +37,9 @@ class TtsService {
 
     try {
       if (_useSherpaOnnx) {
+        // DISABLED - Sherpa ONNX package not available
+        throw Exception('Sherpa ONNX is disabled. Set _useSherpaOnnx = false to use Flutter TTS');
+        /*
         debugPrint('Initializing Sherpa ONNX TTS engine...');
         
         // Initialize Sherpa ONNX bindings
@@ -43,6 +50,7 @@ class TtsService {
         
         _isInitialized = true;
         debugPrint('Sherpa ONNX TTS service initialized successfully');
+        */
       } else {
         debugPrint('Initializing Flutter TTS engine...');
         
@@ -54,10 +62,28 @@ class TtsService {
         await _flutterTts!.setVolume(1.0);
         await _flutterTts!.setPitch(1.0);
         
-        // Set up completion handler
+        // Set up handlers once during initialization
         _flutterTts!.setCompletionHandler(() {
-          _isSpeaking = false;
           debugPrint('Flutter TTS finished speaking');
+          _isSpeaking = false;
+          _currentOnComplete?.call();
+          _currentOnComplete = null;
+          _currentOnError = null;
+        });
+        
+        _flutterTts!.setErrorHandler((msg) {
+          debugPrint('Flutter TTS error: $msg');
+          _isSpeaking = false;
+          _currentOnError?.call(msg);
+          _currentOnComplete = null;
+          _currentOnError = null;
+        });
+        
+        _flutterTts!.setCancelHandler(() {
+          debugPrint('Flutter TTS cancelled');
+          _isSpeaking = false;
+          _currentOnComplete = null;
+          _currentOnError = null;
         });
         
         _isInitialized = true;
@@ -82,6 +108,14 @@ class TtsService {
       _flutterTts!.setSpeechRate(_speechSpeed);
     }
     debugPrint('Speech speed set to: $_speechSpeed');
+  }
+  
+  /// Set speech pitch (0.5x to 2.0x)
+  void setSpeechPitch(double pitch) {
+    if (_flutterTts != null) {
+      _flutterTts!.setPitch(pitch.clamp(0.5, 2.0));
+      debugPrint('Speech pitch set to: $pitch');
+    }
   }
 
   /// Enable or disable BLE transmission (defaults to true for smart glasses)
@@ -188,19 +222,14 @@ class TtsService {
         // ==================== FLUTTER TTS PATH ====================
         debugPrint('🔊 Speaking with Flutter TTS: "$processedText"');
         
-        _flutterTts!.setCompletionHandler(() {
-          debugPrint('✅ Flutter TTS finished speaking');
-          _isSpeaking = false;
-          onComplete?.call();
-        });
-        
-        _flutterTts!.setErrorHandler((msg) {
-          debugPrint('❌ Flutter TTS error: $msg');
-          _isSpeaking = false;
-          onError?.call(msg);
-        });
-        
+        // Speak the text (handlers already set during initialization)
         await _flutterTts!.speak(processedText);
+        
+        // Call the onComplete callback when TTS finishes
+        // Note: The actual completion will be handled by the handler set in initialize()
+        // We store the callback to call it from the handler
+        _currentOnComplete = onComplete;
+        _currentOnError = onError;
       }
     } catch (e) {
       debugPrint('Error generating speech: $e');
@@ -248,6 +277,8 @@ class TtsService {
   }
 
   /// Create and configure the Sherpa ONNX offline TTS engine
+  /// DISABLED - Sherpa ONNX package not available
+  /*
   Future<sherpa_onnx.OfflineTts> _createOfflineTts() async {
     // Copy all asset files to local storage (required by Sherpa ONNX)
     await _copyAllAssetFiles();
@@ -292,6 +323,7 @@ class TtsService {
 
     return tts;
   }
+  */
 
 
   /// Get all asset files from the app bundle

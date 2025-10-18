@@ -21,6 +21,16 @@ import 'tabs/solari_tab.dart';
 import '../core/services/vibration_service.dart';
 import '../core/services/vlm_service.dart';
 import '../core/services/speaker_service.dart';
+import '../core/services/tts_service.dart';
+import '../core/services/ble_service.dart';
+import '../core/services/screen_reader_service.dart';
+
+// Widgets
+import '../widgets/screen_reader_gesture_detector.dart';
+import '../widgets/screen_reader_focusable.dart';
+
+// Audio
+import 'package:audioplayers/audioplayers.dart';
 
 // Other
 import '../utils/extra.dart';
@@ -75,6 +85,15 @@ class _SolariScreenState extends State<SolariScreen>
 
   // Speaker Service
   final SpeakerService _speakerService = SpeakerService();
+
+  // TTS Service
+  final TtsService _ttsService = TtsService();
+  
+  // BLE Service for audio transmission
+  final BleService _bleService = BleService();
+  
+  // Speaking state tracking
+  bool _isSpeaking = false;
 
   // Downloading state
   bool _downloadingModel = false;
@@ -491,11 +510,12 @@ class _SolariScreenState extends State<SolariScreen>
     final theme = Provider.of<ThemeProvider>(context);
 
     return Scaffold(
-      body: SafeArea(
-        child: Stack(
-          children: [
-            // Main content with fade animation
-            AnimatedSwitcher(
+      body: ScreenReaderGestureDetector(
+        child: SafeArea(
+          child: Stack(
+            children: [
+              // Main content with fade animation
+              AnimatedSwitcher(
               duration: const Duration(milliseconds: 300),
               transitionBuilder: (Widget child, Animation<double> animation) {
                 return FadeTransition(opacity: animation, child: child);
@@ -591,63 +611,262 @@ class _SolariScreenState extends State<SolariScreen>
           ],
         ),
       ),
+      ),
       // BOTTOM NAVIGATION BAR
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          VibrationService.mediumFeedback();
-          setState(() => _currentIndex = index);
-        },
-        iconSize: 64,
-        selectedItemColor: theme.buttonTextColor,
-        unselectedItemColor: theme.unselectedColor,
-        backgroundColor: theme.primaryColor,
-        elevation: 0,
-        selectedLabelStyle: TextStyle(
-          fontSize: 20,
-          fontWeight: FontWeight.bold,
-          color: theme.buttonTextColor,
-          shadows: theme.isHighContrast ? [
-            Shadow(offset: const Offset(0, -1), blurRadius: 5.0, color: theme.isDarkMode ? Colors.black : Colors.white),
-            Shadow(offset: const Offset(0, 1), blurRadius: 5.0, color: theme.isDarkMode ? Colors.black : Colors.white),
-            Shadow(offset: const Offset(-1, 0), blurRadius: 5.0, color: theme.isDarkMode ? Colors.black : Colors.white),
-            Shadow(offset: const Offset(1, 0), blurRadius: 5.0, color: theme.isDarkMode ? Colors.black : Colors.white),
-          ] : null,
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: theme.primaryColor,
         ),
-        unselectedLabelStyle: TextStyle(
-          fontSize: 20,
-          color: theme.unselectedColor,
-          fontWeight: FontWeight.normal,
-          shadows: theme.isHighContrast ? [
-            Shadow(offset: const Offset(0, -1), blurRadius: 5.0, color: theme.unselectedColor),
-            Shadow(offset: const Offset(0, 1), blurRadius: 5.0, color: theme.unselectedColor),
-            Shadow(offset: const Offset(-1, 0), blurRadius: 5.0, color: theme.unselectedColor),
-            Shadow(offset: const Offset(1, 0), blurRadius: 5.0, color: theme.unselectedColor),
-          ] : null,
+        child: SafeArea(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              // Solari tab
+              Expanded(
+                child: ScreenReaderFocusable(
+                  label: 'Solari tab',
+                  hint: 'Double tap to view Solari',
+                  onTap: () {
+                    VibrationService.mediumFeedback();
+                    if (_currentIndex != 0) {
+                      ScreenReaderService().clearFocusNodes();
+                      setState(() => _currentIndex = 0);
+                    }
+                  },
+                  child: InkWell(
+                    onTap: () {
+                      VibrationService.mediumFeedback();
+                      if (_currentIndex != 0) {
+                        ScreenReaderService().clearFocusNodes();
+                        setState(() => _currentIndex = 0);
+                      }
+                    },
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8.0),
+                          child: FaIcon(
+                            FontAwesomeIcons.eyeLowVision,
+                            size: 64,
+                            color: _currentIndex == 0 
+                                ? theme.buttonTextColor 
+                                : theme.unselectedColor,
+                          ),
+                        ),
+                        Text(
+                          'Solari',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: _currentIndex == 0 
+                                ? FontWeight.bold 
+                                : FontWeight.normal,
+                            color: _currentIndex == 0 
+                                ? theme.buttonTextColor 
+                                : theme.unselectedColor,
+                            shadows: theme.isHighContrast ? [
+                              Shadow(
+                                offset: const Offset(0, -1), 
+                                blurRadius: 5.0, 
+                                color: _currentIndex == 0 
+                                    ? (theme.isDarkMode ? Colors.black : Colors.white)
+                                    : theme.unselectedColor,
+                              ),
+                              Shadow(
+                                offset: const Offset(0, 1), 
+                                blurRadius: 5.0, 
+                                color: _currentIndex == 0 
+                                    ? (theme.isDarkMode ? Colors.black : Colors.white)
+                                    : theme.unselectedColor,
+                              ),
+                              Shadow(
+                                offset: const Offset(-1, 0), 
+                                blurRadius: 5.0, 
+                                color: _currentIndex == 0 
+                                    ? (theme.isDarkMode ? Colors.black : Colors.white)
+                                    : theme.unselectedColor,
+                              ),
+                              Shadow(
+                                offset: const Offset(1, 0), 
+                                blurRadius: 5.0, 
+                                color: _currentIndex == 0 
+                                    ? (theme.isDarkMode ? Colors.black : Colors.white)
+                                    : theme.unselectedColor,
+                              ),
+                            ] : null,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              // Settings tab
+              Expanded(
+                child: ScreenReaderFocusable(
+                  label: 'Settings tab',
+                  hint: 'Double tap to view Settings',
+                  onTap: () {
+                    VibrationService.mediumFeedback();
+                    if (_currentIndex != 1) {
+                      ScreenReaderService().clearFocusNodes();
+                      setState(() => _currentIndex = 1);
+                    }
+                  },
+                  child: InkWell(
+                    onTap: () {
+                      VibrationService.mediumFeedback();
+                      if (_currentIndex != 1) {
+                        ScreenReaderService().clearFocusNodes();
+                        setState(() => _currentIndex = 1);
+                      }
+                    },
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8.0),
+                          child: FaIcon(
+                            FontAwesomeIcons.gear,
+                            size: 64,
+                            color: _currentIndex == 1 
+                                ? theme.buttonTextColor 
+                                : theme.unselectedColor,
+                          ),
+                        ),
+                        Text(
+                          'Settings',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: _currentIndex == 1 
+                                ? FontWeight.bold 
+                                : FontWeight.normal,
+                            color: _currentIndex == 1 
+                                ? theme.buttonTextColor 
+                                : theme.unselectedColor,
+                            shadows: theme.isHighContrast ? [
+                              Shadow(
+                                offset: const Offset(0, -1), 
+                                blurRadius: 5.0, 
+                                color: _currentIndex == 1 
+                                    ? (theme.isDarkMode ? Colors.black : Colors.white)
+                                    : theme.unselectedColor,
+                              ),
+                              Shadow(
+                                offset: const Offset(0, 1), 
+                                blurRadius: 5.0, 
+                                color: _currentIndex == 1 
+                                    ? (theme.isDarkMode ? Colors.black : Colors.white)
+                                    : theme.unselectedColor,
+                              ),
+                              Shadow(
+                                offset: const Offset(-1, 0), 
+                                blurRadius: 5.0, 
+                                color: _currentIndex == 1 
+                                    ? (theme.isDarkMode ? Colors.black : Colors.white)
+                                    : theme.unselectedColor,
+                              ),
+                              Shadow(
+                                offset: const Offset(1, 0), 
+                                blurRadius: 5.0, 
+                                color: _currentIndex == 1 
+                                    ? (theme.isDarkMode ? Colors.black : Colors.white)
+                                    : theme.unselectedColor,
+                              ),
+                            ] : null,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              // History tab
+              Expanded(
+                child: ScreenReaderFocusable(
+                  label: 'History tab',
+                  hint: 'Double tap to view History',
+                  onTap: () {
+                    VibrationService.mediumFeedback();
+                    if (_currentIndex != 2) {
+                      ScreenReaderService().clearFocusNodes();
+                      setState(() => _currentIndex = 2);
+                    }
+                  },
+                  child: InkWell(
+                    onTap: () {
+                      VibrationService.mediumFeedback();
+                      if (_currentIndex != 2) {
+                        ScreenReaderService().clearFocusNodes();
+                        setState(() => _currentIndex = 2);
+                      }
+                    },
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8.0),
+                          child: FaIcon(
+                            FontAwesomeIcons.clockRotateLeft,
+                            size: 64,
+                            color: _currentIndex == 2 
+                                ? theme.buttonTextColor 
+                                : theme.unselectedColor,
+                          ),
+                        ),
+                        Text(
+                          'History',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: _currentIndex == 2 
+                                ? FontWeight.bold 
+                                : FontWeight.normal,
+                            color: _currentIndex == 2 
+                                ? theme.buttonTextColor 
+                                : theme.unselectedColor,
+                            shadows: theme.isHighContrast ? [
+                              Shadow(
+                                offset: const Offset(0, -1), 
+                                blurRadius: 5.0, 
+                                color: _currentIndex == 2 
+                                    ? (theme.isDarkMode ? Colors.black : Colors.white)
+                                    : theme.unselectedColor,
+                              ),
+                              Shadow(
+                                offset: const Offset(0, 1), 
+                                blurRadius: 5.0, 
+                                color: _currentIndex == 2 
+                                    ? (theme.isDarkMode ? Colors.black : Colors.white)
+                                    : theme.unselectedColor,
+                              ),
+                              Shadow(
+                                offset: const Offset(-1, 0), 
+                                blurRadius: 5.0, 
+                                color: _currentIndex == 2 
+                                    ? (theme.isDarkMode ? Colors.black : Colors.white)
+                                    : theme.unselectedColor,
+                              ),
+                              Shadow(
+                                offset: const Offset(1, 0), 
+                                blurRadius: 5.0, 
+                                color: _currentIndex == 2 
+                                    ? (theme.isDarkMode ? Colors.black : Colors.white)
+                                    : theme.unselectedColor,
+                              ),
+                            ] : null,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
-        items: const [
-          BottomNavigationBarItem(
-            icon: Padding(
-              padding: EdgeInsets.symmetric(vertical: 8.0),
-              child: FaIcon(FontAwesomeIcons.eyeLowVision),
-            ),
-            label: 'Solari',
-          ),
-          BottomNavigationBarItem(
-            icon: Padding(
-              padding: EdgeInsets.symmetric(vertical: 8.0),
-              child: FaIcon(FontAwesomeIcons.gear),
-            ),
-            label: 'Settings',
-          ),
-          BottomNavigationBarItem(
-            icon: Padding(
-              padding: EdgeInsets.symmetric(vertical: 8.0),
-              child: FaIcon(FontAwesomeIcons.clockRotateLeft),
-            ),
-            label: 'History',
-          ),
-        ],
       ),
     );
   }

@@ -4,6 +4,9 @@ import 'package:provider/provider.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/providers/theme_provider.dart';
 import '../../../../widgets/app_bar.dart';
+import '../../../../widgets/select_to_speak_text.dart';
+import '../../../../widgets/screen_reader_gesture_detector.dart';
+import '../../../../widgets/screen_reader_focusable.dart';
 
 /// Tutorials screen with guidance on using Solari glasses
 class TutorialsScreen extends StatelessWidget {
@@ -28,8 +31,13 @@ class TutorialsScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: const CustomAppBar(title: "Tutorials", showBackButton: true),
-      body: SafeArea(
-        child: SingleChildScrollView(
+      body: ScreenReaderGestureDetector(
+        child: GestureDetector(
+          onTap: () {
+            clearSelectToSpeakSelection();
+          },
+          child: SafeArea(
+            child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           child: ConstrainedBox(
             constraints: BoxConstraints(
@@ -41,62 +49,86 @@ class TutorialsScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
             // Video Section
-            Semantics(
-              header: true,
-              child: Text(
-                "Video", 
-                style: TextStyle(
-                  fontSize: theme.fontSize + 8,
-                  fontWeight: FontWeight.bold,
-                  color: theme.textColor,
-                  shadows: _getTextShadows(theme),
-                ),
+            ScreenReaderFocusable(
+              label: 'Video tutorial section',
+              hint: 'Video tutorial placeholder',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Semantics(
+                    header: true,
+                    child: SelectToSpeakText(
+                      "Video", 
+                      style: TextStyle(
+                        fontSize: theme.fontSize + 8,
+                        fontWeight: FontWeight.bold,
+                        color: theme.textColor,
+                        shadows: _getTextShadows(theme),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Placeholder(fallbackHeight: 200),
+                ],
               ),
             ),
-            const SizedBox(height: 10),
-            const Placeholder(fallbackHeight: 200),
 
             _buildDivider(theme),
 
             // Audio Section
-            Semantics(
-              header: true,
-              child: Text(
-                "Audio", 
-                style: TextStyle(
-                  fontSize: theme.fontSize + 8,
-                  fontWeight: FontWeight.bold,
-                  color: theme.textColor,
-                  shadows: _getTextShadows(theme),
-                ),
+            ScreenReaderFocusable(
+              label: 'Audio tutorial section',
+              hint: 'Audio tutorial placeholder',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Semantics(
+                    header: true,
+                    child: SelectToSpeakText(
+                      "Audio", 
+                      style: TextStyle(
+                        fontSize: theme.fontSize + 8,
+                        fontWeight: FontWeight.bold,
+                        color: theme.textColor,
+                        shadows: _getTextShadows(theme),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Placeholder(fallbackHeight: 100),
+                ],
               ),
             ),
-            const SizedBox(height: 10),
-            const Placeholder(fallbackHeight: 100),
 
             _buildDivider(theme),
 
             // Text Section
-            Semantics(
-              header: true,
-              child: Text(
-                "Text", 
-                style: TextStyle(
-                  fontSize: theme.fontSize + 8,
-                  fontWeight: FontWeight.bold,
-                  color: theme.textColor,
-                  shadows: _getTextShadows(theme),
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
+            ScreenReaderFocusable(
+              label: 'Text tutorial section',
+              hint: 'Instructions for using Solari smart glasses including chat, settings, and history',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Semantics(
+                    header: true,
+                    child: SelectToSpeakText(
+                      "Text", 
+                      style: TextStyle(
+                        fontSize: theme.fontSize + 8,
+                        fontWeight: FontWeight.bold,
+                        color: theme.textColor,
+                        shadows: _getTextShadows(theme),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
 
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Introduction
                 Semantics(
-                  child: Text(
+                  child: SelectToSpeakText(
                     "To get started with your smart glasses, first connect them via Bluetooth.",
                     style: TextStyle(
                       fontSize: theme.fontSize + 4,
@@ -113,7 +145,7 @@ class TutorialsScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      SelectToSpeakText(
                         "1. Chat Input (Audio Only)",
                         style: TextStyle(
                           fontSize: theme.fontSize + 4,
@@ -123,7 +155,7 @@ class TutorialsScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Text(
+                      SelectToSpeakText(
                         "Speak directly to your smart glasses to interact using your voice.",
                         style: TextStyle(
                           fontSize: theme.fontSize + 4,
@@ -142,7 +174,7 @@ class TutorialsScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      SelectToSpeakText(
                         "2. Settings Page",
                         style: TextStyle(
                           fontSize: theme.fontSize + 4,
@@ -152,7 +184,7 @@ class TutorialsScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Text(
+                      SelectToSpeakText(
                         "Customize your experience through the settings page, which contains several sub-pages:",
                         style: TextStyle(
                           fontSize: theme.fontSize + 4,
@@ -171,7 +203,7 @@ class TutorialsScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      SelectToSpeakText(
                         "• Device Connection",
                         style: TextStyle(
                           fontSize: theme.fontSize + 4,
@@ -181,7 +213,7 @@ class TutorialsScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Text(
+                      SelectToSpeakText(
                         "Manage Bluetooth connections and pair new devices.",
                         style: TextStyle(
                           fontSize: theme.fontSize + 4,
@@ -200,7 +232,7 @@ class TutorialsScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      SelectToSpeakText(
                         "• Preferences",
                         style: TextStyle(
                           fontSize: theme.fontSize + 4,
@@ -210,7 +242,7 @@ class TutorialsScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Text(
+                      SelectToSpeakText(
                         "Adjust features like voice speed, pitch, and accessibility options.",
                         style: TextStyle(
                           fontSize: theme.fontSize + 4,
@@ -229,7 +261,7 @@ class TutorialsScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      SelectToSpeakText(
                         "• Help",
                         style: TextStyle(
                           fontSize: theme.fontSize + 4,
@@ -239,7 +271,7 @@ class TutorialsScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Text(
+                      SelectToSpeakText(
                         "Access support resources. The Help page has its own sub-pages:",
                         style: TextStyle(
                           fontSize: theme.fontSize + 4,
@@ -264,7 +296,7 @@ class TutorialsScreen extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
+                            SelectToSpeakText(
                               "– FAQs",
                               style: TextStyle(
                                 fontSize: theme.fontSize + 4,
@@ -274,7 +306,7 @@ class TutorialsScreen extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(height: 8),
-                            Text(
+                            SelectToSpeakText(
                               "Find answers to common questions.",
                               style: TextStyle(
                                 fontSize: theme.fontSize + 4,
@@ -293,7 +325,7 @@ class TutorialsScreen extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
+                            SelectToSpeakText(
                               "– Tutorials",
                               style: TextStyle(
                                 fontSize: theme.fontSize + 4,
@@ -303,7 +335,7 @@ class TutorialsScreen extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(height: 8),
-                            Text(
+                            SelectToSpeakText(
                               "Step-by-step guides for using your smart glasses.",
                               style: TextStyle(
                                 fontSize: theme.fontSize + 4,
@@ -322,7 +354,7 @@ class TutorialsScreen extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
+                            SelectToSpeakText(
                               "– Contact",
                               style: TextStyle(
                                 fontSize: theme.fontSize + 4,
@@ -332,7 +364,7 @@ class TutorialsScreen extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(height: 8),
-                            Text(
+                            SelectToSpeakText(
                               "Reach out to support for personalized help.",
                               style: TextStyle(
                                 fontSize: theme.fontSize + 4,
@@ -354,7 +386,7 @@ class TutorialsScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      SelectToSpeakText(
                         "• About Solari",
                         style: TextStyle(
                           fontSize: theme.fontSize + 4,
@@ -364,7 +396,7 @@ class TutorialsScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Text(
+                      SelectToSpeakText(
                         "Learn more about Solari Smart Glasses.",
                         style: TextStyle(
                           fontSize: theme.fontSize + 4,
@@ -383,7 +415,7 @@ class TutorialsScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      SelectToSpeakText(
                         "• Terms & Conditions",
                         style: TextStyle(
                           fontSize: theme.fontSize + 4,
@@ -393,7 +425,7 @@ class TutorialsScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Text(
+                      SelectToSpeakText(
                         "Read the legal information and usage policies.",
                         style: TextStyle(
                           fontSize: theme.fontSize + 4,
@@ -412,7 +444,7 @@ class TutorialsScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      SelectToSpeakText(
                         "3. Chat History",
                         style: TextStyle(
                           fontSize: theme.fontSize + 4,
@@ -422,7 +454,7 @@ class TutorialsScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Text(
+                      SelectToSpeakText(
                         "Review past conversations with your smart glasses to keep track of your interactions.",
                         style: TextStyle(
                           fontSize: theme.fontSize + 4,
@@ -438,7 +470,7 @@ class TutorialsScreen extends StatelessWidget {
 
                 // Conclusion
                 Semantics(
-                  child: Text(
+                  child: SelectToSpeakText(
                     "Follow these steps to ensure a smooth and seamless experience with your smart glasses.",
                     style: TextStyle(
                       fontSize: theme.fontSize + 4,
@@ -453,9 +485,14 @@ class TutorialsScreen extends StatelessWidget {
                 ],
               ),
             ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
+      ),
+    ),
     );
   }
 
@@ -473,3 +510,4 @@ class TutorialsScreen extends StatelessWidget {
         ],
       );
 }
+
