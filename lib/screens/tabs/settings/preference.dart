@@ -3,10 +3,15 @@ import 'package:provider/provider.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/services/vibration_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../../../core/services/select_to_speak_service.dart';
+import '../../../../core/services/screen_reader_service.dart';
 import '../../../../core/providers/theme_provider.dart';
 import '../../../widgets/app_bar.dart';
 import '../../../widgets/feature_bottom_sheets.dart';
 import '../../../widgets/feature_card.dart';
+import '../../../widgets/screen_reader_focusable.dart';
+import '../../../widgets/screen_reader_gesture_detector.dart';
 
 /// Screen for user preferences settings
 class PreferencePage extends StatefulWidget {
@@ -37,30 +42,56 @@ class _PreferencePageState extends State<PreferencePage> {
   
   // Haptic features
   bool vibrationEnabled = true; // Default to enabled
+  // Voice assist
+  bool voiceAssistEnabled = false;
+  // Persisted features
+  static const String _magnificationKey = 'magnification_enabled';
+  static const String _voiceAssistKey = 'voice_assist_enabled';
 
   @override
   void initState() {
     super.initState();
     _loadPreferences();
+    // Set the active context for screen reader when page loads
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ScreenReaderService().setActiveContext('preferences');
+    });
+  }
+
+  @override
+  void dispose() {
+    // No need to clear nodes here - they remain registered but inactive
+    super.dispose();
   }
 
   void _loadPreferences() async {
     final isVibrationEnabled = await VibrationService.isVibrationEnabled();
     final theme = Provider.of<ThemeProvider>(context, listen: false);
+    final selectToSpeakService = SelectToSpeakService();
+    await selectToSpeakService.initialize();
+    final screenReaderService = ScreenReaderService();
+    await screenReaderService.initialize();
+    // Load persisted toggles
+    final prefs = await SharedPreferences.getInstance();
+    final persistedMagnification = prefs.getBool(_magnificationKey);
+    final persistedVoiceAssist = prefs.getBool(_voiceAssistKey);
 
     if (mounted) {
       setState(() {
         vibrationEnabled = isVibrationEnabled;
         // Vision defaults
-        screenReaderEnabled = false;
-        selectToSpeakEnabled = false;
+        screenReaderEnabled = screenReaderService.isEnabled;
+        selectToSpeakEnabled = selectToSpeakService.isEnabled;
         magnificationEnabled = false;
+  if (persistedMagnification != null) magnificationEnabled = persistedMagnification;
         colorInversionEnabled = theme.isColorInverted;
         highContrastEnabled = theme.isHighContrast; // Load from theme provider
-        // Audio defaults
-        audioDescriptionEnabled = false;
         // Sync defaults
         useSystemTheme = true;
+        // Load speech settings from SelectToSpeakService
+        ttsSpeed = selectToSpeakService.speechRate;
+        ttsPitch = selectToSpeakService.pitch;
+        if (persistedVoiceAssist != null) voiceAssistEnabled = persistedVoiceAssist;
       });
     }
   }
@@ -74,6 +105,19 @@ class _PreferencePageState extends State<PreferencePage> {
     if (value) {
       VibrationService.mediumFeedback();
     }
+  }
+
+  Future<void> _setMagnificationEnabled(bool value) async {
+    // Persist magnification locally
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_magnificationKey, value);
+    if (mounted) setState(() => magnificationEnabled = value);
+  }
+
+  Future<void> _setVoiceAssistEnabled(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_voiceAssistKey, value);
+    if (mounted) setState(() => voiceAssistEnabled = value);
   }
 
   /// Gets all features as a list
@@ -95,111 +139,125 @@ class _PreferencePageState extends State<PreferencePage> {
           theme: theme,
           ttsSpeed: ttsSpeed,
           ttsPitch: ttsPitch,
-          onSpeedChanged: (val) => setState(() => ttsSpeed = val),
-          onPitchChanged: (val) => setState(() => ttsPitch = val),
+          onSpeedChanged: (val) async {
+            final selectToSpeakService = SelectToSpeakService();
+            await selectToSpeakService.setSpeechRate(val);
+            if (mounted) setState(() => ttsSpeed = val);
+          },
+          onPitchChanged: (val) async {
+            final selectToSpeakService = SelectToSpeakService();
+            await selectToSpeakService.setPitch(val);
+            if (mounted) setState(() => ttsPitch = val);
+          },
         ),
       },
       {
         'icon': Icons.accessibility_new,
         'label': 'Screen Reader',
-        'onTap': () => FeatureBottomSheets.showScreenReaderSettings(
-          context: context,
-          theme: theme,
-          value: screenReaderEnabled,
-          onChanged: (val) => setState(() => screenReaderEnabled = val),
-        ),
+        'onTap': () async {
+          final screenReaderService = ScreenReaderService();
+          final newVal = !screenReaderEnabled;
+          await screenReaderService.setEnabled(newVal, skipAutoFocus: true);
+          if (mounted) setState(() => screenReaderEnabled = newVal);
+        },
       },
       {
         'icon': Icons.touch_app,
         'label': 'Select to Speak',
-        'onTap': () => FeatureBottomSheets.showSelectToSpeakSettings(
-          context: context,
-          theme: theme,
-          value: selectToSpeakEnabled,
-          onChanged: (val) => setState(() => selectToSpeakEnabled = val),
-        ),
+        'onTap': () async {
+          final selectToSpeakService = SelectToSpeakService();
+          final newVal = !selectToSpeakEnabled;
+          await selectToSpeakService.setEnabled(newVal);
+          if (mounted) setState(() => selectToSpeakEnabled = newVal);
+        },
       },
       {
         'icon': Icons.zoom_in,
         'label': 'Magnification',
-        'onTap': () => FeatureBottomSheets.showMagnificationSettings(
-          context: context,
-          theme: theme,
-          value: magnificationEnabled,
-          onChanged: (val) => setState(() => magnificationEnabled = val),
-        ),
+        'onTap': () async {
+          final newVal = !magnificationEnabled;
+          await _setMagnificationEnabled(newVal);
+        },
       },
       {
         'icon': theme.isDarkMode ? Icons.dark_mode : Icons.light_mode,
         'label': theme.isDarkMode ? 'Dark Mode' : 'Light Mode',
-        'onTap': () => FeatureBottomSheets.showThemeSettings(
-          context: context,
-          theme: theme,
-          onToggleTheme: () {
-            theme.toggleTheme();
-            setState(() => useSystemTheme = false);
-          },
-        ),
+        'onTap': () async {
+          // toggle theme directly
+          theme.toggleTheme();
+          if (mounted) setState(() => useSystemTheme = false);
+        },
       },
       {
         'icon': Icons.invert_colors,
         'label': 'Color Inversion',
-        'onTap': () => FeatureBottomSheets.showColorInversionSettings(
-          context: context,
-          theme: theme,
-          value: theme.isColorInverted,
-          onChanged: (val) async {
-            await theme.setColorInversion(val);
-            if (mounted) setState(() => colorInversionEnabled = val);
-          },
-        ),
+        'onTap': () async {
+          final newVal = !theme.isColorInverted;
+          await theme.setColorInversion(newVal);
+          if (mounted) setState(() => colorInversionEnabled = newVal);
+        },
       },
       {
         'icon': Icons.contrast,
         'label': 'High Contrast',
-        'onTap': () => FeatureBottomSheets.showHighContrastSettings(
-          context: context,
-          theme: theme,
-          onToggleHighContrast: () {
-            theme.setHighContrast(!theme.isHighContrast);
-            setState(() => highContrastEnabled = !highContrastEnabled);
-          },
-        ),
-      },
-      {
-        'icon': Icons.audiotrack,
-        'label': 'Audio Description',
-        'onTap': () => FeatureBottomSheets.showAudioDescriptionSettings(
-          context: context,
-          theme: theme,
-          value: audioDescriptionEnabled,
-          onChanged: (val) => setState(() => audioDescriptionEnabled = val),
-        ),
+        'onTap': () async {
+          final newVal = !theme.isHighContrast;
+          await theme.setHighContrast(newVal);
+          if (mounted) setState(() => highContrastEnabled = newVal);
+        },
       },
       {
         'icon': Icons.vibration,
         'label': 'Vibration',
-        'onTap': () => FeatureBottomSheets.showVibrationSettings(
-          context: context,
-          theme: theme,
-          value: vibrationEnabled,
-          onChanged: _toggleVibration,
-        ),
+        'onTap': () async {
+          await _toggleVibration(!vibrationEnabled);
+        },
+      },
+      {
+        'icon': Icons.record_voice_over,
+        'label': 'Voice Assist',
+        'onTap': () async {
+          final newVal = !voiceAssistEnabled;
+          await _setVoiceAssistEnabled(newVal);
+          if (newVal) VibrationService.mediumFeedback();
+        },
       },
       {
         'icon': Icons.sync,
         'label': 'Enable Sync',
-        'onTap': () => FeatureBottomSheets.showSyncSettings(
-          context: context,
-          theme: theme,
-          value: useSystemTheme,
-          onChanged: (val) {
-            setState(() => useSystemTheme = val);
-            theme.setUseSystemTheme(val);
-          },
-        ),
+        'onTap': () async {
+          final newVal = !useSystemTheme;
+          await theme.setUseSystemTheme(newVal);
+          if (mounted) setState(() => useSystemTheme = newVal);
+        },
       },
     ];
+  }
+
+  bool _isFeatureEnabled(String label) {
+    switch (label) {
+      case 'Screen Reader':
+        return screenReaderEnabled;
+      case 'Select to Speak':
+        return selectToSpeakEnabled;
+      case 'Magnification':
+        return magnificationEnabled;
+      case 'Dark Mode':
+      case 'Light Mode':
+        return Provider.of<ThemeProvider>(context, listen: false).isDarkMode;
+      case 'Color Inversion':
+        return colorInversionEnabled;
+      case 'High Contrast':
+        return highContrastEnabled;
+      case 'Vibration':
+        return vibrationEnabled;
+      case 'Voice Assist':
+        return voiceAssistEnabled;
+      case 'Enable Sync':
+        return useSystemTheme;
+      default:
+        return false;
+    }
   }
 
   @override
@@ -210,29 +268,95 @@ class _PreferencePageState extends State<PreferencePage> {
     return Scaffold(
       appBar: const CustomAppBar(title: 'Preferences', showBackButton: true),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(AppConstants.largePadding),
-          child: GridView.builder(
-            physics: const BouncingScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 0.9,
+        child: ScreenReaderGestureDetector(
+          child: Padding(
+            padding: const EdgeInsets.all(AppConstants.largePadding),
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // First row: Text Format and Speech Settings (use Grid so heights match)
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                      childAspectRatio: 0.9,
+                    ),
+                    itemCount: 2,
+                    itemBuilder: (context, i) {
+                      final feature = allFeatures[i];
+                      return ScreenReaderFocusable(
+                        context: 'preferences',
+                        label: '${feature['label']} button',
+                        hint: 'Double tap to open ${feature['label']} settings',
+                        onTap: feature['onTap'] as VoidCallback,
+                        child: FeatureCard(
+                          theme: theme,
+                          icon: feature['icon'] as IconData,
+                          label: feature['label'] as String,
+                          onTap: feature['onTap'] as VoidCallback,
+                        ),
+                      );
+                    },
+                  ),
+                  // Use same divider style as DeviceStatus
+                  _buildDivider(theme),
+                  // Remaining features as toggles
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                      childAspectRatio: 0.9,
+                    ),
+                    itemCount: allFeatures.length - 2,
+                    itemBuilder: (context, index) {
+                      final feature = allFeatures[index + 2];
+                      final label = feature['label'] as String;
+                      final hint = 'Double tap to enable or disable $label';
+                      final isThemeTile = label.toLowerCase().contains('mode');
+                      return ScreenReaderFocusable(
+                        context: 'preferences',
+                        label: '$label button',
+                        hint: hint,
+                        onTap: feature['onTap'] as VoidCallback,
+                        child: FeatureCard(
+                          theme: theme,
+                          icon: feature['icon'] as IconData,
+                          label: label,
+                          onTap: feature['onTap'] as VoidCallback,
+                          isSelected: _isFeatureEnabled(label),
+                          useToggleStyle: !isThemeTile,
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
             ),
-            itemCount: allFeatures.length,
-            itemBuilder: (context, index) {
-              final feature = allFeatures[index];
-              return FeatureCard(
-                theme: theme,
-                icon: feature['icon'] as IconData,
-                label: feature['label'] as String,
-                onTap: feature['onTap'] as VoidCallback,
-              );
-            },
           ),
         ),
       ),
     );
   }
+
+   Widget _buildDivider(ThemeProvider theme) => Column(
+    children: [
+      const SizedBox(height: 20),
+      Container(
+        height: 10,
+        decoration: BoxDecoration(
+          color: theme.dividerColor,
+          borderRadius: BorderRadius.circular(5),
+        ),
+      ),
+      const SizedBox(height: 20),
+    ],
+  );
 }

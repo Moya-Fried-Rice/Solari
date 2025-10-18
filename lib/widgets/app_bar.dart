@@ -4,6 +4,8 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import '../../core/constants/app_constants.dart';
 import '../../core/providers/theme_provider.dart';
+import 'select_to_speak_text.dart';
+import 'screen_reader_focusable.dart';
 
 /// Custom app bar widget
 class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
@@ -29,39 +31,48 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
       automaticallyImplyLeading: showBackButton,
       centerTitle: true,
       leading: showBackButton
-        ? Semantics(
-            label: 'Back button. Double tap to return.',
-            excludeSemantics: true,
-            child: IconButton(
-              icon: FaIcon(
-                FontAwesomeIcons.caretLeft,
-                size: AppConstants.largeIconSize,
-                color: theme.iconColor,
+        ? ScreenReaderFocusable(
+            label: 'Back button',
+            hint: 'Double tap to go back',
+            onTap: () => Navigator.pop(context),
+            child: Semantics(
+              label: 'Back button. Double tap to return.',
+              excludeSemantics: true,
+              child: IconButton(
+                icon: FaIcon(
+                  FontAwesomeIcons.caretLeft,
+                  size: AppConstants.largeIconSize,
+                  color: theme.iconColor,
+                ),
+                padding: const EdgeInsets.only(left: 16.0),
+                onPressed: () {
+                  // VibrationService.mediumFeedback();
+                  Navigator.pop(context);
+                },
               ),
-              padding: const EdgeInsets.only(left: 16.0),
-              onPressed: () {
-                // VibrationService.mediumFeedback();
-                Navigator.pop(context);
-              },
             ),
           )
         : null,
 
-      title: Semantics(
-        child: Text(
-          title,
-          style: TextStyle(
-            fontSize: 28.0,
-            fontWeight: FontWeight.bold,
-            color: theme.labelColor,
-            shadows: theme.isHighContrast ? [
-              Shadow(offset: const Offset(0, -1), blurRadius: 5.0, color: theme.isDarkMode ? Colors.black : Colors.white),
-              Shadow(offset: const Offset(0, 1), blurRadius: 5.0, color: theme.isDarkMode ? Colors.black : Colors.white),
-              Shadow(offset: const Offset(-1, 0), blurRadius: 5.0, color: theme.isDarkMode ? Colors.black : Colors.white),
-              Shadow(offset: const Offset(1, 0), blurRadius: 5.0, color: theme.isDarkMode ? Colors.black : Colors.white),
-            ] : null,
+      title: ScreenReaderFocusable(
+        label: '$title page',
+        hint: 'Current page is $title',
+        child: Semantics(
+          child: SelectToSpeakText(
+            title,
+            style: TextStyle(
+              fontSize: 28.0,
+              fontWeight: FontWeight.bold,
+              color: theme.labelColor,
+              shadows: theme.isHighContrast ? [
+                Shadow(offset: const Offset(0, -1), blurRadius: 5.0, color: theme.isDarkMode ? Colors.black : Colors.white),
+                Shadow(offset: const Offset(0, 1), blurRadius: 5.0, color: theme.isDarkMode ? Colors.black : Colors.white),
+                Shadow(offset: const Offset(-1, 0), blurRadius: 5.0, color: theme.isDarkMode ? Colors.black : Colors.white),
+                Shadow(offset: const Offset(1, 0), blurRadius: 5.0, color: theme.isDarkMode ? Colors.black : Colors.white),
+              ] : null,
+            ),
+            textAlign: TextAlign.center,
           ),
-          textAlign: TextAlign.center,
         ),
       ),
       backgroundColor: theme.primaryColor,

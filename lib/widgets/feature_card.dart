@@ -8,6 +8,8 @@ class FeatureCard extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
+  final bool isSelected;
+  final bool useToggleStyle;
 
   const FeatureCard({
     super.key,
@@ -15,6 +17,8 @@ class FeatureCard extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onTap,
+    this.isSelected = false,
+    this.useToggleStyle = false,
   });
 
   /// Returns text shadows for high contrast mode
@@ -35,11 +39,33 @@ class FeatureCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // If useToggleStyle is enabled, change appearance based on isSelected.
+    // Otherwise, preserve original filled card appearance for backward compatibility.
+    final containerDecoration = useToggleStyle
+        ? BoxDecoration(
+            color: isSelected ? theme.primaryColor : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: theme.primaryColor),
+          )
+        : BoxDecoration(
+            color: theme.primaryColor,
+            borderRadius: BorderRadius.circular(12),
+          );
+
+    // When useToggleStyle is true:
+    // - If selected: use buttonTextColor (white/light on colored background)
+    // - If not selected: use primaryColor (colored text on transparent background)
+    // When useToggleStyle is false: always use buttonTextColor (original behavior)
+    final effectiveIconColor = useToggleStyle
+        ? (isSelected ? theme.buttonTextColor : theme.primaryColor)
+        : theme.buttonTextColor;
+
+    final effectiveTextColor = useToggleStyle
+        ? (isSelected ? theme.buttonTextColor : theme.primaryColor)
+        : theme.buttonTextColor;
+
     return Container(
-      decoration: BoxDecoration(
-        color: theme.primaryColor,
-        borderRadius: BorderRadius.circular(12),
-      ),
+      decoration: containerDecoration,
       child: InkWell(
         onTap: () {
           VibrationService.mediumFeedback();
@@ -55,7 +81,7 @@ class FeatureCard extends StatelessWidget {
               Icon(
                 icon,
                 size: 56,
-                color: theme.buttonTextColor,
+                color: effectiveIconColor,
               ),
               const SizedBox(height: 12),
               Flexible(
@@ -63,7 +89,7 @@ class FeatureCard extends StatelessWidget {
                   label,
                   style: TextStyle(
                     fontSize: (theme.fontSize - 4).clamp(12.0, 20.0),
-                    color: theme.buttonTextColor,
+                    color: effectiveTextColor,
                     fontWeight: FontWeight.w500,
                     shadows: _getTextShadows(),
                   ),

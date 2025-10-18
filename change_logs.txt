@@ -115,19 +115,16 @@ Additional Features (TBD)
     * Audio description
 * Added functionality:
     * High contrast
-    * Color inversion (Partially)
+    * Color inversion
+---
+10/18/25
+* Select to speak, speech setting
+* Removed audio description
+* Redesigned preference page
+* Screen reader (need to fix)
 
-Next step(s):
-* 10/15/25:
-    * Select to speak
-* 10/16/25:
-    * Speech setting
-    * Screen reader (Partially)
-* 10/17/25:
-    * Screen reader
-    * Magnification
-    * System sync (All features)
-* 10/18/25:
-    * Update texts
-    * Add audio tutorial
-    * Audio description
+* Next step(s):
+- Magnification
+- Voice assist
+- Screen reader fix
+- System sync

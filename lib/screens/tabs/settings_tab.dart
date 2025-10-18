@@ -12,6 +12,9 @@ import 'settings/contact.dart';
 import 'settings/faqs.dart';
 import 'settings/tutorials.dart';
 import '../../core/providers/theme_provider.dart';
+import '../../widgets/screen_reader_gesture_detector.dart';
+import '../../widgets/screen_reader_focusable.dart';
+import '../../core/services/screen_reader_service.dart';
 
 class SettingsTab extends StatelessWidget {
   final BluetoothDevice device;
@@ -32,25 +35,26 @@ class SettingsTab extends StatelessWidget {
     ];
 
     return Scaffold(
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(AppConstants.largePadding),
-          child: GridView.builder(
-            physics: const BouncingScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 0.9,
-            ),
-            itemCount: items.length,
-            itemBuilder: (context, index) {
-              final item = items[index];
-              return FeatureCard(
-                theme: themeProvider,
-                icon: item['icon'] as IconData,
-                label: item['label'] as String,
-                onTap: () {
+      body: ScreenReaderGestureDetector(
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(AppConstants.largePadding),
+            child: GridView.builder(
+              physics: const BouncingScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: 0.9,
+              ),
+              itemCount: items.length,
+              itemBuilder: (context, index) {
+                final item = items[index];
+                
+                void handleNavigation() {
+                  // Clear focus nodes before navigation so screen reader resets for new page
+                  ScreenReaderService().clearFocusNodes();
+                  
                   final label = item['label'];
                   if (label == 'Device Status') {
                     Navigator.push(
@@ -96,9 +100,21 @@ class SettingsTab extends StatelessWidget {
                       ),
                     );
                   }
-                },
-              );
-            },
+                }
+                
+                return ScreenReaderFocusable(
+                  label: '${item['label']} button',
+                  hint: 'Double tap to open ${item['label']}',
+                  onTap: handleNavigation,
+                  child: FeatureCard(
+                    theme: themeProvider,
+                    icon: item['icon'] as IconData,
+                    label: item['label'] as String,
+                    onTap: handleNavigation,
+                  ),
+                );
+              },
+            ),
           ),
         ),
       ),
