@@ -13,6 +13,9 @@ import 'core/services/select_to_speak_service.dart';
 // Screens
 import 'screens/onboarding/launch_screen.dart';
 
+// Widgets
+import 'widgets/magnification_wrapper.dart';
+
 // UI and state management
 import 'core/constants/app_strings.dart';
 import 'core/theme/app_theme.dart';
@@ -101,12 +104,17 @@ class _SolariAppState extends State<SolariApp> {
           navigatorObservers: [BluetoothAdapterStateObserver()],
           builder: (context, child) {
             final content = child ?? const SizedBox.shrink();
-            return themeProvider.isColorInverted
+            final colorInvertedContent = themeProvider.isColorInverted
                 ? ColorFiltered(
                     colorFilter: ColorFilter.matrix(invertMatrix),
                     child: content,
                   )
                 : content;
+            
+            // Wrap with magnification to enable magnifying lens on all pages
+            return MagnificationWrapper(
+              child: colorInvertedContent,
+            );
           },
         );
       },

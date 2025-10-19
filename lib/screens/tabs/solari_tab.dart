@@ -2,8 +2,10 @@ import 'dart:typed_data';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
+import '../../widgets/screen_reader_focusable.dart';
+import '../../widgets/screen_reader_gesture_detector.dart';
 
-class SolariTab extends StatelessWidget {
+class SolariTab extends StatefulWidget {
   final double? temperature;
   final bool speaking;
   final bool processing;
@@ -22,28 +24,52 @@ class SolariTab extends StatelessWidget {
   });
 
   @override
+  State<SolariTab> createState() => _SolariTabState();
+}
+
+class _SolariTabState extends State<SolariTab> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  // Don't set context in initState - let the tab switching handle it
+  // This prevents setting context when tab is built but not visible
+
+  @override
   Widget build(BuildContext context) {
+    super.build(context);
     final theme = Theme.of(context);
     return Scaffold(
-      body: Stack(
-        children: [
-          // Centered soundwave or donut progress
-          Center(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final width = constraints.maxWidth;
-                return SizedBox(
-                  width: width,
-                  height: 360, // Increased height for more noticeable sound wave
-                  child: (downloadingModel && (downloadProgress ?? 0) < 1.0)
-                      ? _DonutProgress(progress: downloadProgress, size: width, color: theme.primaryColor)
-                      : AnimatedSoundWave(speaking: speaking, processing: processing, color: theme.primaryColor),
-                );
-              },
+      body: ScreenReaderGestureDetector(
+        child: Stack(
+          children: [
+            // Centered soundwave or donut progress
+            Center(
+              child: ScreenReaderFocusable(
+                context: 'solari_tab',
+                label: widget.processing 
+                    ? 'Processing' 
+                    : widget.speaking 
+                        ? 'Speaking' 
+                        : widget.downloadingModel 
+                            ? 'Downloading model, ${((widget.downloadProgress ?? 0) * 100).toInt()} percent complete'
+                            : 'Solari is ready',
+                hint: 'Current status indicator',
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final width = constraints.maxWidth;
+                    return SizedBox(
+                      width: width,
+                      height: 360, // Increased height for more noticeable sound wave
+                      child: (widget.downloadingModel && (widget.downloadProgress ?? 0) < 1.0)
+                          ? _DonutProgress(progress: widget.downloadProgress, size: width, color: theme.primaryColor)
+                          : AnimatedSoundWave(speaking: widget.speaking, processing: widget.processing, color: theme.primaryColor),
+                    );
+                  },
+                ),
+              ),
             ),
-          ),
           // Small image in top right corner
-          if (image != null)
+          if (widget.image != null)
             Positioned(
               top: 16,
               right: 16,
@@ -65,7 +91,7 @@ class SolariTab extends StatelessWidget {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(10),
                   child: Image.memory(
-                    image!,
+                    widget.image!,
                     fit: BoxFit.cover,
                   ),
                 ),
@@ -77,12 +103,20 @@ class SolariTab extends StatelessWidget {
             right: 0,
             bottom: 32,
             child: Center(
-              child: (temperature != null)
-                  ? Text('Temperature: ${temperature!.toStringAsFixed(1)} °C', style: const TextStyle(fontSize: 24))
-                  : const Text('No temperature data.', style: TextStyle(fontSize: 24)),
+              child: ScreenReaderFocusable(
+                context: 'solari_tab',
+                label: widget.temperature != null
+                    ? 'Temperature: ${widget.temperature!.toStringAsFixed(1)} degrees Celsius'
+                    : 'No temperature data',
+                hint: 'Current temperature reading',
+                child: (widget.temperature != null)
+                    ? Text('Temperature: ${widget.temperature!.toStringAsFixed(1)} °C', style: const TextStyle(fontSize: 24))
+                    : const Text('No temperature data.', style: TextStyle(fontSize: 24)),
+              ),
             ),
           ),
         ],
+      ),
       ),
     );
   }

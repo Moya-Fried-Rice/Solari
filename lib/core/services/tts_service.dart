@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'ble_service.dart';
 
 /// Advanced TTS service using Sherpa ONNX for high-quality neural text-to-speech
@@ -25,6 +26,7 @@ class TtsService {
   bool _isInitialized = false;
   bool _isSpeaking = false;
   double _speechSpeed = 0.8;
+  double _speechPitch = 1.0;
   bool _useBleTransmission = true; // Prefer BLE over local playback
   
   // Callbacks for current TTS operation
@@ -36,6 +38,12 @@ class TtsService {
     if (_isInitialized) return;
 
     try {
+      // Load saved speech settings from preferences
+      final prefs = await SharedPreferences.getInstance();
+      _speechSpeed = prefs.getDouble('selectToSpeakRate') ?? 0.8;
+      _speechPitch = prefs.getDouble('selectToSpeakPitch') ?? 1.0;
+      debugPrint('TTS loaded preferences: speed=$_speechSpeed, pitch=$_speechPitch');
+      
       if (_useSherpaOnnx) {
         // DISABLED - Sherpa ONNX package not available
         throw Exception('Sherpa ONNX is disabled. Set _useSherpaOnnx = false to use Flutter TTS');
@@ -56,11 +64,11 @@ class TtsService {
         
         _flutterTts = FlutterTts();
         
-        // Configure Flutter TTS
+        // Configure Flutter TTS with loaded preferences
         await _flutterTts!.setLanguage("en-US");
         await _flutterTts!.setSpeechRate(_speechSpeed);
         await _flutterTts!.setVolume(1.0);
-        await _flutterTts!.setPitch(1.0);
+        await _flutterTts!.setPitch(_speechPitch);
         
         // Set up handlers once during initialization
         _flutterTts!.setCompletionHandler(() {
@@ -112,10 +120,11 @@ class TtsService {
   
   /// Set speech pitch (0.5x to 2.0x)
   void setSpeechPitch(double pitch) {
+    _speechPitch = pitch.clamp(0.5, 2.0);
     if (_flutterTts != null) {
-      _flutterTts!.setPitch(pitch.clamp(0.5, 2.0));
-      debugPrint('Speech pitch set to: $pitch');
+      _flutterTts!.setPitch(_speechPitch);
     }
+    debugPrint('Speech pitch set to: $_speechPitch');
   }
 
   /// Enable or disable BLE transmission (defaults to true for smart glasses)

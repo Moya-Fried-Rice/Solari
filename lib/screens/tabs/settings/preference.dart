@@ -6,6 +6,7 @@ import '../../../../core/services/vibration_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/services/select_to_speak_service.dart';
 import '../../../../core/services/screen_reader_service.dart';
+import '../../../../core/services/magnification_service.dart';
 import '../../../../core/providers/theme_provider.dart';
 import '../../../widgets/app_bar.dart';
 import '../../../widgets/feature_bottom_sheets.dart';
@@ -55,12 +56,19 @@ class _PreferencePageState extends State<PreferencePage> {
     // Set the active context for screen reader when page loads
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ScreenReaderService().setActiveContext('preferences');
+      // Auto-focus first element (back button) if screen reader is enabled
+      if (ScreenReaderService().isEnabled) {
+        Future.delayed(const Duration(milliseconds: 300), () {
+          ScreenReaderService().focusNext();
+        });
+      }
     });
   }
 
   @override
   void dispose() {
-    // No need to clear nodes here - they remain registered but inactive
+    // Clear focus nodes for this page when leaving
+    ScreenReaderService().clearContextNodes('preferences');
     super.dispose();
   }
 
@@ -75,6 +83,12 @@ class _PreferencePageState extends State<PreferencePage> {
     final prefs = await SharedPreferences.getInstance();
     final persistedMagnification = prefs.getBool(_magnificationKey);
     final persistedVoiceAssist = prefs.getBool(_voiceAssistKey);
+
+    // Initialize magnification service
+    final magnificationService = MagnificationService();
+    if (persistedMagnification == true) {
+      magnificationService.setEnabled(true);
+    }
 
     if (mounted) {
       setState(() {
@@ -108,9 +122,12 @@ class _PreferencePageState extends State<PreferencePage> {
   }
 
   Future<void> _setMagnificationEnabled(bool value) async {
-    // Persist magnification locally
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_magnificationKey, value);
+    
+    final magnificationService = MagnificationService();
+    magnificationService.setEnabled(value);
+    
     if (mounted) setState(() => magnificationEnabled = value);
   }
 
@@ -157,8 +174,10 @@ class _PreferencePageState extends State<PreferencePage> {
         'onTap': () async {
           final screenReaderService = ScreenReaderService();
           final newVal = !screenReaderEnabled;
-          await screenReaderService.setEnabled(newVal, skipAutoFocus: true);
-          if (mounted) setState(() => screenReaderEnabled = newVal);
+          await screenReaderService.setEnabled(newVal);
+          if (mounted) {
+            setState(() => screenReaderEnabled = newVal);
+          }
         },
       },
       {
@@ -266,7 +285,11 @@ class _PreferencePageState extends State<PreferencePage> {
     final allFeatures = _getAllFeatures(theme);
 
     return Scaffold(
-      appBar: const CustomAppBar(title: 'Preferences', showBackButton: true),
+      appBar: const CustomAppBar(
+        title: 'Preferences', 
+        showBackButton: true,
+        screenReaderContext: 'preferences',
+      ),
       body: SafeArea(
         child: ScreenReaderGestureDetector(
           child: Padding(

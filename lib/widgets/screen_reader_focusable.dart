@@ -24,57 +24,73 @@ class ScreenReaderFocusable extends StatefulWidget {
   State<ScreenReaderFocusable> createState() => _ScreenReaderFocusableState();
 }
 
-class _ScreenReaderFocusableState extends State<ScreenReaderFocusable> {
+class _ScreenReaderFocusableState extends State<ScreenReaderFocusable> with RouteAware {
   final FocusNode _focusNode = FocusNode();
   final ScreenReaderService _screenReaderService = ScreenReaderService();
   bool _isFocused = false;
-  bool _wasEnabled = false;
+  bool _isRegistered = false;
+
+  // Expose focus node for manual focusing
+  FocusNode get focusNode => _focusNode;
 
   @override
   void initState() {
     super.initState();
     _focusNode.addListener(_onFocusChange);
-    _wasEnabled = _screenReaderService.isEnabled;
     
     // Listen to screen reader service changes
     _screenReaderService.addListener(_onScreenReaderChanged);
     
-    if (_screenReaderService.isEnabled && widget.enabled) {
-      _screenReaderService.registerFocusNode(_focusNode, onTap: widget.onTap, context: widget.context);
+    // Register immediately if screen reader is enabled and this widget is enabled
+    _updateRegistration();
+  }
+
+  void _updateRegistration() {
+    final shouldRegister = _screenReaderService.isEnabled && widget.enabled;
+    
+    if (shouldRegister && !_isRegistered) {
+      // Register this focus node
+      _screenReaderService.registerFocusNode(
+        _focusNode,
+        onTap: widget.onTap,
+        context: widget.context,
+      );
+      _isRegistered = true;
+    } else if (!shouldRegister && _isRegistered) {
+      // Unregister this focus node
+      _screenReaderService.unregisterFocusNode(_focusNode);
+      _isRegistered = false;
     }
   }
 
   void _onScreenReaderChanged() {
-    // When screen reader state changes, register or unregister this focus node
-    if (_screenReaderService.isEnabled != _wasEnabled) {
-      setState(() {
-        _wasEnabled = _screenReaderService.isEnabled;
-      });
-      
-      if (_screenReaderService.isEnabled && widget.enabled) {
-        _screenReaderService.registerFocusNode(_focusNode, onTap: widget.onTap, context: widget.context);
-      } else {
-        _screenReaderService.unregisterFocusNode(_focusNode);
-      }
+    // When screen reader state changes, update registration
+    if (mounted) {
+      _updateRegistration();
+      setState(() {}); // Rebuild to show/hide focus border
     }
   }
 
   @override
   void didUpdateWidget(ScreenReaderFocusable oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.enabled != oldWidget.enabled) {
-      if (widget.enabled && _screenReaderService.isEnabled) {
-        _screenReaderService.registerFocusNode(_focusNode, onTap: widget.onTap, context: widget.context);
-      } else {
+    if (widget.enabled != oldWidget.enabled || widget.context != oldWidget.context) {
+      // Re-evaluate registration when enabled state or context changes
+      if (_isRegistered) {
         _screenReaderService.unregisterFocusNode(_focusNode);
+        _isRegistered = false;
       }
+      _updateRegistration();
     }
   }
 
   @override
   void dispose() {
     _screenReaderService.removeListener(_onScreenReaderChanged);
-    _screenReaderService.unregisterFocusNode(_focusNode);
+    if (_isRegistered) {
+      _screenReaderService.unregisterFocusNode(_focusNode);
+      _isRegistered = false;
+    }
     _focusNode.removeListener(_onFocusChange);
     _focusNode.dispose();
     super.dispose();

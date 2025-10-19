@@ -1,11 +1,7 @@
 Solari
 ---
 
-Update Logs
-
----
-
-UI Updates
+Update Logs (Design and Accessibility)
 
 ---
 09/09/25
@@ -14,10 +10,6 @@ UI Updates
 09/10/25
 * Added Light Mode
 * Partially addded Font Size changer
-
-Next step(s):
-* Screen compatability
-* Font size changer
 ---
 09/13/25
 * Organized code structure
@@ -25,13 +17,6 @@ Next step(s):
 * Wrapped text to prevent overflow
 * Inserted updated text (about solari, terms and conditions, faqs)
 * Font size changer
-
-Next step(s):
-* Verify landscape orientation (team)
-* Refine semantics labels
-* Test system screen reader
-* Built-in screen reader (tts, navigation, hints)
-* Cross-check system settings
 ---
 09/15/25
 * First access pages removed after first access
@@ -42,37 +27,15 @@ Next step(s):
 * Wrapped speech and text format settings in container
 * Changed increment/decrement buttons to slider
 * Line Height
-
-Next step(s):
-* Refine landscape orientation
-* Add other first access pages
-* Apply dialog box
-* Refine navigation and transition
-* Refine semantic labels
 ---
 09/16/25
 * Added other first access pages
 * Dialog boxes
 * Fix line height
-
-Next step(s):
-* Refine landscape orientation
-* Refine transitions
-* Refine semantic labels
-* Fix system setting check
 ---
 09/19/25
 * System setting sync (theme)
 * Semantic labels (message box, toggles, sliders, buttons, text)
-
-Next step(s):
-* Refine transitions
-* Refine semantic labels (header)
-* Refine landscape orientation
----
-
-Merged Updates (UI:Hardware)
-
 ---
 09/23/25
 * Test merging based on UI repo
@@ -91,12 +54,6 @@ Merged Updates (UI:Hardware)
 * Change color theme
 * Lock to portrait orientation
 * Refined semantic labels
-
-Next step(s):
-* Testing
-
-Additional Features (TBD)
-* Built-in screen reader (update system sync if added)
 ---
 09/26/25
 * Updated audio visualizer
@@ -122,9 +79,15 @@ Additional Features (TBD)
 * Removed audio description
 * Redesigned preference page
 * Screen reader (need to fix)
+---
+10/19/25
+* Magnification
+* Screen reader fixed
+    Problem:
+        - When first enabling screen reader (developer refresh or reload), does not work in main screen.
+    Solution:
+        - Need to go to another tab.
 
-* Next step(s):
-- Magnification
-- Voice assist
-- Screen reader fix
-- System sync
+Next step(s):
+* Voice assist
+* System sync
