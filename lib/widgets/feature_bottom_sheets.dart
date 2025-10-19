@@ -3,959 +3,11 @@ import 'package:provider/provider.dart';
 import '../core/providers/theme_provider.dart';
 import '../core/services/vibration_service.dart';
 import '../core/services/screen_reader_service.dart';
-import 'toggle.dart';
-import 'select_to_speak_text.dart';
 import 'screen_reader_gesture_detector.dart';
 import 'screen_reader_focusable.dart';
 
-/// Bottom sheet methods for feature settings (preferences, accessibility, etc.)
+/// Bottom sheet methods for feature settings (text format and text-to-speech only)
 class FeatureBottomSheets {
-  /// Shows screen reader settings
-  static void showScreenReaderSettings({
-    required BuildContext context,
-    required ThemeProvider theme,
-    required bool value,
-    required Function(bool) onChanged,
-  }) {
-    bool currentValue = value;
-    VibrationService.mediumFeedback();
-
-    // Set screen reader context to this bottom sheet
-    ScreenReaderService().setActiveContext('screen_reader_settings');
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      isScrollControlled: true,
-      builder: (context) => Consumer<ThemeProvider>(
-        builder: (context, themeProvider, _) => WillPopScope(
-          onWillPop: () async {
-            // Restore preferences context when bottom sheet closes
-            ScreenReaderService().setActiveContext('preferences');
-            return true;
-          },
-          child: Container(
-            decoration: BoxDecoration(
-              color: themeProvider.primaryColor,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(20),
-              ),
-            ),
-            child: Theme(
-              data: Theme.of(context).copyWith(
-                textTheme: Theme.of(context).textTheme.apply(
-                  bodyColor: themeProvider.labelColor,
-                  displayColor: themeProvider.labelColor,
-                ),
-              ),
-              child: StatefulBuilder(
-                builder: (context, setModalState) =>
-                    ScreenReaderGestureDetector(
-                  child: Padding(
-                    padding: EdgeInsets.only(
-                      bottom: MediaQuery.of(context).viewInsets.bottom,
-                      top: 10,
-                      left: 20,
-                      right: 20,
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // Down arrow button at top center
-                        Center(
-                          child: ScreenReaderFocusable(
-                            context: 'screen_reader_settings',
-                            label: 'Close button',
-                            hint: 'Double tap to close settings',
-                            onTap: () {
-                              VibrationService.mediumFeedback();
-                              ScreenReaderService().setActiveContext(
-                                'preferences',
-                              );
-                              Navigator.pop(context);
-                            },
-                            child: GestureDetector(
-                              onTap: () {
-                                VibrationService.mediumFeedback();
-                                ScreenReaderService().setActiveContext(
-                                  'preferences',
-                                );
-                                Navigator.pop(context);
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.all(8),
-                                child: Icon(
-                                  Icons.keyboard_arrow_down,
-                                  size: 48,
-                                  color: themeProvider.buttonTextColor,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        ScreenReaderFocusable(
-                          context: 'screen_reader_settings',
-                          label: currentValue
-                              ? 'Disable Screen Reader toggle'
-                              : 'Enable Screen Reader toggle',
-                          hint: 'Double tap to toggle screen reader',
-                          onTap: () {
-                            setModalState(() {
-                              currentValue = !currentValue;
-                            });
-                            onChanged(!currentValue);
-                          },
-                          child: Toggle(
-                            label: currentValue
-                                ? 'Disable Screen Reader'
-                                : 'Enable Screen Reader',
-                            value: currentValue,
-                            onChanged: (val) {
-                              setModalState(() {
-                                currentValue = val;
-                              });
-                              onChanged(val);
-                            },
-                            fontSize: themeProvider.fontSize + 4,
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Shows select to speak settings
-  static void showSelectToSpeakSettings({
-    required BuildContext context,
-    required ThemeProvider theme,
-    required bool value,
-    required Function(bool) onChanged,
-  }) {
-    bool currentValue = value;
-    VibrationService.mediumFeedback();
-    ScreenReaderService().setActiveContext('select_to_speak_settings');
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      isScrollControlled: true,
-      builder: (context) => Consumer<ThemeProvider>(
-        builder: (context, themeProvider, _) => WillPopScope(
-          onWillPop: () async {
-            ScreenReaderService().setActiveContext('preferences');
-            return true;
-          },
-          child: Container(
-            decoration: BoxDecoration(
-              color: themeProvider.primaryColor,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(20),
-              ),
-            ),
-            child: Theme(
-              data: Theme.of(context).copyWith(
-                textTheme: Theme.of(context).textTheme.apply(
-                  bodyColor: themeProvider.labelColor,
-                  displayColor: themeProvider.labelColor,
-                ),
-              ),
-              child: StatefulBuilder(
-                builder: (context, setModalState) =>
-                    ScreenReaderGestureDetector(
-                  child: Padding(
-                    padding: EdgeInsets.only(
-                      bottom: MediaQuery.of(context).viewInsets.bottom,
-                      top: 10,
-                      left: 20,
-                      right: 20,
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Center(
-                          child: ScreenReaderFocusable(
-                            context: 'select_to_speak_settings',
-                            label: 'Close button',
-                            hint: 'Double tap to close settings',
-                            onTap: () {
-                              VibrationService.mediumFeedback();
-                              ScreenReaderService().setActiveContext(
-                                'preferences',
-                              );
-                              Navigator.pop(context);
-                            },
-                            child: GestureDetector(
-                              onTap: () {
-                                VibrationService.mediumFeedback();
-                                ScreenReaderService().setActiveContext(
-                                  'preferences',
-                                );
-                                Navigator.pop(context);
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.all(8),
-                                child: Icon(
-                                  Icons.keyboard_arrow_down,
-                                  size: 48,
-                                  color: themeProvider.buttonTextColor,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        ScreenReaderFocusable(
-                          context: 'select_to_speak_settings',
-                          label: currentValue
-                              ? 'Disable Select to Speak toggle'
-                              : 'Enable Select to Speak toggle',
-                          hint: 'Double tap to toggle select to speak',
-                          onTap: () {
-                            setModalState(() {
-                              currentValue = !currentValue;
-                            });
-                            onChanged(!currentValue);
-                          },
-                          child: Toggle(
-                            label: currentValue
-                                ? 'Disable Select to Speak'
-                                : 'Enable Select to Speak',
-                            value: currentValue,
-                            onChanged: (val) {
-                              setModalState(() {
-                                currentValue = val;
-                              });
-                              onChanged(val);
-                            },
-                            fontSize: themeProvider.fontSize + 4,
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Shows magnification settings
-  static void showMagnificationSettings({
-    required BuildContext context,
-    required ThemeProvider theme,
-    required bool value,
-    required Function(bool) onChanged,
-  }) {
-    bool currentValue = value;
-    VibrationService.mediumFeedback();
-    ScreenReaderService().setActiveContext('magnification_settings');
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      isScrollControlled: true,
-      builder: (context) => Consumer<ThemeProvider>(
-        builder: (context, themeProvider, _) => WillPopScope(
-          onWillPop: () async {
-            ScreenReaderService().setActiveContext('preferences');
-            return true;
-          },
-          child: Container(
-            decoration: BoxDecoration(
-              color: themeProvider.primaryColor,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(20),
-              ),
-            ),
-            child: Theme(
-              data: Theme.of(context).copyWith(
-                textTheme: Theme.of(context).textTheme.apply(
-                  bodyColor: themeProvider.labelColor,
-                  displayColor: themeProvider.labelColor,
-                ),
-              ),
-              child: StatefulBuilder(
-                builder: (context, setModalState) => ScreenReaderGestureDetector(
-                  child: Padding(
-                    padding: EdgeInsets.only(
-                      bottom: MediaQuery.of(context).viewInsets.bottom,
-                      top: 10,
-                      left: 20,
-                      right: 20,
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Center(
-                          child: ScreenReaderFocusable(
-                            context: 'magnification_settings',
-                            label: 'Close button',
-                            hint: 'Double tap to close magnification settings',
-                            onTap: () {
-                              VibrationService.mediumFeedback();
-                              ScreenReaderService().setActiveContext(
-                                'preferences',
-                              );
-                              Navigator.pop(context);
-                            },
-                            child: GestureDetector(
-                              onTap: () {
-                                VibrationService.mediumFeedback();
-                                ScreenReaderService().setActiveContext(
-                                  'preferences',
-                                );
-                                Navigator.pop(context);
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.all(8),
-                                child: Icon(
-                                  Icons.keyboard_arrow_down,
-                                  size: 48,
-                                  color: themeProvider.buttonTextColor,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        ScreenReaderFocusable(
-                          context: 'magnification_settings',
-                          label: currentValue
-                              ? 'Disable Magnification'
-                              : 'Enable Magnification',
-                          hint:
-                              'Double tap to ${currentValue ? "disable" : "enable"} magnification',
-                          onTap: () {
-                            final newValue = !currentValue;
-                            setModalState(() {
-                              currentValue = newValue;
-                            });
-                            onChanged(newValue);
-                          },
-                          child: Toggle(
-                            label: currentValue
-                                ? 'Disable Magnification'
-                                : 'Enable Magnification',
-                            value: currentValue,
-                            onChanged: (val) {
-                              setModalState(() {
-                                currentValue = val;
-                              });
-                              onChanged(val);
-                            },
-                            fontSize: themeProvider.fontSize + 4,
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Shows theme settings
-  static void showThemeSettings({
-    required BuildContext context,
-    required ThemeProvider theme,
-    required VoidCallback onToggleTheme,
-  }) {
-    VibrationService.mediumFeedback();
-    ScreenReaderService().setActiveContext('theme_settings');
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      isScrollControlled: true,
-      builder: (context) => Consumer<ThemeProvider>(
-        builder: (context, themeProvider, _) => WillPopScope(
-          onWillPop: () async {
-            ScreenReaderService().setActiveContext('preferences');
-            return true;
-          },
-          child: Container(
-            decoration: BoxDecoration(
-              color: themeProvider.primaryColor,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(20),
-              ),
-            ),
-            child: Theme(
-              data: Theme.of(context).copyWith(
-                textTheme: Theme.of(context).textTheme.apply(
-                  bodyColor: themeProvider.labelColor,
-                  displayColor: themeProvider.labelColor,
-                ),
-              ),
-              child: StatefulBuilder(
-                builder: (context, setModalState) => ScreenReaderGestureDetector(
-                  child: Padding(
-                    padding: EdgeInsets.only(
-                      bottom: MediaQuery.of(context).viewInsets.bottom,
-                      top: 10,
-                      left: 20,
-                      right: 20,
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Center(
-                          child: ScreenReaderFocusable(
-                            context: 'theme_settings',
-                            label: 'Close button',
-                            hint: 'Double tap to close theme settings',
-                            onTap: () {
-                              VibrationService.mediumFeedback();
-                              ScreenReaderService().setActiveContext(
-                                'preferences',
-                              );
-                              Navigator.pop(context);
-                            },
-                            child: GestureDetector(
-                              onTap: () {
-                                VibrationService.mediumFeedback();
-                                ScreenReaderService().setActiveContext(
-                                  'preferences',
-                                );
-                                Navigator.pop(context);
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.all(8),
-                                child: Icon(
-                                  Icons.keyboard_arrow_down,
-                                  size: 48,
-                                  color: themeProvider.buttonTextColor,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        ScreenReaderFocusable(
-                          context: 'theme_settings',
-                          label: themeProvider.isDarkMode ? 'Dark Mode' : 'Light Mode',
-                          hint: 'Double tap to switch to ${themeProvider.isDarkMode ? "light" : "dark"} mode',
-                          onTap: () {
-                            setModalState(() {});
-                            onToggleTheme();
-                          },
-                          child: Toggle(
-                            label: themeProvider.isDarkMode ? 'Dark Mode' : 'Light Mode',
-                            value: themeProvider.isDarkMode,
-                            onChanged: (val) {
-                              setModalState(() {});
-                              onToggleTheme();
-                            },
-                            fontSize: themeProvider.fontSize + 4,
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Shows color inversion settings
-  static void showColorInversionSettings({
-    required BuildContext context,
-    required ThemeProvider theme,
-    required bool value,
-    required Function(bool) onChanged,
-  }) {
-    bool currentValue = value;
-    VibrationService.mediumFeedback();
-    ScreenReaderService().setActiveContext('color_inversion_settings');
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      isScrollControlled: true,
-      builder: (context) => Consumer<ThemeProvider>(
-        builder: (context, themeProvider, _) => WillPopScope(
-          onWillPop: () async {
-            ScreenReaderService().setActiveContext('preferences');
-            return true;
-          },
-          child: Container(
-            decoration: BoxDecoration(
-              color: themeProvider.primaryColor,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(20),
-              ),
-            ),
-            child: Theme(
-              data: Theme.of(context).copyWith(
-                textTheme: Theme.of(context).textTheme.apply(
-                  bodyColor: themeProvider.labelColor,
-                  displayColor: themeProvider.labelColor,
-                ),
-              ),
-              child: StatefulBuilder(
-                builder: (context, setModalState) => ScreenReaderGestureDetector(
-                  child: Padding(
-                    padding: EdgeInsets.only(
-                      bottom: MediaQuery.of(context).viewInsets.bottom,
-                      top: 10,
-                      left: 20,
-                      right: 20,
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Center(
-                          child: ScreenReaderFocusable(
-                            context: 'color_inversion_settings',
-                            label: 'Close button',
-                            hint: 'Double tap to close color inversion settings',
-                            onTap: () {
-                              VibrationService.mediumFeedback();
-                              ScreenReaderService().setActiveContext(
-                                'preferences',
-                              );
-                              Navigator.pop(context);
-                            },
-                            child: GestureDetector(
-                              onTap: () {
-                                VibrationService.mediumFeedback();
-                                ScreenReaderService().setActiveContext(
-                                  'preferences',
-                                );
-                                Navigator.pop(context);
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.all(8),
-                                child: Icon(
-                                  Icons.keyboard_arrow_down,
-                                  size: 48,
-                                  color: themeProvider.buttonTextColor,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        ScreenReaderFocusable(
-                          context: 'color_inversion_settings',
-                          label: currentValue ? 'Disable Color Inversion' : 'Enable Color Inversion',
-                          hint: 'Double tap to ${currentValue ? "disable" : "enable"} color inversion',
-                          onTap: () {
-                            final newValue = !currentValue;
-                            setModalState(() {
-                              currentValue = newValue;
-                            });
-                            onChanged(newValue);
-                          },
-                          child: Toggle(
-                            label: currentValue ? 'Disable Color Inversion' : 'Enable Color Inversion',
-                            value: currentValue,
-                            onChanged: (val) {
-                              setModalState(() {
-                                currentValue = val;
-                              });
-                              onChanged(val);
-                            },
-                            fontSize: themeProvider.fontSize + 4,
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Shows high contrast settings
-  static void showHighContrastSettings({
-    required BuildContext context,
-    required ThemeProvider theme,
-    required VoidCallback onToggleHighContrast,
-  }) {
-    VibrationService.mediumFeedback();
-    ScreenReaderService().setActiveContext('high_contrast_settings');
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      isScrollControlled: true,
-      builder: (context) => Consumer<ThemeProvider>(
-        builder: (context, themeProvider, _) => WillPopScope(
-          onWillPop: () async {
-            ScreenReaderService().setActiveContext('preferences');
-            return true;
-          },
-          child: Container(
-            decoration: BoxDecoration(
-              color: themeProvider.primaryColor,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(20),
-              ),
-            ),
-            child: Theme(
-              data: Theme.of(context).copyWith(
-                textTheme: Theme.of(context).textTheme.apply(
-                  bodyColor: themeProvider.labelColor,
-                  displayColor: themeProvider.labelColor,
-                ),
-              ),
-              child: StatefulBuilder(
-                builder: (context, setModalState) => ScreenReaderGestureDetector(
-                  child: Padding(
-                    padding: EdgeInsets.only(
-                      bottom: MediaQuery.of(context).viewInsets.bottom,
-                      top: 10,
-                      left: 20,
-                      right: 20,
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Center(
-                          child: ScreenReaderFocusable(
-                            context: 'high_contrast_settings',
-                            label: 'Close button',
-                            hint: 'Double tap to close high contrast settings',
-                            onTap: () {
-                              VibrationService.mediumFeedback();
-                              ScreenReaderService().setActiveContext(
-                                'preferences',
-                              );
-                              Navigator.pop(context);
-                            },
-                            child: GestureDetector(
-                              onTap: () {
-                                VibrationService.mediumFeedback();
-                                ScreenReaderService().setActiveContext(
-                                  'preferences',
-                                );
-                                Navigator.pop(context);
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.all(8),
-                                child: Icon(
-                                  Icons.keyboard_arrow_down,
-                                  size: 48,
-                                  color: themeProvider.buttonTextColor,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        ScreenReaderFocusable(
-                          context: 'high_contrast_settings',
-                          label: themeProvider.isHighContrast ? 'Disable High Contrast' : 'Enable High Contrast',
-                          hint: 'Double tap to ${themeProvider.isHighContrast ? "disable" : "enable"} high contrast',
-                          onTap: () {
-                            setModalState(() {});
-                            onToggleHighContrast();
-                          },
-                          child: Toggle(
-                            label: themeProvider.isHighContrast ? 'Disable High Contrast' : 'Enable High Contrast',
-                            value: themeProvider.isHighContrast,
-                            onChanged: (val) {
-                              setModalState(() {});
-                              onToggleHighContrast();
-                            },
-                            fontSize: themeProvider.fontSize + 4,
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Shows vibration settings
-  static void showVibrationSettings({
-    required BuildContext context,
-    required ThemeProvider theme,
-    required bool value,
-    required Future<void> Function(bool) onChanged,
-  }) {
-    bool currentValue = value;
-    VibrationService.mediumFeedback();
-    // Activate vibration sheet context for screen reader
-    ScreenReaderService().setActiveContext('vibration_settings');
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      isScrollControlled: true,
-      builder: (context) => Consumer<ThemeProvider>(
-        builder: (context, themeProvider, _) => WillPopScope(
-          onWillPop: () async {
-            // Restore preferences context when bottom sheet closes
-            ScreenReaderService().setActiveContext('preferences');
-            return true;
-          },
-          child: Container(
-            decoration: BoxDecoration(
-              color: themeProvider.primaryColor,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            ),
-            child: Theme(
-              data: Theme.of(context).copyWith(
-                textTheme: Theme.of(context).textTheme.apply(
-                  bodyColor: themeProvider.labelColor,
-                  displayColor: themeProvider.labelColor,
-                ),
-              ),
-              child: StatefulBuilder(
-                builder: (context, setModalState) => ScreenReaderGestureDetector(
-                  child: Padding(
-                    padding: EdgeInsets.only(
-                      bottom: MediaQuery.of(context).viewInsets.bottom,
-                      top: 10,
-                      left: 20,
-                      right: 20,
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Center(
-                          child: ScreenReaderFocusable(
-                            context: 'vibration_settings',
-                            label: 'Close button',
-                            hint: 'Double tap to close vibration settings',
-                            onTap: () {
-                              VibrationService.mediumFeedback();
-                              ScreenReaderService().setActiveContext('preferences');
-                              Navigator.pop(context);
-                            },
-                            child: GestureDetector(
-                              onTap: () {
-                                VibrationService.mediumFeedback();
-                                ScreenReaderService().setActiveContext('preferences');
-                                Navigator.pop(context);
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.all(8),
-                                child: Icon(
-                                  Icons.keyboard_arrow_down,
-                                  size: 48,
-                                  color: themeProvider.buttonTextColor,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        ScreenReaderFocusable(
-                          context: 'vibration_settings',
-                          label: currentValue ? 'Disable Vibration' : 'Enable Vibration',
-                          hint: 'Double tap to ${currentValue ? "disable" : "enable"} vibration',
-                          onTap: () async {
-                            final newValue = !currentValue;
-                            setModalState(() {
-                              currentValue = newValue;
-                            });
-                            await onChanged(newValue);
-                          },
-                          child: Toggle(
-                            label: currentValue ? 'Disable Vibration' : 'Enable Vibration',
-                            value: currentValue,
-                            onChanged: (val) async {
-                              setModalState(() {
-                                currentValue = val;
-                              });
-                              await onChanged(val);
-                            },
-                            fontSize: themeProvider.fontSize + 4,
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Shows sync settings
-  static void showSyncSettings({
-    required BuildContext context,
-    required ThemeProvider theme,
-    required bool value,
-    required Function(bool) onChanged,
-  }) {
-    bool currentValue = value;
-    VibrationService.mediumFeedback();
-    // Activate sync sheet context for screen reader
-    ScreenReaderService().setActiveContext('sync_settings');
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      isScrollControlled: true,
-      builder: (context) => Consumer<ThemeProvider>(
-        builder: (context, themeProvider, _) => WillPopScope(
-          onWillPop: () async {
-            ScreenReaderService().setActiveContext('preferences');
-            return true;
-          },
-          child: Container(
-            decoration: BoxDecoration(
-              color: themeProvider.primaryColor,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            ),
-            child: Theme(
-              data: Theme.of(context).copyWith(
-                textTheme: Theme.of(context).textTheme.apply(
-                  bodyColor: themeProvider.labelColor,
-                  displayColor: themeProvider.labelColor,
-                ),
-              ),
-              child: StatefulBuilder(
-                builder: (context, setModalState) => ScreenReaderGestureDetector(
-                  child: Padding(
-                    padding: EdgeInsets.only(
-                      bottom: MediaQuery.of(context).viewInsets.bottom,
-                      top: 10,
-                      left: 20,
-                      right: 20,
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Center(
-                          child: ScreenReaderFocusable(
-                            context: 'sync_settings',
-                            label: 'Close button',
-                            hint: 'Double tap to close sync settings',
-                            onTap: () {
-                              VibrationService.mediumFeedback();
-                              ScreenReaderService().setActiveContext('preferences');
-                              Navigator.pop(context);
-                            },
-                            child: GestureDetector(
-                              onTap: () {
-                                VibrationService.mediumFeedback();
-                                ScreenReaderService().setActiveContext('preferences');
-                                Navigator.pop(context);
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.all(8),
-                                child: Icon(
-                                  Icons.keyboard_arrow_down,
-                                  size: 48,
-                                  color: themeProvider.buttonTextColor,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        ScreenReaderFocusable(
-                          context: 'sync_settings',
-                          label: currentValue ? 'Disable Sync' : 'Enable Sync',
-                          hint: 'Double tap to ${currentValue ? "disable" : "enable"} sync',
-                          onTap: () {
-                            final newValue = !currentValue;
-                            setModalState(() {
-                              currentValue = newValue;
-                            });
-                            onChanged(newValue);
-                          },
-                          child: Toggle(
-                            label: currentValue ? 'Disable Sync' : 'Enable Sync',
-                            value: currentValue,
-                            onChanged: (val) {
-                              setModalState(() {
-                                currentValue = val;
-                              });
-                              onChanged(val);
-                            },
-                            fontSize: themeProvider.fontSize + 4,
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   /// Shows text format settings (font size and line height)
   static void showTextFormatSettings({
     required BuildContext context,
@@ -1031,36 +83,18 @@ class FeatureBottomSheets {
                         ),
                       ),
                       const SizedBox(height: 10),
-                      ScreenReaderFocusable(
-                        context: 'text_format_settings',
-                        label: 'Font size control',
-                        hint: 'Current font size is ${themeProvider.fontSize.toInt()}. Double tap to focus, then swipe to adjust',
-                        child: Column(
-                          children: [
-                            _buildFontSizeButtons(
-                              theme: themeProvider,
-                              onChanged: (value) {
-                                themeProvider.setFontSize(value);
-                              },
-                            ),
-                          ],
-                        ),
+                      _buildFontSizeButtons(
+                        theme: themeProvider,
+                        onChanged: (value) {
+                          themeProvider.setFontSize(value);
+                        },
                       ),
                       const SizedBox(height: 30),
-                      ScreenReaderFocusable(
-                        context: 'text_format_settings',
-                        label: 'Line height control',
-                        hint: 'Current line height is ${themeProvider.lineHeight}. Double tap to focus, then swipe to adjust',
-                        child: Column(
-                          children: [
-                            _buildLineHeightButtons(
-                              theme: themeProvider,
-                              onChanged: (value) {
-                                themeProvider.setLineHeight(value);
-                              },
-                            ),
-                          ],
-                        ),
+                      _buildLineHeightButtons(
+                        theme: themeProvider,
+                        onChanged: (value) {
+                          themeProvider.setLineHeight(value);
+                        },
                       ),
                       const SizedBox(height: 20),
                     ],
@@ -1158,38 +192,28 @@ class FeatureBottomSheets {
                         ),
                         const SizedBox(height: 10),
                         // Speed Control
-                        ScreenReaderFocusable(
-                          context: 'text_to_speech_settings',
-                          label: 'Speech speed control',
-                          hint: 'Current speed is ${currentSpeed.toStringAsFixed(1)}. Double tap to focus, then swipe to adjust',
-                          child: _buildSpeechSpeedButtons(
-                            theme: themeProvider,
-                            currentSpeed: currentSpeed,
-                            onChanged: (value) {
-                              setModalState(() {
-                                currentSpeed = value;
-                              });
-                              onSpeedChanged(value);
-                            },
-                          ),
+                        _buildSpeechSpeedButtons(
+                          theme: themeProvider,
+                          currentSpeed: currentSpeed,
+                          onChanged: (value) {
+                            setModalState(() {
+                              currentSpeed = value;
+                            });
+                            onSpeedChanged(value);
+                          },
                         ),
                         const SizedBox(height: 30),
 
                         // Pitch Control
-                        ScreenReaderFocusable(
-                          context: 'text_to_speech_settings',
-                          label: 'Speech pitch control',
-                          hint: 'Current pitch is ${currentPitch.toStringAsFixed(1)}. Double tap to focus, then swipe to adjust',
-                          child: _buildSpeechPitchButtons(
-                            theme: themeProvider,
-                            currentPitch: currentPitch,
-                            onChanged: (value) {
-                              setModalState(() {
-                                currentPitch = value;
-                              });
-                              onPitchChanged(value);
-                            },
-                          ),
+                        _buildSpeechPitchButtons(
+                          theme: themeProvider,
+                          currentPitch: currentPitch,
+                          onChanged: (value) {
+                            setModalState(() {
+                              currentPitch = value;
+                            });
+                            onPitchChanged(value);
+                          },
                         ),
                         const SizedBox(height: 20),
                       ],
@@ -1217,39 +241,56 @@ class FeatureBottomSheets {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            SelectToSpeakText(
-              'Font Size',
-              style: TextStyle(
-                fontSize: theme.fontSize + 4,
-                color: theme.labelColor,
-                shadows: _getTextShadows(theme),
+        ScreenReaderFocusable(
+          context: 'text_format_settings',
+          label: 'Font size, ${theme.fontSize.toInt()}',
+          hint: 'Current font size',
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Font Size',
+                style: TextStyle(
+                  fontSize: theme.fontSize + 4,
+                  color: theme.labelColor,
+                  shadows: _getTextShadows(theme),
+                ),
               ),
-            ),
-            SelectToSpeakText(
-              theme.fontSize.toInt().toString(),
-              style: TextStyle(
-                fontSize: theme.fontSize + 4,
-                color: theme.labelColor,
-                fontWeight: FontWeight.bold,
-                shadows: _getTextShadows(theme),
+              Text(
+                theme.fontSize.toInt().toString(),
+                style: TextStyle(
+                  fontSize: theme.fontSize + 4,
+                  color: theme.labelColor,
+                  fontWeight: FontWeight.bold,
+                  shadows: _getTextShadows(theme),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
         const SizedBox(height: 20),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            ElevatedButton(
-              onPressed: canDecrease
+            ScreenReaderFocusable(
+              context: 'text_format_settings',
+              label: 'Reduce font size',
+              hint: canDecrease 
+                  ? 'Double tap to reduce font size to ${fontSizeValues[currentIndex - 1].toInt()}'
+                  : 'Font size is already at minimum',
+              onTap: canDecrease
                   ? () {
                       onChanged(fontSizeValues[currentIndex - 1]);
                       VibrationService.mediumFeedback();
                     }
                   : null,
+              child: ElevatedButton(
+                onPressed: canDecrease
+                    ? () {
+                        onChanged(fontSizeValues[currentIndex - 1]);
+                        VibrationService.mediumFeedback();
+                      }
+                    : null,
               style: ElevatedButton.styleFrom(
                 backgroundColor: theme.labelColor,
                 foregroundColor: theme.primaryColor,
@@ -1272,33 +313,47 @@ class FeatureBottomSheets {
                 ),
               ),
             ),
+            ),
             const SizedBox(width: 20),
-            ElevatedButton(
-              onPressed: canIncrease
+            ScreenReaderFocusable(
+              context: 'text_format_settings',
+              label: 'Increase font size',
+              hint: canIncrease
+                  ? 'Double tap to increase font size to ${fontSizeValues[currentIndex + 1].toInt()}'
+                  : 'Font size is already at maximum',
+              onTap: canIncrease
                   ? () {
                       onChanged(fontSizeValues[currentIndex + 1]);
                       VibrationService.mediumFeedback();
                     }
                   : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: theme.labelColor,
-                foregroundColor: theme.primaryColor,
-                disabledBackgroundColor: theme.labelColor.withOpacity(0.5),
-                disabledForegroundColor: theme.primaryColor.withOpacity(0.5),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 32,
-                  vertical: 16,
+              child: ElevatedButton(
+                onPressed: canIncrease
+                    ? () {
+                        onChanged(fontSizeValues[currentIndex + 1]);
+                        VibrationService.mediumFeedback();
+                      }
+                    : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: theme.labelColor,
+                  foregroundColor: theme.primaryColor,
+                  disabledBackgroundColor: theme.labelColor.withOpacity(0.5),
+                  disabledForegroundColor: theme.primaryColor.withOpacity(0.5),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 32,
+                    vertical: 16,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: Text(
-                'A+',
-                style: TextStyle(
-                  fontSize: theme.fontSize + 8,
-                  fontWeight: FontWeight.bold,
-                  shadows: _getTextShadows(theme),
+                child: Text(
+                  'A+',
+                  style: TextStyle(
+                    fontSize: theme.fontSize + 8,
+                    fontWeight: FontWeight.bold,
+                    shadows: _getTextShadows(theme),
+                  ),
                 ),
               ),
             ),
@@ -1321,18 +376,22 @@ class FeatureBottomSheets {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            SelectToSpeakText(
-              'Line Height',
+        ScreenReaderFocusable(
+          context: 'text_format_settings',
+          label: 'Line height, $closestValue',
+          hint: 'Current line height',
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Line Height',
               style: TextStyle(
                 fontSize: theme.fontSize + 4,
                 color: theme.labelColor,
                 shadows: _getTextShadows(theme),
               ),
             ),
-            SelectToSpeakText(
+            Text(
               closestValue.toString().replaceAll(RegExp(r'\.?0* $'), ''),
               style: TextStyle(
                 fontSize: theme.fontSize + 4,
@@ -1342,6 +401,7 @@ class FeatureBottomSheets {
               ),
             ),
           ],
+        ),
         ),
         const SizedBox(height: 20),
         Row(
@@ -1353,7 +413,15 @@ class FeatureBottomSheets {
             return Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                child: ElevatedButton(
+                child: ScreenReaderFocusable(
+                  context: 'text_format_settings',
+                  label: isSelected ? 'Line height $val, selected' : 'Line height $val',
+                  hint: 'Double tap to set line height to $val',
+                  onTap: () {
+                    onChanged(val);
+                    VibrationService.mediumFeedback();
+                  },
+                  child: ElevatedButton(
                   onPressed: () {
                     onChanged(val);
                     VibrationService.mediumFeedback();
@@ -1399,6 +467,7 @@ class FeatureBottomSheets {
                   ),
                 ),
               ),
+              ),
             );
           }).toList(),
         ),
@@ -1420,40 +489,57 @@ class FeatureBottomSheets {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            SelectToSpeakText(
-              'Speed',
-              style: TextStyle(
-                fontSize: theme.fontSize + 4,
-                color: theme.labelColor,
-                fontWeight: FontWeight.bold,
-                shadows: _getTextShadows(theme),
+        ScreenReaderFocusable(
+          context: 'text_to_speech_settings',
+          label: 'Speed, ${currentSpeed.toStringAsFixed(2)}',
+          hint: 'Current speech speed',
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Speed',
+                style: TextStyle(
+                  fontSize: theme.fontSize + 4,
+                  color: theme.labelColor,
+                  fontWeight: FontWeight.bold,
+                  shadows: _getTextShadows(theme),
+                ),
               ),
-            ),
-            SelectToSpeakText(
-              '${currentSpeed.toStringAsFixed(2)}',
-              style: TextStyle(
-                fontSize: theme.fontSize + 4,
-                color: theme.labelColor,
-                fontWeight: FontWeight.bold,
-                shadows: _getTextShadows(theme),
+              Text(
+                '${currentSpeed.toStringAsFixed(2)}',
+                style: TextStyle(
+                  fontSize: theme.fontSize + 4,
+                  color: theme.labelColor,
+                  fontWeight: FontWeight.bold,
+                  shadows: _getTextShadows(theme),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
         const SizedBox(height: 20),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            ElevatedButton(
-              onPressed: canDecrease
+            ScreenReaderFocusable(
+              context: 'text_to_speech_settings',
+              label: 'Reduce speed',
+              hint: canDecrease 
+                  ? 'Double tap to reduce speed to ${speedValues[currentIndex - 1].toStringAsFixed(2)}'
+                  : 'Speed is already at minimum',
+              onTap: canDecrease
                   ? () {
                       onChanged(speedValues[currentIndex - 1]);
                       VibrationService.mediumFeedback();
                     }
                   : null,
+              child: ElevatedButton(
+                onPressed: canDecrease
+                    ? () {
+                        onChanged(speedValues[currentIndex - 1]);
+                        VibrationService.mediumFeedback();
+                      }
+                    : null,
               style: ElevatedButton.styleFrom(
                 backgroundColor: theme.labelColor,
                 foregroundColor: theme.primaryColor,
@@ -1469,28 +555,42 @@ class FeatureBottomSheets {
               ),
               child: Icon(Icons.remove, size: theme.fontSize + 6),
             ),
+            ),
             const SizedBox(width: 20),
-            ElevatedButton(
-              onPressed: canIncrease
+            ScreenReaderFocusable(
+              context: 'text_to_speech_settings',
+              label: 'Increase speed',
+              hint: canIncrease
+                  ? 'Double tap to increase speed to ${speedValues[currentIndex + 1].toStringAsFixed(2)}'
+                  : 'Speed is already at maximum',
+              onTap: canIncrease
                   ? () {
                       onChanged(speedValues[currentIndex + 1]);
                       VibrationService.mediumFeedback();
                     }
                   : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: theme.labelColor,
-                foregroundColor: theme.primaryColor,
-                disabledBackgroundColor: theme.labelColor.withOpacity(0.5),
-                disabledForegroundColor: theme.primaryColor.withOpacity(0.5),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 32,
-                  vertical: 16,
+              child: ElevatedButton(
+                onPressed: canIncrease
+                    ? () {
+                        onChanged(speedValues[currentIndex + 1]);
+                        VibrationService.mediumFeedback();
+                      }
+                    : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: theme.labelColor,
+                  foregroundColor: theme.primaryColor,
+                  disabledBackgroundColor: theme.labelColor.withOpacity(0.5),
+                  disabledForegroundColor: theme.primaryColor.withOpacity(0.5),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 32,
+                    vertical: 16,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                child: Icon(Icons.add, size: theme.fontSize + 6),
               ),
-              child: Icon(Icons.add, size: theme.fontSize + 6),
             ),
           ],
         ),
@@ -1512,40 +612,57 @@ class FeatureBottomSheets {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            SelectToSpeakText(
-              'Pitch',
-              style: TextStyle(
-                fontSize: theme.fontSize + 4,
-                color: theme.labelColor,
-                fontWeight: FontWeight.bold,
-                shadows: _getTextShadows(theme),
+        ScreenReaderFocusable(
+          context: 'text_to_speech_settings',
+          label: 'Pitch, ${currentPitch.toStringAsFixed(2)}',
+          hint: 'Current speech pitch',
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Pitch',
+                style: TextStyle(
+                  fontSize: theme.fontSize + 4,
+                  color: theme.labelColor,
+                  fontWeight: FontWeight.bold,
+                  shadows: _getTextShadows(theme),
+                ),
               ),
-            ),
-            SelectToSpeakText(
-              '${currentPitch.toStringAsFixed(2)}',
-              style: TextStyle(
-                fontSize: theme.fontSize + 4,
-                color: theme.labelColor,
-                fontWeight: FontWeight.bold,
-                shadows: _getTextShadows(theme),
+              Text(
+                '${currentPitch.toStringAsFixed(2)}',
+                style: TextStyle(
+                  fontSize: theme.fontSize + 4,
+                  color: theme.labelColor,
+                  fontWeight: FontWeight.bold,
+                  shadows: _getTextShadows(theme),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
         const SizedBox(height: 20),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            ElevatedButton(
-              onPressed: canDecrease
+            ScreenReaderFocusable(
+              context: 'text_to_speech_settings',
+              label: 'Reduce pitch',
+              hint: canDecrease 
+                  ? 'Double tap to reduce pitch to ${pitchValues[currentIndex - 1].toStringAsFixed(2)}'
+                  : 'Pitch is already at minimum',
+              onTap: canDecrease
                   ? () {
                       onChanged(pitchValues[currentIndex - 1]);
                       VibrationService.mediumFeedback();
                     }
                   : null,
+              child: ElevatedButton(
+                onPressed: canDecrease
+                    ? () {
+                        onChanged(pitchValues[currentIndex - 1]);
+                        VibrationService.mediumFeedback();
+                      }
+                    : null,
               style: ElevatedButton.styleFrom(
                 backgroundColor: theme.labelColor,
                 foregroundColor: theme.primaryColor,
@@ -1561,28 +678,42 @@ class FeatureBottomSheets {
               ),
               child: Icon(Icons.remove, size: theme.fontSize + 6),
             ),
+            ),
             const SizedBox(width: 20),
-            ElevatedButton(
-              onPressed: canIncrease
+            ScreenReaderFocusable(
+              context: 'text_to_speech_settings',
+              label: 'Increase pitch',
+              hint: canIncrease
+                  ? 'Double tap to increase pitch to ${pitchValues[currentIndex + 1].toStringAsFixed(2)}'
+                  : 'Pitch is already at maximum',
+              onTap: canIncrease
                   ? () {
                       onChanged(pitchValues[currentIndex + 1]);
                       VibrationService.mediumFeedback();
                     }
                   : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: theme.labelColor,
-                foregroundColor: theme.primaryColor,
-                disabledBackgroundColor: theme.labelColor.withOpacity(0.5),
-                disabledForegroundColor: theme.primaryColor.withOpacity(0.5),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 32,
-                  vertical: 16,
+              child: ElevatedButton(
+                onPressed: canIncrease
+                    ? () {
+                        onChanged(pitchValues[currentIndex + 1]);
+                        VibrationService.mediumFeedback();
+                      }
+                    : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: theme.labelColor,
+                  foregroundColor: theme.primaryColor,
+                  disabledBackgroundColor: theme.labelColor.withOpacity(0.5),
+                  disabledForegroundColor: theme.primaryColor.withOpacity(0.5),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 32,
+                    vertical: 16,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                child: Icon(Icons.add, size: theme.fontSize + 6),
               ),
-              child: Icon(Icons.add, size: theme.fontSize + 6),
             ),
           ],
         ),

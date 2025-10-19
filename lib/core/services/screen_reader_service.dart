@@ -51,7 +51,7 @@ class ScreenReaderService extends ChangeNotifier {
   }
 
   /// Enable or disable screen reader
-  Future<void> setEnabled(bool enabled, {bool skipAutoFocus = false}) async {
+  Future<void> setEnabled(bool enabled) async {
     if (_isEnabled == enabled) return;
     
     _isEnabled = enabled;
@@ -65,21 +65,13 @@ class ScreenReaderService extends ChangeNotifier {
       VibrationService.mediumFeedback();
       await _speakText('Screen reader enabled');
       
-      // If enabling from a specific page (like preferences), don't auto-focus
-      // The page itself should handle focus to its own elements
-      if (!skipAutoFocus) {
-        // Auto-focus first element after a delay
-        Future.delayed(const Duration(milliseconds: 300), () {
-          if (_isEnabled && _focusableNodes.isNotEmpty) {
-            focusNext();
-          }
-        });
-      }
+      // Don't auto-focus - let user navigate manually
+      // This prevents interrupting the announcement
     } else {
       await _speakText('Screen reader disabled');
       VibrationService.mediumFeedback();
+      _currentFocusNode?.unfocus();
       _currentFocusNode = null;
-      _focusableNodes.clear();
       _currentIndex = -1;
     }
     
@@ -199,6 +191,17 @@ class ScreenReaderService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Focus on a specific node (useful after enabling screen reader on current element)
+  Future<void> focusOnNode(FocusNode node) async {
+    if (!_isEnabled) return;
+    
+    final index = _focusableNodes.indexOf(node);
+    if (index >= 0) {
+      _currentIndex = index;
+      await _setFocusAt(index);
+    }
+  }
+
   /// Announce text using TTS
   Future<void> announceText(String text, {String? hint}) async {
     if (!_isEnabled) return;
@@ -242,18 +245,45 @@ class ScreenReaderService extends ChangeNotifier {
     }
   }
 
-  /// Clear all registered focus nodes (call when page changes)
-  void clearFocusNodes() {
-    // Only log if there are actually nodes to clear
-    if (_focusableNodes.isNotEmpty) {
-      debugPrint('Screen reader: Clearing ${_focusableNodes.length} focus nodes');
+  /// Clear focus nodes for a specific context (call when leaving a page/screen)
+  void clearContextNodes(String context) {
+    final nodesToRemove = <FocusNode>[];
+    
+    for (final node in _focusableNodes) {
+      if (_nodeContexts[node] == context) {
+        nodesToRemove.add(node);
+      }
     }
     
-    // Stop any current speech when clearing nodes
+    if (nodesToRemove.isNotEmpty) {
+      debugPrint('Screen reader: Clearing ${nodesToRemove.length} nodes for context "$context"');
+      
+      for (final node in nodesToRemove) {
+        if (_currentFocusNode == node) {
+          _currentFocusNode?.unfocus();
+          _currentFocusNode = null;
+          _currentIndex = -1;
+        }
+        _focusableNodes.remove(node);
+        _focusCallbacks.remove(node);
+        _nodeContexts.remove(node);
+      }
+      
+      notifyListeners();
+    }
+  }
+  
+  /// Clear all registered focus nodes (call when completely resetting)
+  void clearAllFocusNodes() {
+    if (_focusableNodes.isNotEmpty) {
+      debugPrint('Screen reader: Clearing all ${_focusableNodes.length} focus nodes');
+    }
+    
     stopSpeaking();
     
     _focusableNodes.clear();
     _focusCallbacks.clear();
+    _nodeContexts.clear();
     _currentFocusNode?.unfocus();
     _currentFocusNode = null;
     _currentIndex = -1;

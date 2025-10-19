@@ -12,12 +12,14 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
   final bool showBackButton;
   final List<Widget>? actions;
+  final String? screenReaderContext;
 
   const CustomAppBar({
     super.key,
     required this.title,
     this.showBackButton = true,
     this.actions,
+    this.screenReaderContext,
   });
 
   @override
@@ -32,6 +34,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
       centerTitle: true,
       leading: showBackButton
         ? ScreenReaderFocusable(
+            context: screenReaderContext,
             label: 'Back button',
             hint: 'Double tap to go back',
             onTap: () => Navigator.pop(context),
@@ -55,6 +58,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
         : null,
 
       title: ScreenReaderFocusable(
+        context: screenReaderContext,
         label: '$title page',
         hint: 'Current page is $title',
         child: Semantics(

@@ -4,14 +4,52 @@ import 'package:provider/provider.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/providers/theme_provider.dart';
+import '../../../../core/services/screen_reader_service.dart';
 import '../../../../widgets/app_bar.dart';
 import '../../../widgets/screen_reader_gesture_detector.dart';
 import '../../../widgets/screen_reader_focusable.dart';
 
 /// FAQs screen with answers to common questions
-class FAQsScreen extends StatelessWidget {
+class FAQsScreen extends StatefulWidget {
   /// Creates an FAQs screen
   const FAQsScreen({super.key});
+
+  @override
+  State<FAQsScreen> createState() => _FAQsScreenState();
+}
+
+class _FAQsScreenState extends State<FAQsScreen> {
+  bool _isReady = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ScreenReaderService().setActiveContext('faqs');
+        // Delay body content registration to let app bar register first
+        Future.delayed(const Duration(milliseconds: 100), () {
+          if (mounted) {
+            setState(() {
+              _isReady = true;
+            });
+            // Then focus the first element (back button)
+            if (ScreenReaderService().isEnabled) {
+              Future.delayed(const Duration(milliseconds: 200), () {
+                ScreenReaderService().focusNext();
+              });
+            }
+          }
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    ScreenReaderService().clearContextNodes('faqs');
+    super.dispose();
+  }
 
   static List<Shadow>? _getTextShadows(ThemeProvider theme) {
     if (!theme.isHighContrast) return null;
@@ -29,68 +67,89 @@ class FAQsScreen extends StatelessWidget {
       {bool isLast = false}) {
     final theme = Provider.of<ThemeProvider>(context);
 
-    return ScreenReaderFocusable(
-      label: 'FAQ: $question',
-      hint: 'Question: $question. Answer: $answer',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Question label on its own line
-          SelectToSpeakText(
-            "Question:",
-            style: TextStyle(
-              fontSize: theme.fontSize + 8,
-              fontWeight: FontWeight.bold,
-              color: theme.textColor,
-              shadows: _getTextShadows(theme),
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Question
+        ScreenReaderFocusable(
+          context: 'faqs',
+          label: 'Question',
+          hint: question,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SelectToSpeakText(
+                "Question:",
+                style: TextStyle(
+                  fontSize: theme.fontSize + 8,
+                  fontWeight: FontWeight.bold,
+                  color: theme.textColor,
+                  shadows: _getTextShadows(theme),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SelectToSpeakText(
+                question,
+                style: TextStyle(
+                  fontSize: theme.fontSize + 4,
+                  color: theme.textColor,
+                  height: theme.lineHeight,
+                  shadows: _getTextShadows(theme),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 8),
-          // Question text on the next line
-          SelectToSpeakText(
-            question,
-            style: TextStyle(
-              fontSize: theme.fontSize + 4,
-              color: theme.textColor,
-              height: theme.lineHeight,
-              shadows: _getTextShadows(theme),
-            ),
+        ),
+        const SizedBox(height: 20),
+        
+        // Answer
+        ScreenReaderFocusable(
+          context: 'faqs',
+          label: 'Answer',
+          hint: answer,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SelectToSpeakText(
+                "Answer:",
+                style: TextStyle(
+                  fontSize: theme.fontSize + 8,
+                  fontWeight: FontWeight.bold,
+                  color: theme.textColor,
+                  shadows: _getTextShadows(theme),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SelectToSpeakText(
+                answer,
+                style: TextStyle(
+                  fontSize: theme.fontSize + 4,
+                  color: theme.textColor,
+                  height: theme.lineHeight,
+                  shadows: _getTextShadows(theme),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 20),
-          // Answer label on its own line
-          SelectToSpeakText(
-            "Answer:",
-            style: TextStyle(
-              fontSize: theme.fontSize + 8,
-              fontWeight: FontWeight.bold,
-              color: theme.textColor,
-              shadows: _getTextShadows(theme),
-            ),
-          ),
-          const SizedBox(height: 8),
-          // Answer text on the next line
-          SelectToSpeakText(
-            answer,
-            style: TextStyle(
-              fontSize: theme.fontSize + 4,
-              color: theme.textColor,
-              height: theme.lineHeight,
-              shadows: _getTextShadows(theme),
-            ),
-          ),
-          if (!isLast) 
-            _buildDivider(theme),
-        ],
-      ),
+        ),
+        if (!isLast) 
+          _buildDivider(theme),
+      ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const CustomAppBar(title: "FAQs", showBackButton: true),
+      appBar: const CustomAppBar(
+        title: "FAQs", 
+        showBackButton: true,
+        screenReaderContext: 'faqs',
+      ),
       body: ScreenReaderGestureDetector(
-        child: GestureDetector(
+        child: !_isReady
+          ? const SizedBox.shrink()
+          : GestureDetector(
           onTap: () {
             clearSelectToSpeakSelection();
           },

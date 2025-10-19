@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 
 import '../../../core/providers/device_info_provider.dart';
 import '../../../core/providers/theme_provider.dart';
+import '../../../core/services/screen_reader_service.dart';
 import '../../../widgets/app_bar.dart';
 import '../../../widgets/custom_button.dart';
 import '../../../widgets/screen_reader_gesture_detector.dart';
@@ -34,10 +35,24 @@ class _DeviceStatusPageState extends State<DeviceStatusPage> {
 
     _deviceInfoProvider = DeviceInfoProvider(widget.device);
     _deviceInfoProvider.fetchDeviceInfo();
+    
+    // Set context for screen reader
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ScreenReaderService().setActiveContext('device_status');
+        // Auto-focus first element (back button) if screen reader is enabled
+        if (ScreenReaderService().isEnabled) {
+          Future.delayed(const Duration(milliseconds: 300), () {
+            ScreenReaderService().focusNext();
+          });
+        }
+      }
+    });
   }
 
   @override
   void dispose() {
+    ScreenReaderService().clearContextNodes('device_status');
     _stateSub?.cancel();
     super.dispose();
   }
@@ -59,7 +74,11 @@ class _DeviceStatusPageState extends State<DeviceStatusPage> {
     final theme = Provider.of<ThemeProvider>(context);
 
     return Scaffold(
-      appBar: const CustomAppBar(title: 'Device Status', showBackButton: true),
+      appBar: const CustomAppBar(
+        title: 'Device Status', 
+        showBackButton: true,
+        screenReaderContext: 'device_status',
+      ),
       body: ScreenReaderGestureDetector(
         child: ChangeNotifierProvider<DeviceInfoProvider>.value(
           value: _deviceInfoProvider,
@@ -85,6 +104,7 @@ class _DeviceStatusPageState extends State<DeviceStatusPage> {
                       children: [
                         // Device Status
                         ScreenReaderFocusable(
+                          context: 'device_status',
                           label: 'Device connection status',
                           hint: info.isConnected ? "Device is connected" : "Device is disconnected",
                           child: Builder(
@@ -112,6 +132,7 @@ class _DeviceStatusPageState extends State<DeviceStatusPage> {
 
                         // Battery Life (placeholder, as in reference)
                         ScreenReaderFocusable(
+                          context: 'device_status',
                           label: 'Battery life section',
                           hint: 'Shows device battery level at 100 percent',
                           child: Column(
@@ -150,6 +171,7 @@ class _DeviceStatusPageState extends State<DeviceStatusPage> {
 
                         // Device Info Section (Show button)
                         ScreenReaderFocusable(
+                          context: 'device_status',
                           label: 'Device information',
                           hint: 'Double tap to ${_showDeviceInfo ? "hide" : "show"} device details',
                           onTap: () {
@@ -188,6 +210,7 @@ class _DeviceStatusPageState extends State<DeviceStatusPage> {
                         ),
                         if (_showDeviceInfo)
                           ScreenReaderFocusable(
+                            context: 'device_status',
                             label: 'Device details',
                             hint: 'Device ID ${info.id ?? "unknown"}, Name ${info.name ?? "unknown"}, MTU ${info.mtu ?? "unknown"}, RSSI ${info.rssi ?? "unknown"}, ${info.services?.length ?? 0} services',
                             child: Card(
@@ -296,6 +319,7 @@ class _DeviceStatusPageState extends State<DeviceStatusPage> {
 
                         // Disconnect Section Title
                         ScreenReaderFocusable(
+                          context: 'device_status',
                           label: 'Disconnect device section',
                           hint: 'Contains disconnect button',
                           child: Column(
@@ -315,6 +339,7 @@ class _DeviceStatusPageState extends State<DeviceStatusPage> {
                                 child: SizedBox(
                                   width: double.infinity,
                                   child: ScreenReaderFocusable(
+                                    context: 'device_status',
                                     label: 'Disconnect button',
                                     hint: 'Double tap to disconnect device and return to previous screen',
                                     onTap: () async {

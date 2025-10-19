@@ -27,6 +27,7 @@ import '../core/services/screen_reader_service.dart';
 
 // Widgets
 import '../widgets/screen_reader_gesture_detector.dart';
+import '../widgets/multi_context_focusable.dart';
 import '../widgets/screen_reader_focusable.dart';
 
 // Audio
@@ -91,9 +92,6 @@ class _SolariScreenState extends State<SolariScreen>
   
   // BLE Service for audio transmission
   final BleService _bleService = BleService();
-  
-  // Speaking state tracking
-  bool _isSpeaking = false;
 
   // Downloading state
   bool _downloadingModel = false;
@@ -105,6 +103,13 @@ class _SolariScreenState extends State<SolariScreen>
   @override
   void initState() {
     super.initState();
+
+    // Set initial context to solari_tab since that's the default tab
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ScreenReaderService().setActiveContext('solari_tab');
+      }
+    });
 
     // ⚠️ REMOVE SOON - FOR TESTING ONLY ⚠️
     if (widget.isMock) {
@@ -241,33 +246,25 @@ class _SolariScreenState extends State<SolariScreen>
         text,
         onStart: () {
           if (mounted) {
-            setState(() {
-              _isSpeaking = true; // Explicitly track speaking state
-            });
+            setState(() {});
           }
         },
         onComplete: () {
           if (mounted) {
-            setState(() {
-              _isSpeaking = false;
-            });
+            setState(() {});
           }
         },
         onError: (error) {
           debugPrint('Error speaking text: $error');
           if (mounted) {
-            setState(() {
-              _isSpeaking = false;
-            });
+            setState(() {});
           }
         },
       );
     } catch (e) {
       debugPrint('Error in _speakText: $e');
       if (mounted) {
-        setState(() {
-          _isSpeaking = false;
-        });
+        setState(() {});
       }
     }
   }
@@ -516,16 +513,16 @@ class _SolariScreenState extends State<SolariScreen>
             children: [
               // Main content with fade animation
               AnimatedSwitcher(
-              duration: const Duration(milliseconds: 300),
-              transitionBuilder: (Widget child, Animation<double> animation) {
-                return FadeTransition(opacity: animation, child: child);
-              },
-              child: IndexedStack(
-                key: ValueKey<int>(_currentIndex),
-                index: _currentIndex,
-                children: _tabs,
+                duration: const Duration(milliseconds: 300),
+                transitionBuilder: (Widget child, Animation<double> animation) {
+                  return FadeTransition(opacity: animation, child: child);
+                },
+                child: IndexedStack(
+                  key: ValueKey<int>(_currentIndex),
+                  index: _currentIndex,
+                  children: _tabs,
+                ),
               ),
-            ),
 
             // Camera button as box, positioned just above bottom nav bar
             if (widget.isMock)
@@ -558,41 +555,87 @@ class _SolariScreenState extends State<SolariScreen>
                               context: context,
                               builder: (context) {
                                 final controller = TextEditingController();
+                                
+                                // Set dialog context after build, with a delay to ensure widgets are registered
+                                WidgetsBinding.instance.addPostFrameCallback((_) {
+                                  Future.delayed(const Duration(milliseconds: 100), () {
+                                    ScreenReaderService().setActiveContext('image_prompt_dialog');
+                                    // Auto-focus first element if screen reader is enabled
+                                    if (ScreenReaderService().isEnabled) {
+                                      Future.delayed(const Duration(milliseconds: 100), () {
+                                        ScreenReaderService().focusNext();
+                                      });
+                                    }
+                                  });
+                                });
 
-                                return AlertDialog(
-                                  title: const Text(
-                                    'Ask a question about the image',
-                                  ),
-                                  content: TextField(
-                                    controller: controller,
-                                    autofocus: true,
-                                    decoration: const InputDecoration(
-                                      hintText: 'Describe this image.',
+                                return ScreenReaderGestureDetector(
+                                  child: AlertDialog(
+                                  title: ScreenReaderFocusable(
+                                    context: 'image_prompt_dialog',
+                                    label: 'Ask a question about the image',
+                                    hint: 'Dialog title',
+                                    child: const Text(
+                                      'Ask a question about the image',
                                     ),
-                                    onSubmitted: (value) {
-                                      Navigator.of(context).pop(
-                                        value.trim().isNotEmpty
-                                            ? value
-                                            : 'Describe this image.',
-                                      );
-                                    },
+                                  ),
+                                  content: ScreenReaderFocusable(
+                                    context: 'image_prompt_dialog',
+                                    label: 'Text input field',
+                                    hint: 'Enter your question about the image',
+                                    child: TextField(
+                                      controller: controller,
+                                      autofocus: true,
+                                      decoration: const InputDecoration(
+                                        hintText: 'Describe this image.',
+                                      ),
+                                      onSubmitted: (value) {
+                                        ScreenReaderService().clearContextNodes('image_prompt_dialog');
+                                        Navigator.of(context).pop(
+                                          value.trim().isNotEmpty
+                                              ? value
+                                              : 'Describe this image.',
+                                        );
+                                      },
+                                    ),
                                   ),
                                   actions: [
-                                    TextButton(
-                                      onPressed: () {
+                                    ScreenReaderFocusable(
+                                      context: 'image_prompt_dialog',
+                                      label: 'OK button',
+                                      hint: 'Double tap to submit your question',
+                                      onTap: () {
                                         final text = controller.text.trim();
+                                        ScreenReaderService().clearContextNodes('image_prompt_dialog');
                                         Navigator.of(context).pop(
                                           text.isNotEmpty
                                               ? text
                                               : 'Describe this image.',
                                         );
                                       },
-                                      child: const Text('OK'),
+                                      child: TextButton(
+                                        onPressed: () {
+                                          final text = controller.text.trim();
+                                          ScreenReaderService().clearContextNodes('image_prompt_dialog');
+                                          Navigator.of(context).pop(
+                                            text.isNotEmpty
+                                                ? text
+                                                : 'Describe this image.',
+                                          );
+                                        },
+                                        child: const Text('OK'),
+                                      ),
                                     ),
                                   ],
+                                ),
                                 );
                               },
-                            );
+                            ).then((value) {
+                              // Clear dialog context and restore parent context
+                              ScreenReaderService().clearContextNodes('image_prompt_dialog');
+                              ScreenReaderService().setActiveContext('solari_tab');
+                              return value;
+                            });
 
                             // Fallback safeguard if dialog was closed with back button or tap outside
                             if (prompt == null || prompt.trim().isEmpty) {
@@ -623,13 +666,14 @@ class _SolariScreenState extends State<SolariScreen>
             children: [
               // Solari tab
               Expanded(
-                child: ScreenReaderFocusable(
+                child: MultiContextFocusable(
+                  contexts: ['solari_tab', 'settings_tab', 'history_tab'],
                   label: 'Solari tab',
                   hint: 'Double tap to view Solari',
                   onTap: () {
                     VibrationService.mediumFeedback();
                     if (_currentIndex != 0) {
-                      ScreenReaderService().clearFocusNodes();
+                      ScreenReaderService().setActiveContext('solari_tab');
                       setState(() => _currentIndex = 0);
                     }
                   },
@@ -637,7 +681,7 @@ class _SolariScreenState extends State<SolariScreen>
                     onTap: () {
                       VibrationService.mediumFeedback();
                       if (_currentIndex != 0) {
-                        ScreenReaderService().clearFocusNodes();
+                        ScreenReaderService().setActiveContext('solari_tab');
                         setState(() => _currentIndex = 0);
                       }
                     },
@@ -704,13 +748,14 @@ class _SolariScreenState extends State<SolariScreen>
               ),
               // Settings tab
               Expanded(
-                child: ScreenReaderFocusable(
+                child: MultiContextFocusable(
+                  contexts: ['solari_tab', 'settings_tab', 'history_tab'],
                   label: 'Settings tab',
                   hint: 'Double tap to view Settings',
                   onTap: () {
                     VibrationService.mediumFeedback();
                     if (_currentIndex != 1) {
-                      ScreenReaderService().clearFocusNodes();
+                      ScreenReaderService().setActiveContext('settings_tab');
                       setState(() => _currentIndex = 1);
                     }
                   },
@@ -718,7 +763,7 @@ class _SolariScreenState extends State<SolariScreen>
                     onTap: () {
                       VibrationService.mediumFeedback();
                       if (_currentIndex != 1) {
-                        ScreenReaderService().clearFocusNodes();
+                        ScreenReaderService().setActiveContext('settings_tab');
                         setState(() => _currentIndex = 1);
                       }
                     },
@@ -785,13 +830,14 @@ class _SolariScreenState extends State<SolariScreen>
               ),
               // History tab
               Expanded(
-                child: ScreenReaderFocusable(
+                child: MultiContextFocusable(
+                  contexts: ['solari_tab', 'settings_tab', 'history_tab'],
                   label: 'History tab',
                   hint: 'Double tap to view History',
                   onTap: () {
                     VibrationService.mediumFeedback();
                     if (_currentIndex != 2) {
-                      ScreenReaderService().clearFocusNodes();
+                      ScreenReaderService().setActiveContext('history_tab');
                       setState(() => _currentIndex = 2);
                     }
                   },
@@ -799,7 +845,7 @@ class _SolariScreenState extends State<SolariScreen>
                     onTap: () {
                       VibrationService.mediumFeedback();
                       if (_currentIndex != 2) {
-                        ScreenReaderService().clearFocusNodes();
+                        ScreenReaderService().setActiveContext('history_tab');
                         setState(() => _currentIndex = 2);
                       }
                     },

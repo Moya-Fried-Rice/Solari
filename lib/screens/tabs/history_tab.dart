@@ -28,6 +28,9 @@ class _HistoryTabState extends State<HistoryTab>
   @override
   bool get wantKeepAlive => true;
 
+  // Don't set context in initState - let the tab switching handle it
+  // This prevents setting context when tab is built but not visible
+
   /// Helper method to get text shadows for high contrast mode
   List<Shadow>? _getTextShadows(ThemeProvider theme) {
     if (!theme.isHighContrast) return null;
@@ -69,13 +72,18 @@ class _HistoryTabState extends State<HistoryTab>
                   children: [
                     Icon(Icons.history, size: 64, color: theme.primaryColor),
                     const SizedBox(height: 16),
-                    SelectToSpeakText(
-                      'No history yet.',
-                      style: TextStyle(
-                        fontSize: theme.fontSize + 4,
-                        fontWeight: FontWeight.w500,
-                        color: theme.textColor,
-                        shadows: _getTextShadows(theme),
+                    ScreenReaderFocusable(
+                      context: 'history_tab',
+                      label: 'No history yet',
+                      hint: 'No conversation history available',
+                      child: SelectToSpeakText(
+                        'No history yet.',
+                        style: TextStyle(
+                          fontSize: theme.fontSize + 4,
+                          fontWeight: FontWeight.w500,
+                          color: theme.textColor,
+                          shadows: _getTextShadows(theme),
+                        ),
                       ),
                     ),
                   ],
@@ -87,36 +95,37 @@ class _HistoryTabState extends State<HistoryTab>
                   children: [
                     const SizedBox(height: 32),
                     for (int i = 0; i < history.length; i++) ...[
-                      ScreenReaderFocusable(
-                        label: 'History entry ${i + 1}',
-                        hint: '${history[i].sender} said: ${history[i].text}, ${timeAgo(history[i].time)}',
-                        child: Card(
-                          shape: RoundedRectangleBorder(
-                          borderRadius: const BorderRadius.only(
-                            topLeft: Radius.circular(0.0),
-                            topRight: Radius.circular(0.0),
-                            bottomLeft: Radius.circular(8.0),
-                            bottomRight: Radius.circular(8.0),
-                          ),
-                          side: BorderSide(color: theme.primaryColor, width: 5),
+                      Card(
+                        shape: RoundedRectangleBorder(
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(0.0),
+                          topRight: Radius.circular(0.0),
+                          bottomLeft: Radius.circular(8.0),
+                          bottomRight: Radius.circular(8.0),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Image.memory(
-                              history[i].image,
-                              width: double.infinity,
-                              height: 150,
-                              fit: BoxFit.cover,
-                            ),
-                            const SizedBox(height: 12),
-                            Padding(
-                              padding: const EdgeInsets.only(left: 16.0, right: 16.0, bottom: 16.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  // Show the text/response from Solari
-                                  Row(
+                        side: BorderSide(color: theme.primaryColor, width: 5),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Image.memory(
+                            history[i].image,
+                            width: double.infinity,
+                            height: 150,
+                            fit: BoxFit.cover,
+                          ),
+                          const SizedBox(height: 12),
+                          Padding(
+                            padding: const EdgeInsets.only(left: 16.0, right: 16.0, bottom: 16.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Show the text/response from Solari - make this focusable
+                                ScreenReaderFocusable(
+                                  context: 'history_tab',
+                                  label: 'History entry ${i + 1}',
+                                  hint: history[i].text,
+                                  child: Row(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Icon(
@@ -138,8 +147,14 @@ class _HistoryTabState extends State<HistoryTab>
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 8),
-                                  Row(
+                                ),
+                                const SizedBox(height: 8),
+                                // Make sender and time info focusable separately
+                                ScreenReaderFocusable(
+                                  context: 'history_tab',
+                                  label: 'Sender and time',
+                                  hint: '${history[i].sender}, ${timeAgo(history[i].time)}',
+                                  child: Row(
                                     children: [
                                       SelectToSpeakText(
                                         history[i].sender,
@@ -160,13 +175,13 @@ class _HistoryTabState extends State<HistoryTab>
                                       ),
                                     ],
                                   ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                      ),
+                    ),
                       const SizedBox(height: 16),
                       if (i < history.length - 1) _buildDivider(theme),
                     ],
