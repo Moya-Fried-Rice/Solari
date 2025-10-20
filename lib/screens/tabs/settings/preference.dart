@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/services/select_to_speak_service.dart';
 import '../../../../core/services/screen_reader_service.dart';
 import '../../../../core/services/magnification_service.dart';
+import '../../../../core/services/voice_assist_service.dart';
 import '../../../../core/providers/theme_provider.dart';
 import '../../../widgets/app_bar.dart';
 import '../../../widgets/feature_bottom_sheets.dart';
@@ -132,8 +133,22 @@ class _PreferencePageState extends State<PreferencePage> {
   }
 
   Future<void> _setVoiceAssistEnabled(bool value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_voiceAssistKey, value);
+    final voiceAssistService = VoiceAssistService();
+    
+    if (value) {
+      // Initialize voice assist service when enabled
+      await voiceAssistService.initialize();
+      
+      // Set theme provider reference
+      if (mounted) {
+        final theme = Provider.of<ThemeProvider>(context, listen: false);
+        voiceAssistService.setThemeProvider(theme);
+      }
+    }
+    
+    // Set enabled state (saves to SharedPreferences)
+    await voiceAssistService.setEnabled(value);
+    
     if (mounted) setState(() => voiceAssistEnabled = value);
   }
 

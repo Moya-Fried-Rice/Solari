@@ -15,6 +15,7 @@ import 'screens/onboarding/launch_screen.dart';
 
 // Widgets
 import 'widgets/magnification_wrapper.dart';
+import 'widgets/voice_assist_button.dart';
 
 // UI and state management
 import 'core/constants/app_strings.dart';
@@ -48,6 +49,9 @@ void main() async {
     ),
   );
 }
+
+// Global navigator key for accessing navigator from anywhere
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 // Solari Application main widget
 class SolariApp extends StatefulWidget {
@@ -99,17 +103,27 @@ class _SolariAppState extends State<SolariApp> {
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
           themeMode: themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
-          // navigatorKey: NavigationService.navigatorKey,
+          navigatorKey: navigatorKey, // Add global navigator key
           home: const LaunchScreen(),
-          navigatorObservers: [BluetoothAdapterStateObserver()],
+          navigatorObservers: [
+            BluetoothAdapterStateObserver(),
+            RouteObserver<ModalRoute<void>>(), // Add RouteObserver
+          ],
           builder: (context, child) {
             final content = child ?? const SizedBox.shrink();
+            
+            // Wrap content with voice assist overlay first
+            final contentWithVoiceAssist = GlobalVoiceAssistOverlay(
+              child: content,
+            );
+            
+            // Then apply color inversion if enabled
             final colorInvertedContent = themeProvider.isColorInverted
                 ? ColorFiltered(
                     colorFilter: ColorFilter.matrix(invertMatrix),
-                    child: content,
+                    child: contentWithVoiceAssist,
                   )
-                : content;
+                : contentWithVoiceAssist;
             
             // Wrap with magnification to enable magnifying lens on all pages
             return MagnificationWrapper(
@@ -121,6 +135,81 @@ class _SolariAppState extends State<SolariApp> {
     );
   }
 
+}
+
+/// Global overlay that shows voice assist button on all screens except onboarding
+class GlobalVoiceAssistOverlay extends StatefulWidget {
+  final Widget child;
+
+  const GlobalVoiceAssistOverlay({
+    super.key,
+    required this.child,
+  });
+
+  @override
+  State<GlobalVoiceAssistOverlay> createState() => _GlobalVoiceAssistOverlayState();
+}
+
+class _GlobalVoiceAssistOverlayState extends State<GlobalVoiceAssistOverlay> with WidgetsBindingObserver {
+  double _buttonBottom = 130.0;
+  
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+  
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+  
+  @override
+  void didChangeMetrics() {
+    // Called when the app layout changes
+    _updateButtonPosition();
+  }
+  
+  void _updateButtonPosition() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      
+      final navigator = Navigator.maybeOf(context);
+      if (navigator == null) return;
+      
+      final canPop = navigator.canPop();
+      final newBottom = canPop ? 20.0 : 130.0;
+      
+      if (_buttonBottom != newBottom) {
+        setState(() {
+          _buttonBottom = newBottom;
+        });
+      }
+    });
+  }
+  
+  @override
+  Widget build(BuildContext context) {
+    // Update position after build
+    _updateButtonPosition();
+    
+    return Stack(
+      children: [
+        widget.child,
+        // Voice assist button - visible on all screens
+        Positioned(
+          right: 16,
+          bottom: _buttonBottom, // 130px on main screen (above nav bar), 20px on other screens
+          child: SafeArea(
+            child: VoiceAssistButton(
+              key: ValueKey('voice_assist_button_$_buttonBottom'),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 // This class ensures the app reacts immediately to Bluetooth turning off while connected to a device, without keeping listeners active unnecessarily.

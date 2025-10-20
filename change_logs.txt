@@ -87,7 +87,12 @@ Update Logs (Design and Accessibility)
         - When first enabling screen reader (developer refresh or reload), does not work in main screen.
     Solution:
         - Need to go to another tab.
+* Voice assist
+    - Check command outcomes
+    - Message box should show above voice assist button
+    - Button position in main should be 130 px from the bottom, 20 px in any other page
+    - Should not show in onboarding pages
 
 Next step(s):
-* Voice assist
 * System sync
+* Update texts

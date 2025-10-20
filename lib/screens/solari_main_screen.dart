@@ -17,6 +17,15 @@ import 'tabs/history_tab.dart';
 import 'tabs/settings_tab.dart';
 import 'tabs/solari_tab.dart';
 
+// Settings Pages
+import 'tabs/settings/device_status.dart';
+import 'tabs/settings/preference.dart';
+import 'tabs/settings/about.dart';
+import 'tabs/settings/faqs.dart';
+import 'tabs/settings/tutorials.dart';
+import 'tabs/settings/contact.dart';
+import 'tabs/settings/terms_of_use.dart';
+
 // Services
 import '../core/services/vibration_service.dart';
 import '../core/services/vlm_service.dart';
@@ -24,6 +33,7 @@ import '../core/services/speaker_service.dart';
 import '../core/services/tts_service.dart';
 import '../core/services/ble_service.dart';
 import '../core/services/screen_reader_service.dart';
+import '../core/services/voice_assist_service.dart';
 
 // Widgets
 import '../widgets/screen_reader_gesture_detector.dart';
@@ -92,6 +102,9 @@ class _SolariScreenState extends State<SolariScreen>
   
   // BLE Service for audio transmission
   final BleService _bleService = BleService();
+  
+  // Voice Assist Service
+  final VoiceAssistService _voiceAssistService = VoiceAssistService();
 
   // Downloading state
   bool _downloadingModel = false;
@@ -108,6 +121,7 @@ class _SolariScreenState extends State<SolariScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         ScreenReaderService().setActiveContext('solari_tab');
+        _initializeVoiceAssist();
       }
     });
 
@@ -266,6 +280,131 @@ class _SolariScreenState extends State<SolariScreen>
       if (mounted) {
         setState(() {});
       }
+    }
+  }
+  // =================================================================================================================================
+
+  // =================================================================================================================================
+  // Initialize Voice Assist Service
+  Future<void> _initializeVoiceAssist() async {
+    try {
+      final theme = Provider.of<ThemeProvider>(context, listen: false);
+      
+      // Initialize the voice assist service (loads enabled state)
+      await _voiceAssistService.initialize();
+      
+      // Set the theme provider reference
+      _voiceAssistService.setThemeProvider(theme);
+      
+      // Set navigation callback to switch tabs
+      _voiceAssistService.setNavigationCallback((index) {
+        if (mounted) {
+          setState(() {
+            _currentIndex = index;
+            // Update screen reader context
+            switch (index) {
+              case 0:
+                ScreenReaderService().setActiveContext('solari_tab');
+                break;
+              case 1:
+                ScreenReaderService().setActiveContext('settings_tab');
+                break;
+              case 2:
+                ScreenReaderService().setActiveContext('history_tab');
+                break;
+            }
+          });
+        }
+      });
+      
+      // Set feature toggle callback for UI updates if needed
+      _voiceAssistService.setFeatureToggleCallback((feature, enabled) {
+        if (mounted) {
+          setState(() {});
+        }
+      });
+      
+      // Set settings navigation callback
+      _voiceAssistService.setSettingsNavigationCallback((page) {
+        if (mounted && _currentIndex == 1) {
+          // If already on settings tab, navigate to the specific page
+          _navigateToSettingsPage(page);
+        }
+      });
+      
+      // Set go back callback
+      _voiceAssistService.setGoBackCallback(() {
+        if (mounted && Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
+      });
+      
+      debugPrint('✅ Voice assist service initialized (enabled: ${_voiceAssistService.isEnabled})');
+    } catch (e) {
+      debugPrint('Error initializing voice assist: $e');
+    }
+  }
+  
+  /// Navigate to a specific settings page
+  void _navigateToSettingsPage(String page) {
+    // Import statements needed at the top
+    switch (page) {
+      case 'device_status':
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => DeviceStatusPage(device: widget.device),
+          ),
+        );
+        break;
+      case 'preferences':
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const PreferencePage(),
+          ),
+        );
+        break;
+      case 'about':
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const AboutPage(),
+          ),
+        );
+        break;
+      case 'faqs':
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const FAQsScreen(),
+          ),
+        );
+        break;
+      case 'tutorials':
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const TutorialsScreen(),
+          ),
+        );
+        break;
+      case 'contact':
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const ContactScreen(),
+          ),
+        );
+        break;
+      case 'terms':
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const TermsOfUsePage(),
+          ),
+        );
+        break;
     }
   }
   // =================================================================================================================================
