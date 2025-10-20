@@ -1,11 +1,8 @@
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 // import 'package:sherpa_onnx/sherpa_onnx.dart' as sherpa_onnx; // DISABLED - package not available
 import 'package:flutter_tts/flutter_tts.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'ble_service.dart';
 
@@ -334,49 +331,9 @@ class TtsService {
   }
   */
 
-
-  /// Get all asset files from the app bundle
-  Future<List<String>> _getAllAssetFiles() async {
-    final AssetManifest assetManifest =
-        await AssetManifest.loadFromAssetBundle(rootBundle);
-    final List<String> assets = assetManifest.listAssets();
-    return assets;
-  }
-
-  /// Strip leading directory from path
-  String _stripLeadingDirectory(String src, {int n = 1}) {
-    return p.joinAll(p.split(src).sublist(n));
-  }
-
-  /// Copy all asset files to local storage
-  Future<void> _copyAllAssetFiles() async {
-    final allFiles = await _getAllAssetFiles();
-    for (final src in allFiles) {
-      final dst = _stripLeadingDirectory(src);
-      await _copyAssetFile(src, dst);
-    }
-  }
-
-  /// Copy an asset file from src to dst
-  Future<String> _copyAssetFile(String src, [String? dst]) async {
-    final Directory directory = await getApplicationSupportDirectory();
-    if (dst == null) {
-      dst = p.basename(src);
-    }
-    final target = p.join(directory.path, dst);
-    bool exists = await File(target).exists();
-
-    final data = await rootBundle.load(src);
-    if (!exists || File(target).lengthSync() != data.lengthInBytes) {
-      final List<int> bytes =
-          data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
-      await (await File(target).create(recursive: true)).writeAsBytes(bytes);
-    }
-
-    return target;
-  }
-
-
+  // NOTE: Asset copying helper methods removed since Sherpa ONNX is disabled.
+  // These were: _getAllAssetFiles(), _stripLeadingDirectory(), _copyAllAssetFiles(), _copyAssetFile()
+  // If Sherpa ONNX is re-enabled, these methods will need to be restored from git history.
 
   /// Convert Float32List audio samples to bytes for BLE transmission
   /// Creates a simple header with sample rate info + raw audio data
