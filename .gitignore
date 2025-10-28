@@ -33,6 +33,10 @@ migrate_working_dir/
 /build/
 /coverage/
 
+# Sherpa ONNX and VITS-Piper model folders (do not track large model files)
+assets/vits-piper-en_US-libritts_r-medium/
+assets/sherpa-onnx-zipformer-gigaspeech-2023-12-12/
+
 # Symbolication related
 app.*.symbols
 
