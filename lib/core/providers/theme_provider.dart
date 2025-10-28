@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/app_constants.dart';
 import '../services/system_preferences_service.dart';
 import '../services/user_preferences_service.dart';
-import '../theme/app_colors.dart';
+import '../theme/app_theme.dart';
 
 /// Provider for managing theme state throughout the app
 class ThemeProvider extends ChangeNotifier {

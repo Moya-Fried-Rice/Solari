@@ -8,14 +8,11 @@ import 'package:location/location.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 // UI and state management
-import '../../utils/snackbar.dart';
-import '../../utils/extra.dart';
+import '../../utils/helpers.dart';
 import '../../core/constants/app_constants.dart';
-import '../../core/constants/app_strings.dart';
-import '../../widgets/onboard_button.dart';
-
-// Screens
-import '../solari_main_screen.dart';
+import '../../core/routes/app_routes.dart';
+import '../../core/services/user_preferences_service.dart';
+import '../../widgets/widgets.dart';
 
 class ScanScreen extends StatefulWidget {
   const ScanScreen({super.key});
@@ -171,11 +168,14 @@ class _ScanScreenState extends State<ScanScreen> {
             success: false,
           );
         })
-        .then((_) {
-          Navigator.of(context).push(MaterialPageRoute(
-            builder: (context) => SolariScreen(device: device),
-            settings: const RouteSettings(name: '/SolariScreen'),
-          ));
+        .then((_) async {
+          // Mark device connection as completed
+          await PreferencesService.setDeviceConnectionCompleted();
+          
+          Navigator.of(context).pushNamed(
+            AppRoutes.solari,
+            arguments: device,
+          );
         });
   }
 
@@ -185,11 +185,11 @@ class _ScanScreenState extends State<ScanScreen> {
 
     String status;
     if (_isScanning) {
-      status = AppStrings.scanningLabel;
+      status = 'Scanning for Solari...';
     } else if (_solariDevice != null) {
-      status = AppStrings.deviceFoundLabel;
+      status = 'Solari Found!';
     } else {
-      status = AppStrings.noDeviceLabel;
+      status = 'Unable to locate Solari';
     }
 
     return Scaffold(
@@ -231,21 +231,21 @@ class _ScanScreenState extends State<ScanScreen> {
                     ),
                   ),
 
-                  // Bottom-aligned onboarding buttons
+                  // Bottom-aligned connection buttons
                   Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       if (_solariDevice != null)
-                        OnboardingButton(
-                          label: AppStrings.connectButtonLabel,
+                        ConnectionButton(
+                          label: 'Connect',
                           onPressed: () => onConnectPressed(_solariDevice!),
                           height: 200,
                           backgroundColor: Theme.of(context).primaryColor,
                         ),
                       if (!_isScanning && _solariDevice == null)
-                        OnboardingButton(
-                          label: AppStrings.scanAgainButtonLabel,
+                        ConnectionButton(
+                          label: 'Retry',
                           onPressed: _startSolariDeviceScan,
                           height: 200,
                           backgroundColor: Theme.of(context).primaryColor,
@@ -256,7 +256,7 @@ class _ScanScreenState extends State<ScanScreen> {
               ),
             ),
 
-            // Small bypass button on top-right (force SolariScreen with mock device)
+            // Small bypass button on top-left (force SolariScreen with mock device)
             Positioned(
               top: 8,
               left: 8,
@@ -267,16 +267,22 @@ class _ScanScreenState extends State<ScanScreen> {
                   // stop scanning before navigating
                   await _stopScan();
 
+                  // Mark device connection as completed for development purposes
+                  await PreferencesService.setDeviceConnectionCompleted();
+
                   // Use existing connected/found device if available, otherwise a fake one
                   final deviceToUse = _solariDevice ??
                       BluetoothDevice(
                         remoteId: const DeviceIdentifier('00:11:22:33:44:55'), // Fake MAC
                       );
 
-                  Navigator.of(context).push(MaterialPageRoute(
-                    builder: (context) => SolariScreen(device: deviceToUse, isMock: _solariDevice == null,),
-                    settings: const RouteSettings(name: '/SolariScreen'),
-                  ));
+                  Navigator.of(context).pushNamed(
+                    AppRoutes.solari,
+                    arguments: {
+                      'device': deviceToUse,
+                      'isMock': true, // Enable mock mode for bypass
+                    },
+                  );
                 },
               ),
             ),

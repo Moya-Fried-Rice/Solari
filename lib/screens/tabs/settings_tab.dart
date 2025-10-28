@@ -3,18 +3,10 @@ import 'package:provider/provider.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 import '../../core/constants/app_constants.dart';
-import '../../widgets/feature_card.dart';
-import 'settings/device_status.dart';
-import 'settings/preference.dart';
-import 'settings/about.dart';
-import 'settings/terms_of_use.dart';
-import 'settings/contact.dart';
-import 'settings/faqs.dart';
-import 'settings/tutorials.dart';
 import '../../core/providers/theme_provider.dart';
-import '../../widgets/screen_reader_gesture_detector.dart';
-import '../../widgets/screen_reader_focusable.dart';
-import '../../core/services/screen_reader_service.dart';
+import '../../core/services/services.dart';
+import '../../core/routes/app_routes.dart';
+import '../../widgets/widgets.dart';
 
 class SettingsTab extends StatelessWidget {
   final BluetoothDevice device;
@@ -45,10 +37,9 @@ class SettingsTab extends StatelessWidget {
     final List<Map<String, dynamic>> items = [
       {'label': 'Device Status', 'icon': Icons.bluetooth},
       {'label': 'Preferences', 'icon': Icons.tune},
-      {'label': 'About Solari', 'icon': Icons.info_outline},
-      {'label': 'FAQs', 'icon': Icons.question_answer_outlined},
       {'label': 'Tutorials', 'icon': Icons.video_library_outlined},
-      {'label': 'Contact', 'icon': Icons.support_agent},
+      {'label': 'FAQs', 'icon': Icons.question_answer_outlined},
+      {'label': 'About Solari', 'icon': Icons.info_outline},
       {'label': 'Terms of Use', 'icon': Icons.description_outlined},
     ];
 
@@ -72,47 +63,35 @@ class SettingsTab extends StatelessWidget {
                 void handleNavigation() {
                   final label = item['label'];
                   if (label == 'Device Status') {
-                    Navigator.push(
+                    Navigator.pushNamed(
                       context,
-                      MaterialPageRoute(
-                        builder: (_) => DeviceStatusPage(device: device),
-                      ),
+                      AppRoutes.deviceStatus,
+                      arguments: device,
                     ).then((_) => _restoreSettingsContext(context));
                   } else if (label == 'Preferences') {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) => const PreferencePage(),
-                      ),
+                    Navigator.pushNamed(
+                      context,
+                      AppRoutes.preferences,
                     ).then((_) => _restoreSettingsContext(context));
                   } else if (label == 'About Solari') {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) => const AboutPage(),
-                      ),
-                    ).then((_) => _restoreSettingsContext(context));
-                  } else if (label == 'Contact') {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) => const ContactScreen(),
-                      ),
+                    Navigator.pushNamed(
+                      context,
+                      AppRoutes.about,
                     ).then((_) => _restoreSettingsContext(context));
                   } else if (label == 'FAQs') {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) => const FAQsScreen(),
-                      ),
+                    Navigator.pushNamed(
+                      context,
+                      AppRoutes.faqs,
                     ).then((_) => _restoreSettingsContext(context));
                   } else if (label == 'Tutorials') {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) => const TutorialsScreen(),
-                      ),
+                    Navigator.pushNamed(
+                      context,
+                      AppRoutes.tutorials,
                     ).then((_) => _restoreSettingsContext(context));
                   } else if (label == 'Terms of Use') {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) => const TermsOfUsePage(),
-                      ),
+                    Navigator.pushNamed(
+                      context,
+                      AppRoutes.terms,
                     ).then((_) => _restoreSettingsContext(context));
                   }
                 }

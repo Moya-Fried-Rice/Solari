@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../core/constants/app_constants.dart';
+import '../core/constants/app_constants.dart';
 import '../core/providers/theme_provider.dart';
-import '../../core/services/vibration_service.dart';
+import '../core/services/vibration_service.dart';
 
 /// Custom button widget with animated press effect
 class CustomButton extends StatefulWidget {

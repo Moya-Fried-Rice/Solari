@@ -1,9 +1,11 @@
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-// import 'package:sherpa_onnx/sherpa_onnx.dart' as sherpa_onnx; // DISABLED - package not available
-import 'package:flutter_tts/flutter_tts.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sherpa_onnx/sherpa_onnx.dart' as sherpa_onnx;
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
+import 'package:audioplayers/audioplayers.dart';
 import 'ble_service.dart';
 
 /// Advanced TTS service using Sherpa ONNX for high-quality neural text-to-speech
@@ -13,90 +15,36 @@ class TtsService {
   factory TtsService() => _instance;
   TtsService._internal();
 
-  // ⚠️ TTS ENGINE SELECTOR - Set to false to use Flutter TTS, true for Sherpa ONNX
-  static const bool _useSherpaOnnx = false; // TEMPORARILY DISABLED - using Flutter TTS
-
   final BleService _bleService = BleService();
-  dynamic _sherpaEngine; // sherpa_onnx.OfflineTts? - Disabled until package available
-  FlutterTts? _flutterTts;
+  sherpa_onnx.OfflineTts? _sherpaEngine;
+  final AudioPlayer _audioPlayer = AudioPlayer();
   
   bool _isInitialized = false;
   bool _isSpeaking = false;
   double _speechSpeed = 0.8;
-  double _speechPitch = 1.0;
-  bool _useBleTransmission = true; // Prefer BLE over local playback
-  
-  // Callbacks for current TTS operation
-  Function()? _currentOnComplete;
-  Function(String)? _currentOnError;
+  bool _useBleTransmission = false; // Default to local playback (mobile device)
+  bool _useLocalPlayback = true; // Use mobile device by default
 
   /// Initialize the Sherpa ONNX TTS engine
   Future<void> initialize() async {
     if (_isInitialized) return;
 
     try {
-      // Load saved speech settings from preferences
-      final prefs = await SharedPreferences.getInstance();
-      _speechSpeed = prefs.getDouble('selectToSpeakRate') ?? 0.8;
-      _speechPitch = prefs.getDouble('selectToSpeakPitch') ?? 1.0;
-      debugPrint('TTS loaded preferences: speed=$_speechSpeed, pitch=$_speechPitch');
+      debugPrint('Initializing Sherpa ONNX TTS engine...');
       
-      if (_useSherpaOnnx) {
-        // DISABLED - Sherpa ONNX package not available
-        throw Exception('Sherpa ONNX is disabled. Set _useSherpaOnnx = false to use Flutter TTS');
-        /*
-        debugPrint('Initializing Sherpa ONNX TTS engine...');
-        
-        // Initialize Sherpa ONNX bindings
-        sherpa_onnx.initBindings();
-        
-        // Create the offline TTS engine
-        _sherpaEngine = await _createOfflineTts();
-        
-        _isInitialized = true;
-        debugPrint('Sherpa ONNX TTS service initialized successfully');
-        */
-      } else {
-        debugPrint('Initializing Flutter TTS engine...');
-        
-        _flutterTts = FlutterTts();
-        
-        // Configure Flutter TTS with loaded preferences
-        await _flutterTts!.setLanguage("en-US");
-        await _flutterTts!.setSpeechRate(_speechSpeed);
-        await _flutterTts!.setVolume(1.0);
-        await _flutterTts!.setPitch(_speechPitch);
-        
-        // Set up handlers once during initialization
-        _flutterTts!.setCompletionHandler(() {
-          debugPrint('Flutter TTS finished speaking');
-          _isSpeaking = false;
-          _currentOnComplete?.call();
-          _currentOnComplete = null;
-          _currentOnError = null;
-        });
-        
-        _flutterTts!.setErrorHandler((msg) {
-          debugPrint('Flutter TTS error: $msg');
-          _isSpeaking = false;
-          _currentOnError?.call(msg);
-          _currentOnComplete = null;
-          _currentOnError = null;
-        });
-        
-        _flutterTts!.setCancelHandler(() {
-          debugPrint('Flutter TTS cancelled');
-          _isSpeaking = false;
-          _currentOnComplete = null;
-          _currentOnError = null;
-        });
-        
-        _isInitialized = true;
-        debugPrint('✅ Flutter TTS service initialized successfully');
-      }
+      // Initialize Sherpa ONNX bindings
+      sherpa_onnx.initBindings();
+      
+      // Create the offline TTS engine
+      _sherpaEngine = await _createOfflineTts();
+      
+      _isInitialized = true;
+      debugPrint('Sherpa ONNX TTS service initialized successfully');
     } catch (e) {
-      debugPrint('Error initializing TTS service: $e');
-      throw Exception('Failed to initialize TTS service: $e');
+      debugPrint('❌ Error initializing Sherpa ONNX TTS service: $e');
+      debugPrint('⚠️ TTS service will not be available. Please ensure Sherpa ONNX models are installed.');
+      _isInitialized = false;
+      // Don't throw - allow app to continue without TTS
     }
   }
 
@@ -109,25 +57,21 @@ class TtsService {
   /// Set speech speed (0.5x to 2.0x)
   void setSpeechSpeed(double speed) {
     _speechSpeed = speed.clamp(0.5, 2.0);
-    if (_flutterTts != null) {
-      _flutterTts!.setSpeechRate(_speechSpeed);
-    }
     debugPrint('Speech speed set to: $_speechSpeed');
-  }
-  
-  /// Set speech pitch (0.5x to 2.0x)
-  void setSpeechPitch(double pitch) {
-    _speechPitch = pitch.clamp(0.5, 2.0);
-    if (_flutterTts != null) {
-      _flutterTts!.setPitch(_speechPitch);
-    }
-    debugPrint('Speech pitch set to: $_speechPitch');
   }
 
   /// Enable or disable BLE transmission (defaults to true for smart glasses)
   void setBleTransmission(bool enabled) {
     _useBleTransmission = enabled;
+    _useLocalPlayback = !enabled;
     debugPrint('BLE transmission ${enabled ? "enabled" : "disabled"} - will use ${enabled ? "smart glasses" : "local playback"}');
+  }
+
+  /// Enable local playback on mobile device (disables BLE)
+  void setLocalPlayback(bool enabled) {
+    _useLocalPlayback = enabled;
+    _useBleTransmission = !enabled;
+    debugPrint('Local playback ${enabled ? "enabled" : "disabled"} - will use ${enabled ? "mobile device" : "smart glasses"}');
   }
 
   /// Check if BLE transmission is enabled and available
@@ -143,13 +87,11 @@ class TtsService {
       await initialize();
     }
 
-    if (_useSherpaOnnx && _sherpaEngine == null) {
-      onError?.call('Sherpa ONNX engine not initialized');
-      return;
-    }
-
-    if (!_useSherpaOnnx && _flutterTts == null) {
-      onError?.call('Flutter TTS engine not initialized');
+    // Check if initialization succeeded
+    if (!_isInitialized || _sherpaEngine == null) {
+      final errorMsg = 'TTS service not available - Sherpa ONNX engine not initialized';
+      debugPrint('❌ $errorMsg');
+      onError?.call(errorMsg);
       return;
     }
 
@@ -171,71 +113,61 @@ class TtsService {
         debugPrint('Text truncated from ${text.length} to $maxTextLength characters');
       }
 
-      if (_useSherpaOnnx) {
-        // ==================== SHERPA ONNX PATH ====================
-        debugPrint('Generating neural speech for: "$processedText" at ${_speechSpeed}x speed');
-        
-        final stopwatch = Stopwatch();
-        stopwatch.start();
-        
-        // Generate speech using Sherpa ONNX
-        final audio = _sherpaEngine!.generate(
-          text: processedText, 
-          sid: 0, 
-          speed: _speechSpeed
-        );
-        
-        stopwatch.stop();
-        final elapsed = stopwatch.elapsed.inMilliseconds.toDouble();
-        final duration = audio.samples.length.toDouble() / audio.sampleRate.toDouble();
-        
-        debugPrint('✅ Neural speech generated successfully!');
-        debugPrint('   Sample Rate: ${audio.sampleRate}Hz');
-        debugPrint('   Samples: ${audio.samples.length}');
-        debugPrint('   Duration: ${duration.toStringAsPrecision(2)}s');
-        debugPrint('   Generation time: ${(elapsed / 1000).toStringAsPrecision(2)}s');
+      debugPrint('Generating neural speech for: "$processedText" at ${_speechSpeed}x speed');
+      
+      final stopwatch = Stopwatch();
+      stopwatch.start();
+      
+      // Generate speech using Sherpa ONNX
+      final audio = _sherpaEngine!.generate(
+        text: processedText, 
+        sid: 0, 
+        speed: _speechSpeed
+      );
+      
+      stopwatch.stop();
+      final elapsed = stopwatch.elapsed.inMilliseconds.toDouble();
+      final duration = audio.samples.length.toDouble() / audio.sampleRate.toDouble();
+      
+      debugPrint('✅ Neural speech generated successfully!');
+      debugPrint('   Sample Rate: ${audio.sampleRate}Hz');
+      debugPrint('   Samples: ${audio.samples.length}');
+      debugPrint('   Duration: ${duration.toStringAsPrecision(2)}s');
+      debugPrint('   Generation time: ${(elapsed / 1000).toStringAsPrecision(2)}s');
 
+      // Choose playback method based on settings
+      if (_useLocalPlayback) {
+        // Play on mobile device
+        debugPrint('🔊 Playing audio on mobile device...');
+        await _playAudioLocally(audio, onComplete, onError);
+      } else if (canUseBle) {
         // Send audio samples directly to smart glasses via BLE
-        if (canUseBle) {
-          debugPrint('📡 Sending ${audio.sampleRate}Hz audio to smart glasses via BLE...');
-          
-          final audioBytes = _convertSamplesToBytes(audio.samples, audio.sampleRate);
-          
-          await _bleService.sendAudioData(
-            audioBytes,
-            onStart: () => debugPrint('🎵 Starting BLE audio transmission'),
-            onProgress: (sent, total) {
-              final progress = (sent / total * 100).toStringAsFixed(1);
-              debugPrint('📊 BLE progress: $progress% ($sent/$total bytes)');
-            },
-            onComplete: () {
-              debugPrint('✅ Audio transmitted to smart glasses');
-              _isSpeaking = false;
-              onComplete?.call();
-            },
-            onError: (error) {
-              debugPrint('❌ BLE transmission failed: $error');
-              _isSpeaking = false;
-              onError?.call('BLE transmission failed: $error');
-            },
-          );
-        } else {
-          debugPrint('❌ BLE not available - cannot transmit audio');
-          _isSpeaking = false;
-          onError?.call('BLE service not available');
-        }
+        debugPrint('📡 Sending ${audio.sampleRate}Hz audio to smart glasses via BLE...');
+        
+        final audioBytes = _convertSamplesToBytes(audio.samples, audio.sampleRate);
+        
+        await _bleService.sendAudioData(
+          audioBytes,
+          onStart: () => debugPrint('🎵 Starting BLE audio transmission'),
+          onProgress: (sent, total) {
+            final progress = (sent / total * 100).toStringAsFixed(1);
+            debugPrint('📊 BLE progress: $progress% ($sent/$total bytes)');
+          },
+          onComplete: () {
+            debugPrint('✅ Audio transmitted to smart glasses');
+            _isSpeaking = false;
+            onComplete?.call();
+          },
+          onError: (error) {
+            debugPrint('❌ BLE transmission failed: $error');
+            _isSpeaking = false;
+            onError?.call('BLE transmission failed: $error');
+          },
+        );
       } else {
-        // ==================== FLUTTER TTS PATH ====================
-        debugPrint('🔊 Speaking with Flutter TTS: "$processedText"');
-        
-        // Speak the text (handlers already set during initialization)
-        await _flutterTts!.speak(processedText);
-        
-        // Call the onComplete callback when TTS finishes
-        // Note: The actual completion will be handled by the handler set in initialize()
-        // We store the callback to call it from the handler
-        _currentOnComplete = onComplete;
-        _currentOnError = onError;
+        debugPrint('❌ BLE not available - cannot transmit audio');
+        _isSpeaking = false;
+        onError?.call('BLE service not available');
       }
     } catch (e) {
       debugPrint('Error generating speech: $e');
@@ -246,45 +178,126 @@ class TtsService {
 
   /// Stop current speech transmission
   Future<void> stopSpeaking() async {
+    await _audioPlayer.stop();
     _isSpeaking = false;
-    if (_flutterTts != null) {
-      await _flutterTts!.stop();
-    }
     debugPrint('Speech transmission stopped');
+  }
+
+  /// Play audio locally on mobile device using AudioPlayer
+  Future<void> _playAudioLocally(
+    sherpa_onnx.GeneratedAudio audio,
+    Function()? onComplete,
+    Function(String error)? onError,
+  ) async {
+    try {
+      // Convert Float32List samples to WAV file
+      final wavFile = await _createWavFile(audio.samples, audio.sampleRate);
+      
+      debugPrint('🎵 Playing WAV file: ${wavFile.path}');
+      
+      // Set up completion handler
+      _audioPlayer.onPlayerComplete.listen((_) {
+        debugPrint('✅ Audio playback completed');
+        _isSpeaking = false;
+        onComplete?.call();
+      });
+      
+      // Play the audio file
+      await _audioPlayer.play(DeviceFileSource(wavFile.path));
+      
+    } catch (e) {
+      debugPrint('❌ Error playing audio locally: $e');
+      _isSpeaking = false;
+      onError?.call('Local playback failed: $e');
+    }
+  }
+
+  /// Create a WAV file from audio samples
+  Future<File> _createWavFile(Float32List samples, int sampleRate) async {
+    final tempDir = await getTemporaryDirectory();
+    final wavFile = File('${tempDir.path}/tts_output_${DateTime.now().millisecondsSinceEpoch}.wav');
+    
+    // Convert Float32 to 16-bit PCM
+    final pcmData = <int>[];
+    for (final sample in samples) {
+      final pcmValue = (sample * 32767).round().clamp(-32768, 32767);
+      pcmData.add(pcmValue & 0xFF); // Low byte
+      pcmData.add((pcmValue >> 8) & 0xFF); // High byte
+    }
+    
+    // Create WAV header
+    final numChannels = 1;
+    final bitsPerSample = 16;
+    final byteRate = sampleRate * numChannels * bitsPerSample ~/ 8;
+    final blockAlign = numChannels * bitsPerSample ~/ 8;
+    final dataSize = pcmData.length;
+    
+    final wavHeader = <int>[
+      // "RIFF" chunk descriptor
+      0x52, 0x49, 0x46, 0x46, // "RIFF"
+      ..._intToBytes(36 + dataSize, 4), // File size - 8
+      0x57, 0x41, 0x56, 0x45, // "WAVE"
+      
+      // "fmt " sub-chunk
+      0x66, 0x6D, 0x74, 0x20, // "fmt "
+      0x10, 0x00, 0x00, 0x00, // Subchunk1Size (16 for PCM)
+      0x01, 0x00, // AudioFormat (1 for PCM)
+      ..._intToBytes(numChannels, 2), // NumChannels
+      ..._intToBytes(sampleRate, 4), // SampleRate
+      ..._intToBytes(byteRate, 4), // ByteRate
+      ..._intToBytes(blockAlign, 2), // BlockAlign
+      ..._intToBytes(bitsPerSample, 2), // BitsPerSample
+      
+      // "data" sub-chunk
+      0x64, 0x61, 0x74, 0x61, // "data"
+      ..._intToBytes(dataSize, 4), // Subchunk2Size
+    ];
+    
+    // Write WAV file
+    await wavFile.writeAsBytes([...wavHeader, ...pcmData]);
+    
+    debugPrint('📝 Created WAV file: ${wavFile.path} (${wavFile.lengthSync()} bytes)');
+    
+    return wavFile;
+  }
+
+  /// Convert integer to little-endian bytes
+  List<int> _intToBytes(int value, int numBytes) {
+    final bytes = <int>[];
+    for (int i = 0; i < numBytes; i++) {
+      bytes.add((value >> (8 * i)) & 0xFF);
+    }
+    return bytes;
   }
 
 
 
   /// Get performance metrics of the TTS engine
   Map<String, dynamic> getEngineInfo() {
-    if (_useSherpaOnnx) {
-      if (_sherpaEngine == null) return {};
-      
-      return {
-        'engine': 'Sherpa ONNX',
-        'model': 'VITS-Piper en_US-libritts_r-medium',
-        'type': 'Neural TTS',
-        'offline': true,
-        'speed': _speechSpeed,
-        'transmission': canUseBle ? 'BLE (Smart Glasses) - 22050Hz' : 'BLE Unavailable',
-        'sampleRate': '22050Hz (Original Quality)',
-      };
+    if (_sherpaEngine == null) return {};
+    
+    String outputMode;
+    if (_useLocalPlayback) {
+      outputMode = 'Mobile Device Speaker';
+    } else if (canUseBle) {
+      outputMode = 'BLE (Smart Glasses) - 22050Hz';
     } else {
-      return {
-        'engine': 'Flutter TTS',
-        'model': 'System TTS',
-        'type': 'Platform TTS',
-        'offline': false,
-        'speed': _speechSpeed,
-        'transmission': 'Local Device Speaker',
-        'sampleRate': 'System Default',
-      };
+      outputMode = 'BLE Unavailable';
     }
+    
+    return {
+      'engine': 'Sherpa ONNX',
+      'model': 'VITS-Piper en_US-libritts_r-medium',
+      'type': 'Neural TTS',
+      'offline': true,
+      'speed': _speechSpeed,
+      'outputMode': outputMode,
+      'transmission': outputMode,
+      'sampleRate': '22050Hz (Original Quality)',
+    };
   }
 
   /// Create and configure the Sherpa ONNX offline TTS engine
-  /// DISABLED - Sherpa ONNX package not available
-  /*
   Future<sherpa_onnx.OfflineTts> _createOfflineTts() async {
     // Copy all asset files to local storage (required by Sherpa ONNX)
     await _copyAllAssetFiles();
@@ -329,11 +342,50 @@ class TtsService {
 
     return tts;
   }
-  */
 
-  // NOTE: Asset copying helper methods removed since Sherpa ONNX is disabled.
-  // These were: _getAllAssetFiles(), _stripLeadingDirectory(), _copyAllAssetFiles(), _copyAssetFile()
-  // If Sherpa ONNX is re-enabled, these methods will need to be restored from git history.
+
+  /// Get all asset files from the app bundle
+  Future<List<String>> _getAllAssetFiles() async {
+    final AssetManifest assetManifest =
+        await AssetManifest.loadFromAssetBundle(rootBundle);
+    final List<String> assets = assetManifest.listAssets();
+    return assets;
+  }
+
+  /// Strip leading directory from path
+  String _stripLeadingDirectory(String src, {int n = 1}) {
+    return p.joinAll(p.split(src).sublist(n));
+  }
+
+  /// Copy all asset files to local storage
+  Future<void> _copyAllAssetFiles() async {
+    final allFiles = await _getAllAssetFiles();
+    for (final src in allFiles) {
+      final dst = _stripLeadingDirectory(src);
+      await _copyAssetFile(src, dst);
+    }
+  }
+
+  /// Copy an asset file from src to dst
+  Future<String> _copyAssetFile(String src, [String? dst]) async {
+    final Directory directory = await getApplicationSupportDirectory();
+    if (dst == null) {
+      dst = p.basename(src);
+    }
+    final target = p.join(directory.path, dst);
+    bool exists = await File(target).exists();
+
+    final data = await rootBundle.load(src);
+    if (!exists || File(target).lengthSync() != data.lengthInBytes) {
+      final List<int> bytes =
+          data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+      await (await File(target).create(recursive: true)).writeAsBytes(bytes);
+    }
+
+    return target;
+  }
+
+
 
   /// Convert Float32List audio samples to bytes for BLE transmission
   /// Creates a simple header with sample rate info + raw audio data
@@ -372,17 +424,10 @@ class TtsService {
   /// Dispose of resources
   Future<void> dispose() async {
     await stopSpeaking();
-    
-    if (_sherpaEngine != null) {
-      _sherpaEngine?.free();
-      _sherpaEngine = null;
-    }
-    
-    if (_flutterTts != null) {
-      _flutterTts = null;
-    }
-    
+    await _audioPlayer.dispose();
+    _sherpaEngine?.free();
+    _sherpaEngine = null;
     _isInitialized = false;
-    debugPrint('TTS service disposed');
+    debugPrint('Sherpa ONNX TTS service disposed');
   }
 }

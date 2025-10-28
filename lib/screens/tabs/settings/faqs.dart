@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
-import '../../../widgets/select_to_speak_text.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/providers/theme_provider.dart';
-import '../../../../core/services/screen_reader_service.dart';
-import '../../../../widgets/app_bar.dart';
-import '../../../widgets/screen_reader_gesture_detector.dart';
-import '../../../widgets/screen_reader_focusable.dart';
+import '../../../../core/services/services.dart';
+import '../../../../widgets/widgets.dart';
 
 /// FAQs screen with answers to common questions
 class FAQsScreen extends StatefulWidget {
@@ -20,6 +17,13 @@ class FAQsScreen extends StatefulWidget {
 
 class _FAQsScreenState extends State<FAQsScreen> {
   bool _isReady = false;
+  
+  // Track which FAQ sections are expanded
+  final Map<String, bool> _expandedSections = {
+    'what_is_solari': false,
+    'how_does_it_work': false,
+    'school_use_only': false,
+  };
 
   @override
   void initState() {
@@ -62,84 +66,10 @@ class _FAQsScreenState extends State<FAQsScreen> {
     ];
   }
 
-  /// Build a single FAQ item with question and answer
-  Widget buildFAQ(BuildContext context, String question, String answer,
-      {bool isLast = false}) {
-    final theme = Provider.of<ThemeProvider>(context);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Question
-        ScreenReaderFocusable(
-          context: 'faqs',
-          label: 'Question',
-          hint: question,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SelectToSpeakText(
-                "Question:",
-                style: TextStyle(
-                  fontSize: theme.fontSize + 8,
-                  fontWeight: FontWeight.bold,
-                  color: theme.textColor,
-                  shadows: _getTextShadows(theme),
-                ),
-              ),
-              const SizedBox(height: 8),
-              SelectToSpeakText(
-                question,
-                style: TextStyle(
-                  fontSize: theme.fontSize + 4,
-                  color: theme.textColor,
-                  height: theme.lineHeight,
-                  shadows: _getTextShadows(theme),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 20),
-        
-        // Answer
-        ScreenReaderFocusable(
-          context: 'faqs',
-          label: 'Answer',
-          hint: answer,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SelectToSpeakText(
-                "Answer:",
-                style: TextStyle(
-                  fontSize: theme.fontSize + 8,
-                  fontWeight: FontWeight.bold,
-                  color: theme.textColor,
-                  shadows: _getTextShadows(theme),
-                ),
-              ),
-              const SizedBox(height: 8),
-              SelectToSpeakText(
-                answer,
-                style: TextStyle(
-                  fontSize: theme.fontSize + 4,
-                  color: theme.textColor,
-                  height: theme.lineHeight,
-                  shadows: _getTextShadows(theme),
-                ),
-              ),
-            ],
-          ),
-        ),
-        if (!isLast) 
-          _buildDivider(theme),
-      ],
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
+    final theme = Provider.of<ThemeProvider>(context);
+
     return Scaffold(
       appBar: const CustomAppBar(
         title: "FAQs", 
@@ -155,55 +85,121 @@ class _FAQsScreenState extends State<FAQsScreen> {
           },
           child: SafeArea(
             child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              minHeight: MediaQuery.of(context).size.height - kToolbarHeight - 80,
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: Padding(
+                padding: const EdgeInsets.all(AppConstants.largePadding),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildExpandableFAQ(
+                      theme,
+                      'what_is_solari',
+                      'What is Solari?',
+                      'Solari is a pair of smart glasses that helps visually impaired individuals by describing their surroundings in real time using AI.',
+                    ),
+                    _buildExpandableFAQ(
+                      theme,
+                      'how_does_it_work',
+                      'How does Solari work?',
+                      'Solari uses built-in cameras and AI to "see" what\'s around and then speaks out descriptions to help users navigate safely.',
+                    ),
+                    _buildExpandableFAQ(
+                      theme,
+                      'school_use_only',
+                      'Is Solari only for school use?',
+                      'Nope! While it\'s great for school environments, Solari works in all kinds of places—indoors, outdoors, familiar or new.',
+                    ),
+                  ],
+                ),
+              ),
             ),
-            child: Padding(
-              padding: const EdgeInsets.all(AppConstants.largePadding),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          ),
+      ),
+    ),
+    );
+  }
+
+  Widget _buildExpandableFAQ(
+    ThemeProvider theme,
+    String key,
+    String question,
+    String answer,
+  ) {
+    final isExpanded = _expandedSections[key] ?? false;
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ScreenReaderFocusable(
+          context: 'faqs',
+          label: '$question, ${isExpanded ? 'expanded' : 'collapsed'}',
+          hint: 'Double tap to ${isExpanded ? 'collapse' : 'expand'}',
+          onTap: () {
+            VibrationService.mediumFeedback();
+            setState(() {
+              _expandedSections[key] = !isExpanded;
+            });
+          },
+          child: InkWell(
+            onTap: () {
+              VibrationService.mediumFeedback();
+              setState(() {
+                _expandedSections[key] = !isExpanded;
+              });
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+              decoration: BoxDecoration(
+                color: theme.primaryColor,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
                 children: [
-                  buildFAQ(
-                    context, 
-                    "What is Solari?", 
-                    "Solari is a pair of smart glasses that helps visually impaired individuals by describing their surroundings in real time using AI.",
+                  Icon(
+                    isExpanded ? Icons.expand_less : Icons.expand_more,
+                    color: theme.buttonTextColor,
+                    size: theme.fontSize + 4,
                   ),
-                  buildFAQ(
-                    context, 
-                    "How does it work?", 
-                    "Solari uses built-in cameras and AI to \"see\" what's around and then speaks out descriptions to help users navigate safely.",
-                  ),
-                  buildFAQ(
-                    context, 
-                    "Is Solari only for school use?", 
-                    "Nope! While it's great for school environments, Solari works in all kinds of places—indoors, outdoors, familiar or new.",
-                    isLast: true,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: SelectToSpeakText(
+                      question,
+                      style: TextStyle(
+                        fontSize: theme.fontSize + 2,
+                        fontWeight: FontWeight.bold,
+                        color: theme.buttonTextColor,
+                        shadows: _getTextShadows(theme),
+                      ),
+                    ),
                   ),
                 ],
               ),
             ),
           ),
         ),
-      ),
-      ),
-    ),
-    );
-  }
-
-  Widget _buildDivider(ThemeProvider theme) => Column(
-        children: [
-          const SizedBox(height: 20),
-          Container(
-            height: 10,
-            decoration: BoxDecoration(
-              color: theme.dividerColor,
-              borderRadius: BorderRadius.circular(5),
+        if (isExpanded) ...[
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
+            child: ScreenReaderFocusable(
+              context: 'faqs',
+              label: '$question answer',
+              hint: answer,
+              child: SelectToSpeakText(
+                answer,
+                style: TextStyle(
+                  fontSize: theme.fontSize,
+                  color: theme.textColor,
+                  height: theme.lineHeight,
+                  shadows: _getTextShadows(theme),
+                ),
+              ),
             ),
           ),
-          const SizedBox(height: 20),
         ],
-      );
+        const SizedBox(height: 12),
+      ],
+    );
+  }
 }
 

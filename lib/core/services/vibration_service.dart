@@ -18,42 +18,25 @@ class VibrationService {
     await prefs.setBool(_vibrationEnabledKey, enabled);
   }
   
-  /// Perform a light vibration for general UI interaction
-  /// Now standardized to medium vibration
-  static Future<void> lightFeedback() async {
-    if (await isVibrationEnabled() && await Vibration.hasVibrator() == true) {
-      Vibration.vibrate(duration: 40, amplitude: 100); // Using medium vibration
-    }
-  }
-  
-  /// Perform a medium vibration for confirmations
-  static Future<void> mediumFeedback() async {
+  /// Internal method to perform vibration if enabled
+  static Future<void> _performVibration() async {
     if (await isVibrationEnabled() && await Vibration.hasVibrator() == true) {
       Vibration.vibrate(duration: 40, amplitude: 100);
     }
   }
   
+  /// Perform a light vibration for general UI interaction
+  static Future<void> lightFeedback() => _performVibration();
+  
+  /// Perform a medium vibration for confirmations
+  static Future<void> mediumFeedback() => _performVibration();
+  
   /// Perform a strong vibration for important actions
-  /// Now standardized to medium vibration
-  static Future<void> strongFeedback() async {
-    if (await isVibrationEnabled() && await Vibration.hasVibrator() == true) {
-      Vibration.vibrate(duration: 40, amplitude: 100); // Using medium vibration
-    }
-  }
+  static Future<void> strongFeedback() => _performVibration();
   
-  /// Perform a double vibration for error feedback
-  /// Now standardized to medium vibration
-  static Future<void> errorFeedback() async {
-    if (await isVibrationEnabled() && await Vibration.hasVibrator() == true) {
-      Vibration.vibrate(duration: 40, amplitude: 100); // Using medium vibration
-    }
-  }
+  /// Perform an error feedback vibration
+  static Future<void> errorFeedback() => _performVibration();
   
-  /// Perform a success pattern vibration
-  /// Now standardized to medium vibration
-  static Future<void> successFeedback() async {
-    if (await isVibrationEnabled() && await Vibration.hasVibrator() == true) {
-      Vibration.vibrate(duration: 40, amplitude: 100); // Using medium vibration
-    }
-  }
+  /// Perform a success feedback vibration
+  static Future<void> successFeedback() => _performVibration();
 }

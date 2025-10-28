@@ -5,30 +5,33 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:provider/provider.dart';
-import 'core/providers/history_provider.dart';
-import 'core/services/system_preferences_service.dart';
-import 'core/services/screen_reader_service.dart';
-import 'core/services/select_to_speak_service.dart';
 
-// Screens
-import 'screens/onboarding/launch_screen.dart';
+// Core
+import 'core/providers/history_provider.dart';
+import 'core/providers/theme_provider.dart';
+import 'core/routes/app_routes.dart';
+import 'core/services/services.dart';
+import 'core/theme/app_theme.dart';
 
 // Widgets
-import 'widgets/magnification_wrapper.dart';
-import 'widgets/voice_assist_button.dart';
-
-// UI and state management
-import 'core/constants/app_strings.dart';
-import 'core/theme/app_theme.dart';
-import 'core/providers/theme_provider.dart';
+import 'widgets/widgets.dart';
 
 void main() async {
   // Ensure Flutter binding is initialized
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize accessibility services
-  await ScreenReaderService().initialize();
-  await SelectToSpeakService().initialize();
+  // Initialize accessibility services with error handling
+  try {
+    await ScreenReaderService().initialize();
+  } catch (e) {
+    debugPrint('Warning: ScreenReaderService initialization failed: $e');
+  }
+  
+  try {
+    await SelectToSpeakService().initialize();
+  } catch (e) {
+    debugPrint('Warning: SelectToSpeakService initialization failed: $e');
+  }
   
   // Lock orientation to portrait mode only
   SystemChrome.setPreferredOrientations([
@@ -99,13 +102,15 @@ class _SolariAppState extends State<SolariApp> {
         // (which would reset navigation state).
         return MaterialApp(
           debugShowCheckedModeBanner: false,
-          title: AppStrings.appName,
+          title: 'Solari',
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
           themeMode: themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
           navigatorKey: navigatorKey, // Add global navigator key
-          home: const LaunchScreen(),
+          initialRoute: AppRoutes.launch,
+          onGenerateRoute: AppRoutes.onGenerateRoute,
           navigatorObservers: [
+            RouteTracker(), // Track current route for voice assist button
             BluetoothAdapterStateObserver(),
             RouteObserver<ModalRoute<void>>(), // Add RouteObserver
           ],
@@ -137,10 +142,10 @@ class _SolariAppState extends State<SolariApp> {
 
 }
 
-/// Global overlay that shows voice assist button on all screens except onboarding
+/// Global overlay that shows voice assist button on all screens except device connection screens
 class GlobalVoiceAssistOverlay extends StatefulWidget {
   final Widget child;
-
+  
   const GlobalVoiceAssistOverlay({
     super.key,
     required this.child,
@@ -150,63 +155,85 @@ class GlobalVoiceAssistOverlay extends StatefulWidget {
   State<GlobalVoiceAssistOverlay> createState() => _GlobalVoiceAssistOverlayState();
 }
 
+/// Tracks the current route for the voice assist button
+class RouteTracker extends NavigatorObserver {
+  static final ValueNotifier<String?> currentRouteNotifier = ValueNotifier<String?>(null);
+  
+  void _updateRoute(Route? route) {
+    currentRouteNotifier.value = route?.settings.name;
+    debugPrint('RouteTracker: Current route = ${route?.settings.name}');
+  }
+  
+  @override
+  void didPush(Route route, Route? previousRoute) {
+    _updateRoute(route);
+  }
+  
+  @override
+  void didPop(Route route, Route? previousRoute) {
+    _updateRoute(previousRoute);
+  }
+  
+  @override
+  void didReplace({Route? newRoute, Route? oldRoute}) {
+    _updateRoute(newRoute);
+  }
+  
+  @override
+  void didRemove(Route route, Route? previousRoute) {
+    _updateRoute(previousRoute);
+  }
+}
+
 class _GlobalVoiceAssistOverlayState extends State<GlobalVoiceAssistOverlay> with WidgetsBindingObserver {
-  double _buttonBottom = 130.0;
+  String? _currentRoute;
   
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Listen to route changes
+    RouteTracker.currentRouteNotifier.addListener(_onRouteChanged);
+    _currentRoute = RouteTracker.currentRouteNotifier.value;
   }
-  
+
   @override
   void dispose() {
+    RouteTracker.currentRouteNotifier.removeListener(_onRouteChanged);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
   
-  @override
-  void didChangeMetrics() {
-    // Called when the app layout changes
-    _updateButtonPosition();
-  }
-  
-  void _updateButtonPosition() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      
-      final navigator = Navigator.maybeOf(context);
-      if (navigator == null) return;
-      
-      final canPop = navigator.canPop();
-      final newBottom = canPop ? 20.0 : 130.0;
-      
-      if (_buttonBottom != newBottom) {
-        setState(() {
-          _buttonBottom = newBottom;
-        });
-      }
-    });
+  void _onRouteChanged() {
+    if (mounted) {
+      setState(() {
+        _currentRoute = RouteTracker.currentRouteNotifier.value;
+      });
+    }
   }
   
   @override
   Widget build(BuildContext context) {
-    // Update position after build
-    _updateButtonPosition();
+    final isDeviceConnectionScreen = AppRoutes.isDeviceConnectionRoute(_currentRoute);
+    
+    // Determine position based on current route
+    // Main screen (/solari) has bottom nav, so button should be higher
+    final isMainScreen = _currentRoute == AppRoutes.solari;
+    final buttonBottom = isMainScreen ? 130.0 : 16.0;
+    
+    // Debug output
+    debugPrint('Voice Assist Button - Route: $_currentRoute, IsDeviceConnection: $isDeviceConnectionScreen, IsMainScreen: $isMainScreen, Bottom: $buttonBottom');
     
     return Stack(
       children: [
         widget.child,
-        // Voice assist button - visible on all screens
-        Positioned(
-          right: 16,
-          bottom: _buttonBottom, // 130px on main screen (above nav bar), 20px on other screens
-          child: SafeArea(
-            child: VoiceAssistButton(
-              key: ValueKey('voice_assist_button_$_buttonBottom'),
-            ),
+        // Voice assist button - hide on device connection screens
+        if (!isDeviceConnectionScreen)
+          Positioned(
+            right: 16,
+            bottom: buttonBottom,
+            child: const VoiceAssistButton(),
           ),
-        ),
       ],
     );
   }
@@ -219,7 +246,7 @@ class BluetoothAdapterStateObserver extends NavigatorObserver {
   @override
   void didPush(Route route, Route? previousRoute) {
     super.didPush(route, previousRoute);
-    if (route.settings.name == '/SolariScreen') {
+    if (route.settings.name == AppRoutes.solari) {
       // Start listening to Bluetooth state changes when connected to smart glasses
       _adapterStateSubscription ??= FlutterBluePlus.adapterState.listen((
         state,

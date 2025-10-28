@@ -39,25 +39,36 @@ class _VoiceAssistButtonState extends State<VoiceAssistButton>
   }
 
   Future<void> _handleTap() async {
+    // Safety check - don't proceed if widget is unmounted
+    if (!mounted) return;
+    
     final voiceAssist = VoiceAssistService();
     
-    debugPrint('🎤 Voice assist button tapped. Enabled: ${voiceAssist.isEnabled}');
+    debugPrint('Voice assist button tapped. Enabled: ${voiceAssist.isEnabled}');
     
     if (!voiceAssist.isEnabled) {
       // Show dialog if not enabled
       if (!mounted) return;
       
-      debugPrint('🎤 Showing disabled dialog');
+      debugPrint('Showing disabled dialog');
       
       // Use global navigator key to show dialog
       final navContext = navigatorKey.currentContext;
-      if (navContext == null) {
-        debugPrint('🎤 ERROR: Navigator context is null');
+      if (navContext == null || !mounted) {
+        debugPrint('ERROR: Navigator context is null or widget unmounted');
         return;
       }
       
-      // Get theme provider
-      final themeProvider = Provider.of<ThemeProvider>(navContext, listen: false);
+      // Get theme provider with error handling
+      final ThemeProvider themeProvider;
+      try {
+        themeProvider = Provider.of<ThemeProvider>(navContext, listen: false);
+      } catch (e) {
+        debugPrint('ERROR: Could not get ThemeProvider: $e');
+        return;
+      }
+      
+      if (!mounted) return;
       
       VibrationService.mediumFeedback();
       
@@ -142,11 +153,21 @@ class _VoiceAssistButtonState extends State<VoiceAssistButton>
 
   @override
   Widget build(BuildContext context) {
+    // Safety check - don't build if widget is not mounted
+    if (!mounted) {
+      return const SizedBox.shrink();
+    }
+    
     final voiceAssist = VoiceAssistService();
 
     return ListenableBuilder(
       listenable: voiceAssist,
       builder: (context, child) {
+        // Additional safety check inside builder
+        if (!mounted) {
+          return const SizedBox.shrink();
+        }
+        
         final isListening = voiceAssist.isListening;
         final isEnabled = voiceAssist.isEnabled;
 
@@ -155,17 +176,30 @@ class _VoiceAssistButtonState extends State<VoiceAssistButton>
           builder: (context, child) {
             return Transform.scale(
               scale: isListening ? _pulseAnimation.value : 1.0,
-              child: FloatingActionButton.large(
-                onPressed: _handleTap,
-                backgroundColor: isListening
-                    ? Colors.red[400]
-                    : isEnabled
-                        ? Colors.amber[600]
-                        : Colors.grey[600],
-                child: Icon(
-                  isListening ? Icons.mic : Icons.mic_none,
-                  color: Colors.white,
-                  size: 40,
+              child: Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: FloatingActionButton.large(
+                  heroTag: 'voice_assist_fab',
+                  onPressed: _handleTap,
+                  backgroundColor: isListening
+                      ? Colors.red[400]
+                      : isEnabled
+                          ? Colors.amber[600]
+                          : Colors.grey[600],
+                  child: Icon(
+                    isListening ? Icons.mic : Icons.mic_none,
+                    color: Colors.white,
+                    size: 40,
+                  ),
                 ),
               ),
             );

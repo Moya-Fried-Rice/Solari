@@ -3,10 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 // UI and state management
-import '../../core/constants/app_strings.dart';
 import '../../core/constants/app_constants.dart';
-import '../../utils/snackbar.dart';
-import '../../widgets/onboard_button.dart';
+import '../../utils/helpers.dart';
+import '../../widgets/widgets.dart';
 
 
 class BluetoothOffScreen extends StatelessWidget {
@@ -38,7 +37,7 @@ class BluetoothOffScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        AppStrings.bluetoothOffLabel,
+                        'Bluetooth is disabled',
                         textAlign: TextAlign.center,
                         style: const TextStyle(
                           fontSize: AppConstants.titleFontSize,
@@ -50,13 +49,13 @@ class BluetoothOffScreen extends StatelessWidget {
                 ),
               ),
 
-              // Bottom-aligned onboarding button
+              // Bottom-aligned connection button
               Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  OnboardingButton(
-                    label: AppStrings.enableButtonLabel,
+                  ConnectionButton(
+                    label: 'Turn On',
                     onPressed: () async {
                       try {
                         await FlutterBluePlus.turnOn();

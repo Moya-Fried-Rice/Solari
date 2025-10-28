@@ -19,7 +19,6 @@ class MagnificationWrapper extends StatefulWidget {
 
 class _MagnificationWrapperState extends State<MagnificationWrapper> {
   Offset? _lensPosition;
-  bool _showInstruction = true;
   final GlobalKey _repaintKey = GlobalKey();
 
   @override
@@ -30,7 +29,6 @@ class _MagnificationWrapperState extends State<MagnificationWrapper> {
         final magnificationService = MagnificationService();
         
         if (!magnificationService.isEnabled) {
-          _showInstruction = true;
           return widget.child;
         }
 
@@ -39,7 +37,6 @@ class _MagnificationWrapperState extends State<MagnificationWrapper> {
             setState(() {
               final wasNull = _lensPosition == null;
               _lensPosition = details.localPosition;
-              _showInstruction = false;
               
               // Vibrate when lens first appears
               if (wasNull) {
@@ -51,7 +48,6 @@ class _MagnificationWrapperState extends State<MagnificationWrapper> {
             setState(() {
               final wasNull = _lensPosition == null;
               _lensPosition = details.localPosition;
-              _showInstruction = false;
               
               // Vibrate when lens first appears
               if (wasNull) {
@@ -87,32 +83,6 @@ class _MagnificationWrapperState extends State<MagnificationWrapper> {
                     child: _MagnifyingLens(
                       position: _lensPosition!,
                       repaintKey: _repaintKey,
-                    ),
-                  ),
-                ),
-              if (_showInstruction && _lensPosition == null)
-                Positioned(
-                  bottom: 50,
-                  left: 0,
-                  right: 0,
-                  child: Center(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.8),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Text(
-                        'Tap or drag anywhere to magnify',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
                     ),
                   ),
                 ),
@@ -186,7 +156,7 @@ class _MagnifyingLensState extends State<_MagnifyingLens> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.amber.withOpacity(0.4),
+            color: Colors.amber.withValues(alpha: 0.4),
             blurRadius: 15,
             spreadRadius: 3,
           ),

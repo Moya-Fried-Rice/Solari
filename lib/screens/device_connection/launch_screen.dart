@@ -2,9 +2,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_constants.dart';
+import '../../core/routes/app_routes.dart';
 import '../../core/services/user_preferences_service.dart';
 import '../../core/services/vibration_service.dart';
-import 'bluetooth_router_screen.dart';
 
 /// Launch/splash screen that displays when the app first starts
 class LaunchScreen extends StatefulWidget {
@@ -19,32 +19,28 @@ class _LaunchScreenState extends State<LaunchScreen> {
   @override
   void initState() {
     super.initState();
-    _checkOnboardingStatus();
+    _checkDeviceConnectionStatus();
   }
   
-  /// Check if onboarding has been completed
-  Future<void> _checkOnboardingStatus() async {
+  /// Check if device connection has been completed
+  Future<void> _checkDeviceConnectionStatus() async {
     try {
-      final hasCompletedOnboarding = await PreferencesService.hasCompletedOnboarding();
-      _navigateToNextScreen(hasCompletedOnboarding);
+      final hasCompletedDeviceConnection = await PreferencesService.hasCompletedDeviceConnection();
+      _navigateToNextScreen(hasCompletedDeviceConnection);
     } catch (e) {
       _navigateToNextScreen(false);
     }
   }
 
   /// Navigate to the next screen after a delay
-  void _navigateToNextScreen(bool hasCompletedOnboarding) {
+  void _navigateToNextScreen(bool hasCompletedDeviceConnection) {
     Future.delayed(AppConstants.splashScreenDuration, () async {
       // Provide haptic feedback before transition
       await VibrationService.mediumFeedback();
       
       if (mounted) {
         // Navigate to the bluetooth router screen (handles Bluetooth logic)
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => const BluetoothRouterScreen(),
-          ),
-        );
+        Navigator.of(context).pushReplacementNamed(AppRoutes.bluetoothRouter);
       }
     });
   }

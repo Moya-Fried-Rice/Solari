@@ -60,7 +60,6 @@ class ScreenReaderService extends ChangeNotifier {
     if (enabled) {
       // Apply current speech settings from SelectToSpeakService
       _ttsService.setSpeechSpeed(_selectToSpeakService.speechRate);
-      _ttsService.setSpeechPitch(_selectToSpeakService.pitch);
       
       VibrationService.mediumFeedback();
       await _speakText('Screen reader enabled');

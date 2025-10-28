@@ -3,7 +3,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Service to manage user preferences
 class PreferencesService {
   /// Keys for storing preferences
-  static const String _onboardingCompletedKey = 'onboarding_completed';
+  static const String _deviceConnectionCompletedKey = 'device_connection_completed';
+  static const String _legacyOnboardingCompletedKey = 'onboarding_completed'; // Legacy key for backward compatibility
   static const String _useSystemThemeKey = 'use_system_theme';
   static const String _isDarkModeKey = 'is_dark_mode';
   static const String _useSystemFontSizeKey = 'use_system_font_size';
@@ -11,16 +12,25 @@ class PreferencesService {
   static const String _useSystemAccessibilityKey = 'use_system_accessibility';
   static const String _screenReaderEnabledKey = 'screen_reader_enabled';
   
-  /// Check if the user has completed onboarding
-  static Future<bool> hasCompletedOnboarding() async {
+  /// Check if the user has completed device connection
+  static Future<bool> hasCompletedDeviceConnection() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_onboardingCompletedKey) ?? false;
+    // Check new key first, then fall back to legacy key for backward compatibility
+    final newValue = prefs.getBool(_deviceConnectionCompletedKey);
+    if (newValue != null) return newValue;
+    
+    final legacyValue = prefs.getBool(_legacyOnboardingCompletedKey) ?? false;
+    if (legacyValue) {
+      // Migrate legacy value to new key
+      await prefs.setBool(_deviceConnectionCompletedKey, true);
+    }
+    return legacyValue;
   }
   
-  /// Mark onboarding as completed
-  static Future<void> setOnboardingCompleted() async {
+  /// Mark device connection as completed
+  static Future<void> setDeviceConnectionCompleted() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_onboardingCompletedKey, true);
+    await prefs.setBool(_deviceConnectionCompletedKey, true);
   }
 
   /// Get whether to use system theme

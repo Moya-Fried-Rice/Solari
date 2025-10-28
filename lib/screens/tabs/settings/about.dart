@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
-import '../../../widgets/select_to_speak_text.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/providers/theme_provider.dart';
-import '../../../../core/services/screen_reader_service.dart';
-import '../../../widgets/app_bar.dart';
-import '../../../widgets/screen_reader_gesture_detector.dart';
-import '../../../widgets/screen_reader_focusable.dart';
+import '../../../../core/services/services.dart';
+import '../../../widgets/widgets.dart';
 
 /// About screen with information about Solari
 class AboutPage extends StatefulWidget {

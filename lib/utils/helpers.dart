@@ -1,6 +1,15 @@
 import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
-// This code lets you create a stream that always knows the latest value and sends it to anyone who listens, making it easy to build reactive UIs that automatically update when state changes.
+// ============================================================================
+// StreamControllerReemit
+// ============================================================================
+// This code lets you create a stream that always knows the latest value and 
+// sends it to anyone who listens, making it easy to build reactive UIs that 
+// automatically update when state changes.
+
 class StreamControllerReemit<T> {
   T? _latestValue;
 
@@ -148,4 +157,107 @@ class _NewStreamWithInitialValueTransformer<T> extends StreamTransformerBase<T, 
 
     return controller.stream;
   }
+}
+
+// ============================================================================
+// BluetoothDevice Extensions
+// ============================================================================
+// This extension adds connection and disconnection tracking to BluetoothDevice 
+// by using streams. It provides isConnecting and isDisconnecting streams and 
+// helper methods (connectAndUpdateStream / disconnectAndUpdateStream) so the 
+// app can react in real-time when a device is connecting or disconnecting.
+
+final Map<DeviceIdentifier, StreamControllerReemit<bool>> _cglobal = {};
+final Map<DeviceIdentifier, StreamControllerReemit<bool>> _dglobal = {};
+
+extension BluetoothDeviceExtras on BluetoothDevice {
+  // convenience
+  StreamControllerReemit<bool> get _cstream {
+    _cglobal[remoteId] ??= StreamControllerReemit(initialValue: false);
+    return _cglobal[remoteId]!;
+  }
+
+  // convenience
+  StreamControllerReemit<bool> get _dstream {
+    _dglobal[remoteId] ??= StreamControllerReemit(initialValue: false);
+    return _dglobal[remoteId]!;
+  }
+
+  // get stream
+  Stream<bool> get isConnecting {
+    return _cstream.stream;
+  }
+
+  // get stream
+  Stream<bool> get isDisconnecting {
+    return _dstream.stream;
+  }
+
+  // connect & update stream
+  Future<void> connectAndUpdateStream() async {
+    _cstream.add(true);
+    try {
+      await connect(mtu: null);
+    } finally {
+      _cstream.add(false);
+    }
+  }
+
+  // disconnect & update stream
+  Future<void> disconnectAndUpdateStream({bool queue = true}) async {
+    _dstream.add(true);
+    try {
+      await disconnect(queue: queue);
+    } finally {
+      _dstream.add(false);
+    }
+  }
+}
+
+// ============================================================================
+// Snackbar Utility
+// ============================================================================
+// This class provides a way to show snack bars in different parts of the app 
+// using unique keys. It has methods to show success or error messages with 
+// appropriate colors and handles exceptions to provide user-friendly error 
+// messages.
+
+enum ABC {
+  a,
+  b,
+  c,
+}
+
+class Snackbar {
+  static final snackBarKeyA = GlobalKey<ScaffoldMessengerState>();
+  static final snackBarKeyB = GlobalKey<ScaffoldMessengerState>();
+  static final snackBarKeyC = GlobalKey<ScaffoldMessengerState>();
+
+  static GlobalKey<ScaffoldMessengerState> getSnackbar(ABC abc) {
+    switch (abc) {
+      case ABC.a:
+        return snackBarKeyA;
+      case ABC.b:
+        return snackBarKeyB;
+      case ABC.c:
+        return snackBarKeyC;
+    }
+  }
+
+  static show(ABC abc, String msg, {required bool success}) {
+    final snackBar = success
+        ? SnackBar(content: Text(msg), backgroundColor: Colors.blue)
+        : SnackBar(content: Text(msg), backgroundColor: Colors.red);
+    getSnackbar(abc).currentState?.removeCurrentSnackBar();
+    getSnackbar(abc).currentState?.showSnackBar(snackBar);
+  }
+}
+
+String prettyException(String prefix, dynamic e) {
+  if (e is FlutterBluePlusException) {
+    return "$prefix ${e.description}";
+  } else if (e is PlatformException) {
+    return "$prefix ${e.message}";
+  }
+  return prefix + e.toString();
 }

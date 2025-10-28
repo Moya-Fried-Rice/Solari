@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-import '../../core/constants/app_constants.dart';
-import '../../core/providers/theme_provider.dart';
+import '../core/constants/app_constants.dart';
+import '../core/providers/theme_provider.dart';
 import 'select_to_speak_text.dart';
 import 'screen_reader_focusable.dart';
 

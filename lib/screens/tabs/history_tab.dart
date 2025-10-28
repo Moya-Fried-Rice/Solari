@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-import '../../widgets/select_to_speak_text.dart';
-import '../../widgets/screen_reader_gesture_detector.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/providers/history_provider.dart';
 import '../../core/providers/theme_provider.dart';
-import '../../widgets/screen_reader_focusable.dart';
+import '../../widgets/widgets.dart';
 
 String timeAgo(DateTime dateTime) {
   final now = DateTime.now();

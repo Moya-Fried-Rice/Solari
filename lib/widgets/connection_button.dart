@@ -3,13 +3,13 @@ import '../core/constants/app_constants.dart';
 import '../core/providers/theme_provider.dart';
 import 'package:provider/provider.dart';
 
-class OnboardingButton extends StatelessWidget {
+class ConnectionButton extends StatelessWidget {
   final String label;
   final double height;
   final VoidCallback onPressed;
   final Color? backgroundColor;
 
-  const OnboardingButton({
+  const ConnectionButton({
     super.key,
     required this.label,
     required this.onPressed,

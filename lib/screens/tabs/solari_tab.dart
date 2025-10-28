@@ -2,8 +2,7 @@ import 'dart:typed_data';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
-import '../../widgets/screen_reader_focusable.dart';
-import '../../widgets/screen_reader_gesture_detector.dart';
+import '../../widgets/widgets.dart';
 
 class SolariTab extends StatefulWidget {
   final double? temperature;

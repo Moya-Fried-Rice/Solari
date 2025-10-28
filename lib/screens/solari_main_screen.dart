@@ -11,40 +11,24 @@ import 'package:image_picker/image_picker.dart';
 // Providers
 import '../core/providers/history_provider.dart';
 import '../core/providers/theme_provider.dart';
+import '../core/routes/app_routes.dart';
 
 // Tabs
 import 'tabs/history_tab.dart';
 import 'tabs/settings_tab.dart';
 import 'tabs/solari_tab.dart';
 
-// Settings Pages
-import 'tabs/settings/device_status.dart';
-import 'tabs/settings/preference.dart';
-import 'tabs/settings/about.dart';
-import 'tabs/settings/faqs.dart';
-import 'tabs/settings/tutorials.dart';
-import 'tabs/settings/contact.dart';
-import 'tabs/settings/terms_of_use.dart';
-
 // Services
-import '../core/services/vibration_service.dart';
-import '../core/services/vlm_service.dart';
-import '../core/services/speaker_service.dart';
-import '../core/services/tts_service.dart';
-import '../core/services/ble_service.dart';
-import '../core/services/screen_reader_service.dart';
-import '../core/services/voice_assist_service.dart';
+import '../core/services/services.dart';
 
 // Widgets
-import '../widgets/screen_reader_gesture_detector.dart';
-import '../widgets/multi_context_focusable.dart';
-import '../widgets/screen_reader_focusable.dart';
+import '../widgets/widgets.dart';
 
 // Audio
 import 'package:audioplayers/audioplayers.dart';
 
 // Other
-import '../utils/extra.dart';
+import '../utils/helpers.dart';
 
 class SolariScreen extends StatefulWidget {
   final BluetoothDevice device;
@@ -105,6 +89,9 @@ class _SolariScreenState extends State<SolariScreen>
   
   // Voice Assist Service
   final VoiceAssistService _voiceAssistService = VoiceAssistService();
+  
+  // Track if we're on a subpage (not main tabs)
+  bool _isOnSubpage = false;
 
   // Downloading state
   bool _downloadingModel = false;
@@ -326,17 +313,37 @@ class _SolariScreenState extends State<SolariScreen>
       
       // Set settings navigation callback
       _voiceAssistService.setSettingsNavigationCallback((page) {
-        if (mounted && _currentIndex == 1) {
-          // If already on settings tab, navigate to the specific page
-          _navigateToSettingsPage(page);
+        if (mounted) {
+          // First switch to settings tab if not already there
+          if (_currentIndex != 1) {
+            setState(() {
+              _currentIndex = 1;
+              ScreenReaderService().setActiveContext('settings_tab');
+            });
+            // Wait a bit for the settings tab to render
+            Future.delayed(const Duration(milliseconds: 200), () {
+              if (mounted) {
+                _navigateToSettingsPage(page);
+              }
+            });
+          } else {
+            // Already on settings tab, navigate directly
+            _navigateToSettingsPage(page);
+          }
         }
       });
       
       // Set go back callback
       _voiceAssistService.setGoBackCallback(() {
-        if (mounted && Navigator.of(context).canPop()) {
+        if (mounted && _isOnSubpage && Navigator.of(context).canPop()) {
           Navigator.of(context).pop();
+          _isOnSubpage = false;
         }
+      });
+      
+      // Set can pop callback - only return true if we're on a subpage
+      _voiceAssistService.setCanPopCallback(() {
+        return mounted && _isOnSubpage;
       });
       
       debugPrint('✅ Voice assist service initialized (enabled: ${_voiceAssistService.isEnabled})');
@@ -347,65 +354,43 @@ class _SolariScreenState extends State<SolariScreen>
   
   /// Navigate to a specific settings page
   void _navigateToSettingsPage(String page) {
-    // Import statements needed at the top
+    _isOnSubpage = true;
+    
+    // Map the page string to route name
+    String routeName;
+    Object? arguments;
+    
     switch (page) {
       case 'device_status':
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => DeviceStatusPage(device: widget.device),
-          ),
-        );
+        routeName = AppRoutes.deviceStatus;
+        arguments = widget.device;
         break;
       case 'preferences':
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const PreferencePage(),
-          ),
-        );
+        routeName = AppRoutes.preferences;
         break;
       case 'about':
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const AboutPage(),
-          ),
-        );
+        routeName = AppRoutes.about;
         break;
       case 'faqs':
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const FAQsScreen(),
-          ),
-        );
+        routeName = AppRoutes.faqs;
         break;
       case 'tutorials':
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const TutorialsScreen(),
-          ),
-        );
-        break;
-      case 'contact':
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const ContactScreen(),
-          ),
-        );
+        routeName = AppRoutes.tutorials;
         break;
       case 'terms':
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const TermsOfUsePage(),
-          ),
-        );
+        routeName = AppRoutes.terms;
         break;
+      default:
+        _isOnSubpage = false;
+        return;
     }
+    
+    // Navigate to the route
+    Navigator.pushNamed(
+      context,
+      routeName,
+      arguments: arguments,
+    ).then((_) => _isOnSubpage = false);
   }
   // =================================================================================================================================
 
@@ -805,7 +790,7 @@ class _SolariScreenState extends State<SolariScreen>
             children: [
               // Solari tab
               Expanded(
-                child: MultiContextFocusable(
+                child: ScreenReaderFocusable(
                   contexts: ['solari_tab', 'settings_tab', 'history_tab'],
                   label: 'Solari tab',
                   hint: 'Double tap to view Solari',
@@ -887,7 +872,7 @@ class _SolariScreenState extends State<SolariScreen>
               ),
               // Settings tab
               Expanded(
-                child: MultiContextFocusable(
+                child: ScreenReaderFocusable(
                   contexts: ['solari_tab', 'settings_tab', 'history_tab'],
                   label: 'Settings tab',
                   hint: 'Double tap to view Settings',
@@ -969,7 +954,7 @@ class _SolariScreenState extends State<SolariScreen>
               ),
               // History tab
               Expanded(
-                child: MultiContextFocusable(
+                child: ScreenReaderFocusable(
                   contexts: ['solari_tab', 'settings_tab', 'history_tab'],
                   label: 'History tab',
                   hint: 'Double tap to view History',

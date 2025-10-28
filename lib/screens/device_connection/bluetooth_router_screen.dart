@@ -7,7 +7,9 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 // Screens
 import 'bluetooth_off_screen.dart';
 import 'scan_screen.dart';
-import '../solari_main_screen.dart';
+
+// Routes
+import '../../core/routes/app_routes.dart';
 
 /// Screen that handles Bluetooth state routing logic
 class BluetoothRouterScreen extends StatefulWidget {
@@ -20,7 +22,6 @@ class BluetoothRouterScreen extends StatefulWidget {
 // This class is the state class for the BluetoothRouterScreen widget that monitors the device's Bluetooth state and updates the UI. It shows ScanScreen if Bluetooth is on, otherwise BluetoothOffScreen. It listens for changes with a stream subscription and cleans up when the widget is removed.
 class _BluetoothRouterScreenState extends State<BluetoothRouterScreen> {
   BluetoothAdapterState _adapterState = BluetoothAdapterState.unknown;
-  BluetoothDevice? _connectedSolariDevice;
 
   late StreamSubscription<BluetoothAdapterState> _adapterStateStateSubscription;
 
@@ -67,9 +68,14 @@ class _BluetoothRouterScreenState extends State<BluetoothRouterScreen> {
           );
 
           if (hasSolariService) {
-            setState(() {
-              _connectedSolariDevice = device;
-            });
+            // Navigate to Solari screen with the connected device
+            if (mounted) {
+              Navigator.pushReplacementNamed(
+                context,
+                AppRoutes.solari,
+                arguments: device,
+              );
+            }
             break;
           }
         } catch (e) {
@@ -86,12 +92,9 @@ class _BluetoothRouterScreenState extends State<BluetoothRouterScreen> {
     if (_adapterState != BluetoothAdapterState.on) {
       // Show BluetoothOffScreen if Bluetooth is off
       return BluetoothOffScreen(adapterState: _adapterState);
-    }
-    else if (_connectedSolariDevice != null) {
-      // Show SolariScreen if connected to a Solari device
-      return SolariScreen(device: _connectedSolariDevice!);
     } else {
-      // Show ScanScreen if Bluetooth is on but not connected to Solari
+      // Show ScanScreen if Bluetooth is on
+      // (If connected to Solari device, navigation happens in _checkForConnectedSolariDevice)
       return const ScanScreen();
     }
   }

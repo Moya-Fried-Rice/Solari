@@ -89,10 +89,28 @@ Update Logs (Design and Accessibility)
         - Need to go to another tab.
 * Voice assist
     - Check command outcomes
-    - Message box should show above voice assist button
     - Button position in main should be 130 px from the bottom, 20 px in any other page
     - Should not show in onboarding pages
 
+10/28/25
+* Redesigned settings_tab
+    - Subpages order
+    - Device status: removed device connection and device disconnect label, changed battery to donut
+    - Tutorials: turn audio to containers + bottom sheets, text to expanders
+    - FAQs: expanders
+    - Terms of use: expanders
+    - Removed contact page
+* Removed instruction text for Magnification
+* Fixed select-to-speak not working immediately
+* Changed navigation to named routes
+* Voice assist
+    - Fixed button placement
+    - Fixed page appearance (no longer appears on device connection pages)
+    - Switched from flutter tts to sherpa-onnx
+
 Next step(s):
-* System sync
-* Update texts
+* Voice assist
+* High contrast
+* Screen reader
+* Update text
+* Clean code

@@ -1,19 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/constants/app_constants.dart';
-import '../../../../core/services/vibration_service.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../../../../core/services/select_to_speak_service.dart';
-import '../../../../core/services/screen_reader_service.dart';
-import '../../../../core/services/magnification_service.dart';
-import '../../../../core/services/voice_assist_service.dart';
 import '../../../../core/providers/theme_provider.dart';
-import '../../../widgets/app_bar.dart';
-import '../../../widgets/feature_bottom_sheets.dart';
-import '../../../widgets/feature_card.dart';
-import '../../../widgets/screen_reader_focusable.dart';
-import '../../../widgets/screen_reader_gesture_detector.dart';
+import '../../../../core/services/services.dart';
+import '../../../widgets/widgets.dart';
 
 /// Screen for user preferences settings
 class PreferencePage extends StatefulWidget {
@@ -37,7 +29,6 @@ class _PreferencePageState extends State<PreferencePage> {
   
   // Text to Speech settings
   double ttsSpeed = 1.0; // Default speed
-  double ttsPitch = 1.0; // Default pitch
   
   // Audio features
   bool audioDescriptionEnabled = false;
@@ -54,6 +45,13 @@ class _PreferencePageState extends State<PreferencePage> {
   void initState() {
     super.initState();
     _loadPreferences();
+    
+    // Listen to service changes for reactive updates
+    MagnificationService().addListener(_onMagnificationChanged);
+    ScreenReaderService().addListener(_onScreenReaderChanged);
+    SelectToSpeakService().addListener(_onSelectToSpeakChanged);
+    VoiceAssistService().addListener(_onVoiceAssistChanged);
+    
     // Set the active context for screen reader when page loads
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ScreenReaderService().setActiveContext('preferences');
@@ -63,11 +61,85 @@ class _PreferencePageState extends State<PreferencePage> {
           ScreenReaderService().focusNext();
         });
       }
+      
+      // Periodically check vibration state (since it's not a ChangeNotifier)
+      _startVibrationStateChecker();
     });
+  }
+  
+  void _startVibrationStateChecker() {
+    // Check vibration state every 500ms while mounted
+    Future.doWhile(() async {
+      if (!mounted) return false;
+      
+      final isEnabled = await VibrationService.isVibrationEnabled();
+      if (mounted && vibrationEnabled != isEnabled) {
+        setState(() {
+          vibrationEnabled = isEnabled;
+        });
+      }
+      
+      await Future.delayed(const Duration(milliseconds: 500));
+      return mounted;
+    });
+  }
+  
+  void _onMagnificationChanged() {
+    if (mounted) {
+      setState(() {
+        magnificationEnabled = MagnificationService().isEnabled;
+      });
+    }
+  }
+  
+  void _onScreenReaderChanged() {
+    if (mounted) {
+      setState(() {
+        screenReaderEnabled = ScreenReaderService().isEnabled;
+      });
+    }
+  }
+  
+  void _onSelectToSpeakChanged() {
+    if (mounted) {
+      setState(() {
+        selectToSpeakEnabled = SelectToSpeakService().isEnabled;
+      });
+    }
+  }
+  
+  void _onVoiceAssistChanged() {
+    if (mounted) {
+      setState(() {
+        voiceAssistEnabled = VoiceAssistService().isEnabled;
+      });
+    }
+  }
+  
+  void _onThemeChanged() async {
+    final theme = Provider.of<ThemeProvider>(context, listen: false);
+    final systemTheme = await PreferencesService.getUseSystemTheme();
+    if (mounted) {
+      setState(() {
+        colorInversionEnabled = theme.isColorInverted;
+        highContrastEnabled = theme.isHighContrast;
+        useSystemTheme = systemTheme;
+      });
+    }
   }
 
   @override
   void dispose() {
+    // Remove listeners when disposing
+    MagnificationService().removeListener(_onMagnificationChanged);
+    ScreenReaderService().removeListener(_onScreenReaderChanged);
+    SelectToSpeakService().removeListener(_onSelectToSpeakChanged);
+    VoiceAssistService().removeListener(_onVoiceAssistChanged);
+    
+    // Remove theme listener
+    final theme = Provider.of<ThemeProvider>(context, listen: false);
+    theme.removeListener(_onThemeChanged);
+    
     // Clear focus nodes for this page when leaving
     ScreenReaderService().clearContextNodes('preferences');
     super.dispose();
@@ -76,6 +148,10 @@ class _PreferencePageState extends State<PreferencePage> {
   void _loadPreferences() async {
     final isVibrationEnabled = await VibrationService.isVibrationEnabled();
     final theme = Provider.of<ThemeProvider>(context, listen: false);
+    
+    // Add listener for theme changes
+    theme.addListener(_onThemeChanged);
+    
     final selectToSpeakService = SelectToSpeakService();
     await selectToSpeakService.initialize();
     final screenReaderService = ScreenReaderService();
@@ -105,7 +181,6 @@ class _PreferencePageState extends State<PreferencePage> {
         useSystemTheme = true;
         // Load speech settings from SelectToSpeakService
         ttsSpeed = selectToSpeakService.speechRate;
-        ttsPitch = selectToSpeakService.pitch;
         if (persistedVoiceAssist != null) voiceAssistEnabled = persistedVoiceAssist;
       });
     }
@@ -170,16 +245,10 @@ class _PreferencePageState extends State<PreferencePage> {
           context: context,
           theme: theme,
           ttsSpeed: ttsSpeed,
-          ttsPitch: ttsPitch,
           onSpeedChanged: (val) async {
             final selectToSpeakService = SelectToSpeakService();
             await selectToSpeakService.setSpeechRate(val);
             if (mounted) setState(() => ttsSpeed = val);
-          },
-          onPitchChanged: (val) async {
-            final selectToSpeakService = SelectToSpeakService();
-            await selectToSpeakService.setPitch(val);
-            if (mounted) setState(() => ttsPitch = val);
           },
         ),
       },

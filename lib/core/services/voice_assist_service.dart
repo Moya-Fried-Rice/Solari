@@ -26,6 +26,7 @@ class VoiceAssistService extends ChangeNotifier {
   Function(String, bool)? _featureToggleCallback;
   Function(String)? _settingsNavigationCallback;
   VoidCallback? _goBackCallback;
+  bool Function()? _canPopCallback;
   ThemeProvider? _themeProvider;
 
   bool get isEnabled => _isEnabled;
@@ -37,12 +38,15 @@ class VoiceAssistService extends ChangeNotifier {
   /// Initialize voice assist service
   Future<void> initialize() async {
     await _ttsService.initialize();
-    await _sttService.initialize();
+    
+    // Enable mobile mode for STT (use device microphone instead of hardware)
+    _sttService.setMobileMode(true);
+    await _sttService.initializeMobile();
     
     // Load saved state
     await loadEnabledState();
     
-    debugPrint('✅ Voice Assist Service initialized (enabled: $_isEnabled)');
+    debugPrint('✅ Voice Assist Service initialized (enabled: $_isEnabled, using mobile STT)');
   }
   
   /// Load enabled state from SharedPreferences
@@ -71,21 +75,31 @@ class VoiceAssistService extends ChangeNotifier {
   /// Set navigation callback (for changing tabs)
   void setNavigationCallback(Function(int) callback) {
     _navigationCallback = callback;
+    debugPrint('✅ Navigation callback set');
   }
 
   /// Set feature toggle callback (for enabling/disabling features)
   void setFeatureToggleCallback(Function(String, bool) callback) {
     _featureToggleCallback = callback;
+    debugPrint('✅ Feature toggle callback set');
   }
   
   /// Set settings navigation callback (for navigating to settings pages)
   void setSettingsNavigationCallback(Function(String) callback) {
     _settingsNavigationCallback = callback;
+    debugPrint('✅ Settings navigation callback set');
   }
   
   /// Set go back callback (for navigating back)
   void setGoBackCallback(VoidCallback callback) {
     _goBackCallback = callback;
+    debugPrint('✅ Go back callback set');
+  }
+  
+  /// Set can pop callback (for checking if navigation can pop)
+  void setCanPopCallback(bool Function() callback) {
+    _canPopCallback = callback;
+    debugPrint('✅ Can pop callback set');
   }
 
   /// Set theme provider reference
@@ -102,11 +116,14 @@ class VoiceAssistService extends ChangeNotifier {
       return;
     }
     
-    if (!_isEnabled) {
-      debugPrint('⚠️ Voice assist is disabled');
+    // Check if on-device speech recognition is available
+    final isOnDeviceAvailable = await _sttService.isOnDeviceAvailable();
+    if (!isOnDeviceAvailable) {
+      debugPrint('⚠️ On-device speech recognition not available');
+      await _speakFeedback('Speech recognition requires a one-time internet connection to download on-device models. Please connect to the internet and try again.');
       return;
     }
-
+    
     if (_isListening) {
       debugPrint('⚠️ Already listening');
       return;
@@ -116,10 +133,13 @@ class VoiceAssistService extends ChangeNotifier {
     notifyListeners();
 
     // Set up callbacks
-    _sttService.onResult = (text) async {
+    _sttService.onResult = (text) {
       debugPrint('🎤 Voice command received: $text');
       _lastCommand = text;
-      await _processCommand(text);
+      // Process command asynchronously without blocking
+      _processCommand(text).catchError((error) {
+        debugPrint('❌ Error processing command: $error');
+      });
     };
 
     _sttService.onPartialResult = (text) {
@@ -128,9 +148,32 @@ class VoiceAssistService extends ChangeNotifier {
 
     _sttService.onError = (error) {
       debugPrint('❌ STT Error: $error');
-      _speakFeedback('Sorry, I didn\'t catch that');
-      _isListening = false;
-      notifyListeners();
+      
+      // Provide specific feedback based on error type
+      String feedback;
+      if (error.contains('language_unavailable')) {
+        feedback = 'On-device speech recognition is not available for your language. '
+                  'Please connect to the internet once to download the language pack, '
+                  'or change your device language to English in system settings.';
+      } else if (error.contains('network_error') || error.contains('error_network')) {
+        // Network errors shouldn't happen with on-device mode
+        // This likely means the on-device model isn't available
+        feedback = 'On-device speech recognition model not found. '
+                  'To use voice assist offline, please: '
+                  '1. Go to your device Settings > Apps > Google > Speech Recognition & Synthesis. '
+                  '2. Download the offline speech pack for English. '
+                  '3. After download completes, voice assist will work offline.';
+      } else if (error.contains('no_match')) {
+        feedback = 'I didn\'t catch that. Please try again.';
+      } else {
+        feedback = 'Sorry, I didn\'t catch that. Please try again.';
+      }
+      
+      // Use .then() instead of await to avoid blocking
+      _speakFeedback(feedback).then((_) {
+        _isListening = false;
+        notifyListeners();
+      });
     };
 
     _sttService.onListeningStop = () {
@@ -159,15 +202,20 @@ class VoiceAssistService extends ChangeNotifier {
   /// Process voice command
   Future<void> _processCommand(String command) async {
     final lowerCommand = command.toLowerCase().trim();
+    debugPrint('🔍 Processing command: "$lowerCommand"');
     
     // Navigation commands
     if (_matchesPattern(lowerCommand, ['go back', 'back', 'navigate back', 'previous', 'return'])) {
+      debugPrint('✅ Matched: go back');
       await _goBack();
     } else if (_matchesPattern(lowerCommand, ['go home', 'show home', 'open solari', 'home'])) {
+      debugPrint('✅ Matched: go home');
       await _navigate(0, 'Opening Solari');
     } else if (_matchesPattern(lowerCommand, ['go to settings', 'open settings', 'settings', 'show settings'])) {
+      debugPrint('✅ Matched: open settings');
       await _navigate(1, 'Opening settings');
     } else if (_matchesPattern(lowerCommand, ['show history', 'open history', 'history', 'go to history'])) {
+      debugPrint('✅ Matched: show history');
       await _navigate(2, 'Opening history');
     }
     
@@ -182,8 +230,6 @@ class VoiceAssistService extends ChangeNotifier {
       await _navigateToSettingsPage('faqs', 'Opening FAQs');
     } else if (_matchesPattern(lowerCommand, ['tutorials', 'open tutorials', 'show tutorials', 'how to', 'guide', 'help tutorials'])) {
       await _navigateToSettingsPage('tutorials', 'Opening tutorials');
-    } else if (_matchesPattern(lowerCommand, ['contact', 'contact us', 'open contact', 'support', 'get help'])) {
-      await _navigateToSettingsPage('contact', 'Opening contact');
     } else if (_matchesPattern(lowerCommand, ['terms of use', 'terms', 'open terms', 'legal', 'terms and conditions'])) {
       await _navigateToSettingsPage('terms', 'Opening terms of use');
     }
@@ -230,6 +276,20 @@ class VoiceAssistService extends ChangeNotifier {
       await _toggleFeature('vibration', false, 'Vibration disabled');
     }
     
+    // Voice Assist commands
+    else if (_matchesPattern(lowerCommand, ['enable voice assist', 'turn on voice assist', 'voice assist on', 'activate voice assist'])) {
+      await _toggleFeature('voice_assist', true, 'Voice assist enabled');
+    } else if (_matchesPattern(lowerCommand, ['disable voice assist', 'turn off voice assist', 'voice assist off', 'deactivate voice assist'])) {
+      await _toggleFeature('voice_assist', false, 'Voice assist disabled');
+    }
+    
+    // System Sync commands
+    else if (_matchesPattern(lowerCommand, ['enable sync', 'turn on sync', 'enable system sync', 'sync on', 'use system theme'])) {
+      await _toggleSystemSync(true, 'System sync enabled');
+    } else if (_matchesPattern(lowerCommand, ['disable sync', 'turn off sync', 'disable system sync', 'sync off'])) {
+      await _toggleSystemSync(false, 'System sync disabled');
+    }
+    
     // Theme commands
     else if (_matchesPattern(lowerCommand, ['dark mode', 'enable dark mode', 'turn on dark mode', 'dark theme'])) {
       await _setTheme(true, 'Dark mode enabled');
@@ -253,15 +313,6 @@ class VoiceAssistService extends ChangeNotifier {
       await _setSpeechSpeed(1.0, 'Speech speed reset to normal');
     }
     
-    // Speech pitch commands
-    else if (_matchesPattern(lowerCommand, ['higher pitch', 'increase pitch', 'pitch up', 'raise pitch'])) {
-      await _adjustSpeechPitch(0.2, 'Pitch increased');
-    } else if (_matchesPattern(lowerCommand, ['lower pitch', 'decrease pitch', 'pitch down', 'reduce pitch'])) {
-      await _adjustSpeechPitch(-0.2, 'Pitch decreased');
-    } else if (_matchesPattern(lowerCommand, ['normal pitch', 'reset pitch', 'default pitch'])) {
-      await _setSpeechPitch(1.0, 'Pitch reset to normal');
-    }
-    
     // Help command
     else if (_matchesPattern(lowerCommand, ['help', 'what can i say', 'commands', 'show commands'])) {
       await _showHelp();
@@ -280,7 +331,25 @@ class VoiceAssistService extends ChangeNotifier {
 
   /// Navigate to a tab
   Future<void> _navigate(int index, String feedback) async {
+    debugPrint('📍 Navigating to tab $index');
+    debugPrint('   _navigationCallback is ${_navigationCallback == null ? "NULL" : "SET"}');
+    debugPrint('   _canPopCallback is ${_canPopCallback == null ? "NULL" : "SET"}');
+    
+    // First, pop back to main page if we're in a subpage
+    final canPop = _canPopCallback?.call() ?? false;
+    debugPrint('   canPop: $canPop');
+    
+    if (canPop) {
+      debugPrint('   Popping navigation stack...');
+      _goBackCallback?.call();
+      // Small delay to allow navigation to complete
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
+    
+    // Then change the tab
+    debugPrint('   Calling navigation callback with index $index');
     _navigationCallback?.call(index);
+    
     await _speakFeedback(feedback);
     VibrationService.mediumFeedback();
   }
@@ -294,13 +363,7 @@ class VoiceAssistService extends ChangeNotifier {
   
   /// Navigate to a settings page
   Future<void> _navigateToSettingsPage(String page, String feedback) async {
-    // First navigate to settings tab (index 1)
-    _navigationCallback?.call(1);
-    
-    // Give a small delay for the settings tab to load
-    await Future.delayed(const Duration(milliseconds: 300));
-    
-    // Then navigate to the specific settings page
+    // Navigate to the specific settings page (callback will handle tab switching)
     _settingsNavigationCallback?.call(page);
     
     await _speakFeedback(feedback);
@@ -334,10 +397,26 @@ class VoiceAssistService extends ChangeNotifier {
         break;
       case 'vibration':
         await VibrationService.setVibrationEnabled(enable);
+        // Manually trigger callback for vibration since it's not a ChangeNotifier
+        _featureToggleCallback?.call(feature, enable);
         break;
+      case 'voice_assist':
+        // Don't toggle voice assist on itself to avoid conflicts
+        await _speakFeedback('Voice assist cannot be toggled using voice commands. Please use the settings or button.');
+        return;
     }
     
     _featureToggleCallback?.call(feature, enable);
+    await _speakFeedback(feedback);
+    VibrationService.mediumFeedback();
+  }
+  
+  /// Toggle system sync (use system theme)
+  Future<void> _toggleSystemSync(bool enable, String feedback) async {
+    if (_themeProvider != null) {
+      await _themeProvider!.setUseSystemTheme(enable);
+      debugPrint('🔄 System sync set to $enable');
+    }
     await _speakFeedback(feedback);
     VibrationService.mediumFeedback();
   }
@@ -417,50 +496,14 @@ class VoiceAssistService extends ChangeNotifier {
     await _speakFeedback(feedback);
     VibrationService.lightFeedback();
   }
-  
-  /// Adjust speech pitch
-  Future<void> _adjustSpeechPitch(double delta, String feedback) async {
-    const minPitch = 0.5;
-    const maxPitch = 2.0;
-    
-    final selectToSpeak = SelectToSpeakService();
-    final currentPitch = selectToSpeak.pitch;
-    final newPitch = (currentPitch + delta).clamp(minPitch, maxPitch);
-    
-    // Check if we're at the limit
-    if (newPitch == currentPitch) {
-      final limitMessage = delta > 0
-        ? 'Pitch is already at maximum, ${(currentPitch * 100).toInt()} percent'
-        : 'Pitch is already at minimum, ${(currentPitch * 100).toInt()} percent';
-      await _speakFeedback(limitMessage);
-      return;
-    }
-    
-    await selectToSpeak.setPitch(newPitch);
-    
-    // Include current value in feedback
-    final feedbackWithValue = delta > 0
-      ? 'Pitch increased to ${(newPitch * 100).toInt()} percent'
-      : 'Pitch decreased to ${(newPitch * 100).toInt()} percent';
-    await _speakFeedback(feedbackWithValue);
-    VibrationService.lightFeedback();
-  }
-  
-  /// Set speech pitch to specific value
-  Future<void> _setSpeechPitch(double pitch, String feedback) async {
-    final selectToSpeak = SelectToSpeakService();
-    await selectToSpeak.setPitch(pitch);
-    await _speakFeedback(feedback);
-    VibrationService.lightFeedback();
-  }
 
   /// Show help with available commands
   Future<void> _showHelp() async {
     final helpText = '''
 Available voice commands:
-Navigation: Go home, Open settings, Show history.
-Features: Enable screen reader, Disable select to speak, Turn on magnification.
-Theme: Dark mode, Light mode, Increase text size.
+Navigation: Go home, Open settings, Show history, Go back.
+Features: Enable screen reader, Disable select to speak, Turn on magnification, Enable high contrast, Invert colors, Enable vibration.
+Theme: Dark mode, Light mode, Increase text size, Enable sync.
 Speech: Speed up, Slow down, Normal speed.
 Say any command to get started.
 ''';

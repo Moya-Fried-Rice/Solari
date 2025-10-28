@@ -108,17 +108,14 @@ class FeatureBottomSheets {
     );
   }
 
-  /// Shows text to speech settings (speed and pitch)
+  /// Shows text to speech settings (speed only)
   static void showTextToSpeechSettings({
     required BuildContext context,
     required ThemeProvider theme,
     required double ttsSpeed,
-    required double ttsPitch,
     required Function(double) onSpeedChanged,
-    required Function(double) onPitchChanged,
   }) {
     double currentSpeed = ttsSpeed;
-    double currentPitch = ttsPitch;
 
     VibrationService.mediumFeedback();
     // Activate text-to-speech sheet context for screen reader
@@ -200,19 +197,6 @@ class FeatureBottomSheets {
                               currentSpeed = value;
                             });
                             onSpeedChanged(value);
-                          },
-                        ),
-                        const SizedBox(height: 30),
-
-                        // Pitch Control
-                        _buildSpeechPitchButtons(
-                          theme: themeProvider,
-                          currentPitch: currentPitch,
-                          onChanged: (value) {
-                            setModalState(() {
-                              currentPitch = value;
-                            });
-                            onPitchChanged(value);
                           },
                         ),
                         const SizedBox(height: 20),
@@ -573,129 +557,6 @@ class FeatureBottomSheets {
                 onPressed: canIncrease
                     ? () {
                         onChanged(speedValues[currentIndex + 1]);
-                        VibrationService.mediumFeedback();
-                      }
-                    : null,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: theme.labelColor,
-                  foregroundColor: theme.primaryColor,
-                  disabledBackgroundColor: theme.labelColor.withOpacity(0.5),
-                  disabledForegroundColor: theme.primaryColor.withOpacity(0.5),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 32,
-                    vertical: 16,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: Icon(Icons.add, size: theme.fontSize + 6),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  /// Helper method to build speech pitch control buttons
-  static Widget _buildSpeechPitchButtons({
-    required ThemeProvider theme,
-    required double currentPitch,
-    required void Function(double) onChanged,
-  }) {
-    const List<double> pitchValues = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
-    final currentIndex = pitchValues.indexWhere((v) => (v - currentPitch).abs() < 0.01);
-    final canDecrease = currentIndex > 0;
-    final canIncrease = currentIndex < pitchValues.length - 1;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        ScreenReaderFocusable(
-          context: 'text_to_speech_settings',
-          label: 'Pitch, ${currentPitch.toStringAsFixed(2)}',
-          hint: 'Current speech pitch',
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Pitch',
-                style: TextStyle(
-                  fontSize: theme.fontSize + 4,
-                  color: theme.labelColor,
-                  fontWeight: FontWeight.bold,
-                  shadows: _getTextShadows(theme),
-                ),
-              ),
-              Text(
-                '${currentPitch.toStringAsFixed(2)}',
-                style: TextStyle(
-                  fontSize: theme.fontSize + 4,
-                  color: theme.labelColor,
-                  fontWeight: FontWeight.bold,
-                  shadows: _getTextShadows(theme),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 20),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            ScreenReaderFocusable(
-              context: 'text_to_speech_settings',
-              label: 'Reduce pitch',
-              hint: canDecrease 
-                  ? 'Double tap to reduce pitch to ${pitchValues[currentIndex - 1].toStringAsFixed(2)}'
-                  : 'Pitch is already at minimum',
-              onTap: canDecrease
-                  ? () {
-                      onChanged(pitchValues[currentIndex - 1]);
-                      VibrationService.mediumFeedback();
-                    }
-                  : null,
-              child: ElevatedButton(
-                onPressed: canDecrease
-                    ? () {
-                        onChanged(pitchValues[currentIndex - 1]);
-                        VibrationService.mediumFeedback();
-                      }
-                    : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: theme.labelColor,
-                foregroundColor: theme.primaryColor,
-                disabledBackgroundColor: theme.labelColor.withOpacity(0.5),
-                disabledForegroundColor: theme.primaryColor.withOpacity(0.5),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 32,
-                  vertical: 16,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: Icon(Icons.remove, size: theme.fontSize + 6),
-            ),
-            ),
-            const SizedBox(width: 20),
-            ScreenReaderFocusable(
-              context: 'text_to_speech_settings',
-              label: 'Increase pitch',
-              hint: canIncrease
-                  ? 'Double tap to increase pitch to ${pitchValues[currentIndex + 1].toStringAsFixed(2)}'
-                  : 'Pitch is already at maximum',
-              onTap: canIncrease
-                  ? () {
-                      onChanged(pitchValues[currentIndex + 1]);
-                      VibrationService.mediumFeedback();
-                    }
-                  : null,
-              child: ElevatedButton(
-                onPressed: canIncrease
-                    ? () {
-                        onChanged(pitchValues[currentIndex + 1]);
                         VibrationService.mediumFeedback();
                       }
                     : null,
