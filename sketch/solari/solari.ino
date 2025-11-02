@@ -37,7 +37,7 @@
 // ============================================================================
 // Hardware Pin Definitions
 // ============================================================================
-#define USER_BUTTON_PIN                     D4
+#define USER_BUTTON_PIN                     D8
 
 
 
@@ -56,7 +56,7 @@ unsigned long lastButtonPressTime = 0;         // Timestamp of last button state
 // ============================================================================
 // Temperature Monitoring Configuration
 // ============================================================================
-const float TEMPERATURE_SHUTDOWN_THRESHOLD = 55.0;  // °C limit before emergency shutdown
+const float TEMPERATURE_SHUTDOWN_THRESHOLD = 80.0;  // °C limit before emergency shutdown
 TaskHandle_t temperatureMonitoringTaskHandle;
 bool isTemperatureLoggingEnabled = false;           // Enable/disable temperature logging (overheat protection always active)
 
@@ -109,13 +109,14 @@ VisualQuestionAnsweringState vqaSystemState;
 // Audio Configuration - Modify these values to test different audio formats
 // ============================================================================
 
-// Speaker Audio Output Configuration
-const int SPEAKER_SAMPLE_RATE = 22050;              // Sample rate for audio playback (matches TTS output)
+// Speaker Audio Output Configuration (matched to test breadboard settings)
+const int SPEAKER_SAMPLE_RATE = 22050;              // Sample rate for audio playback (matches test breadboard)
 const int SPEAKER_BIT_DEPTH = 16;                   // Bit depth for audio samples
 const int SPEAKER_BYTES_PER_SAMPLE = 2;             // Bytes per audio sample (16-bit = 2 bytes)
-const char* SPEAKER_AUDIO_QUALITY_NAME = "Medium Quality";
-const int SPEAKER_AUDIO_CHUNK_SIZE = 512;           // Chunk size for audio processing
-const int SPEAKER_PLAYBACK_DELAY_MS = 12;           // Target delay between audio chunks (reduced for higher sample rate)
+const char* SPEAKER_AUDIO_QUALITY_NAME = "High Quality";
+const int SPEAKER_AUDIO_CHUNK_SIZE = 512;           // Chunk size for audio processing (matched to test breadboard)
+const int SPEAKER_PLAYBACK_DELAY_MS = 12;           // Target delay between audio chunks
+const float SPEAKER_AMPLIFICATION = 3.0;            // Volume amplification factor (matched to test breadboard max amplitude)
 
 // Microphone Input Configuration (for VQA recording)
 const int MICROPHONE_SAMPLE_RATE = 16000;            // Lower sample rate for efficient VQA transmission
@@ -643,6 +644,49 @@ void initializeCameraSubsystem() {
         while (true) delay(100);
     }
     
+    // Configure camera rotation - rotate counter-clockwise (270 degrees)
+    sensor_t * s = esp_camera_sensor_get();
+    if (s != NULL) {
+        // ============================================================================
+        // Camera Orientation - No sensor-level flips/mirrors for true rotation
+        // ============================================================================
+        // The ESP32 camera sensor only supports flip/mirror, not true rotation.
+        // For perspective-preserving counter-clockwise rotation, we need to:
+        // 1. Keep sensor output normal (no flips/mirrors)
+        // 2. Handle rotation at the application level or server side
+        // ============================================================================
+        
+        // Keep normal orientation - no flips or mirrors
+        s->set_vflip(s, 0);        // No vertical flip
+        s->set_hmirror(s, 0);      // No horizontal mirror
+        
+        logInfoMessage("CAMERA", "Camera orientation: Normal (vflip=0, hmirror=0) - rotation will be handled at application level");
+        
+        // Add delay to ensure settings are applied
+        delay(50);
+        
+        // Set optimal image quality settings
+        if (s->set_colorbar) {
+            s->set_colorbar(s, 0);  // Disable color test pattern
+        }
+        if (s->set_whitebal) {
+            s->set_whitebal(s, 1);  // Enable auto white balance
+        }
+        if (s->set_awb_gain) {
+            s->set_awb_gain(s, 1);  // Enable auto white balance gain
+        }
+        if (s->set_gain_ctrl) {
+            s->set_gain_ctrl(s, 1); // Enable automatic gain control
+        }
+        if (s->set_exposure_ctrl) {
+            s->set_exposure_ctrl(s, 1); // Enable automatic exposure control
+        }
+        
+        logDebugMessage("CAMERA", "Camera sensor configured for optimal image quality - true rotation requires application-level processing");
+    } else {
+        logWarningMessage("CAMERA", "Failed to get camera sensor for rotation configuration");
+    }
+    
     logInfoMessage("CAMERA", "Camera subsystem ready");
     logSystemMemoryUsage("CAMERA");
 }
@@ -1076,15 +1120,19 @@ void realTimeAudioStreamingTask(void *taskParameters) {
                     int16_t audioSample = audioPlaybackSystem.audioDataBuffer[audioBufferIndex] | 
                                          (audioPlaybackSystem.audioDataBuffer[audioBufferIndex + 1] << 8);
                     
-                    // Apply volume control
-                    int32_t adjustedVolumeAmplitude = audioPlaybackSystem.volumeAmplitude;
+                    // Apply amplification with clipping protection (matched to test breadboard)
+                    int32_t amplifiedSample = (int32_t)(audioSample * SPEAKER_AMPLIFICATION);
                     
                     // Anti-click: Gradual volume ramp for smooth start
                     if (volumeRampCounter < totalVolumeRampChunks) {
-                        adjustedVolumeAmplitude = (adjustedVolumeAmplitude * (volumeRampCounter + 1)) / totalVolumeRampChunks;
+                        amplifiedSample = (amplifiedSample * (volumeRampCounter + 1)) / totalVolumeRampChunks;
                     }
                     
-                    audioSample = (int16_t)((int32_t)audioSample * adjustedVolumeAmplitude / 32767);
+                    // Apply clipping protection
+                    if (amplifiedSample > 32767) amplifiedSample = 32767;
+                    if (amplifiedSample < -32768) amplifiedSample = -32768;
+                    
+                    audioSample = (int16_t)amplifiedSample;
                     
                     // Apply simple high-pass filter to reduce DC offset and clicks
                     static int16_t previousAudioSample = 0;
@@ -1185,13 +1233,17 @@ void playCompleteAudioBuffer() {
             int16_t audioSample = audioPlaybackSystem.audioDataBuffer[totalBytesPlayed + i] | 
                                  (audioPlaybackSystem.audioDataBuffer[totalBytesPlayed + i + 1] << 8);
             
-            // Apply volume control with anti-click ramping
-            int32_t adjustedVolumeAmplitude = audioPlaybackSystem.volumeAmplitude;
+            // Apply amplification with clipping protection and anti-click ramping (matched to test breadboard)
+            int32_t amplifiedSample = (int32_t)(audioSample * SPEAKER_AMPLIFICATION);
             if (playbackChunkCounter < volumeRampChunks) {
-                adjustedVolumeAmplitude = (adjustedVolumeAmplitude * (playbackChunkCounter + 1)) / volumeRampChunks;
+                amplifiedSample = (amplifiedSample * (playbackChunkCounter + 1)) / volumeRampChunks;
             }
             
-            audioSample = (int16_t)((int32_t)audioSample * adjustedVolumeAmplitude / 32767);
+            // Apply clipping protection
+            if (amplifiedSample > 32767) amplifiedSample = 32767;
+            if (amplifiedSample < -32768) amplifiedSample = -32768;
+            
+            audioSample = (int16_t)amplifiedSample;
             
             // Apply simple high-pass filter to reduce DC offset and clicks
             static int16_t previousSample = 0;
@@ -1262,18 +1314,20 @@ void playSoundEffect(const unsigned char* audioData, unsigned int audioLength, c
     while (bytesPlayed < audioLength) {
         size_t bytesToPlay = min(effectChunkSize, audioLength - bytesPlayed);
         
-        // Apply light volume control to sound effects (reduce to 75% volume)
+        // Apply amplification with clipping protection (matched to test breadboard)
         std::vector<uint8_t> processedChunk(bytesToPlay);
         for (size_t i = 0; i < bytesToPlay; i += 2) {
             // Extract 16-bit sample (little-endian)
             int16_t sample = audioData[bytesPlayed + i] | (audioData[bytesPlayed + i + 1] << 8);
             
-            // Apply volume reduction (75% of original)
-            sample = (int16_t)((int32_t)sample * 24576 / 32767);  // 24576/32767 ≈ 0.75
+            // Apply amplification with clipping protection (matched to test breadboard max amplitude)
+            int32_t amplifiedSample = (int32_t)(sample * SPEAKER_AMPLIFICATION);
+            if (amplifiedSample > 32767) amplifiedSample = 32767;
+            if (amplifiedSample < -32768) amplifiedSample = -32768;
             
             // Store back as little-endian
-            processedChunk[i] = sample & 0xFF;
-            processedChunk[i + 1] = (sample >> 8) & 0xFF;
+            processedChunk[i] = amplifiedSample & 0xFF;
+            processedChunk[i + 1] = (amplifiedSample >> 8) & 0xFF;
         }
         
         // Write chunk with error handling for I2S state issues
@@ -1294,8 +1348,8 @@ void playSoundEffect(const unsigned char* audioData, unsigned int audioLength, c
         vTaskDelay(pdMS_TO_TICKS(5));
     }
 
-    // Send silence to avoid clicks - with proper error handling
-    int silenceSamples = SPEAKER_SAMPLE_RATE / 20; // 50ms of silence
+    // Send 50 ms of silence to avoid click (matched to test breadboard approach)
+    int silenceSamples = SPEAKER_SAMPLE_RATE / 20; // 50ms of silence for 22050 Hz
     for (int i = 0; i < silenceSamples; i++) {
         int16_t silence = 0;
         size_t written = 0;
