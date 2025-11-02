@@ -2,13 +2,15 @@ import 'dart:typed_data';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
-class SolariTab extends StatelessWidget {
+class SolariTab extends StatefulWidget {
   final double? temperature;
   final bool speaking;
   final bool processing;
   final Uint8List? image;
   final bool downloadingModel;
   final double? downloadProgress;
+  final VoidCallback? onVqaStart;
+  final VoidCallback? onVqaEnd;
 
   const SolariTab({
     super.key,
@@ -18,70 +20,134 @@ class SolariTab extends StatelessWidget {
     this.image,
     this.downloadingModel = false,
     this.downloadProgress,
+    this.onVqaStart,
+    this.onVqaEnd,
   });
+
+  @override
+  State<SolariTab> createState() => _SolariTabState();
+}
+
+class _SolariTabState extends State<SolariTab> {
+  bool _isVqaActive = false;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      body: Stack(
-        children: [
-          // Centered soundwave or donut progress
-          Center(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final width = constraints.maxWidth;
-                return SizedBox(
-                  width: width,
-                  height: 360, // Increased height for more noticeable sound wave
-                  child: (downloadingModel && (downloadProgress ?? 0) < 1.0)
-                      ? _DonutProgress(progress: downloadProgress, size: width, color: theme.primaryColor)
-                      : AnimatedSoundWave(speaking: speaking, processing: processing, color: theme.primaryColor),
-                );
-              },
-            ),
-          ),
-          // Small image in top right corner
-          if (image != null)
-            Positioned(
-              top: 16,
-              right: 16,
-              child: Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  border: Border.all(color: theme.primaryColor, width: 2),
-                  borderRadius: BorderRadius.circular(12),
-                  color: Colors.white,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black26,
-                      blurRadius: 4,
-                      offset: Offset(2, 2),
+      body: GestureDetector(
+        onLongPressStart: (_) {
+          // Start VQA when user holds down
+          setState(() {
+            _isVqaActive = true;
+          });
+          widget.onVqaStart?.call();
+        },
+        onLongPressEnd: (_) {
+          // End VQA when user releases
+          setState(() {
+            _isVqaActive = false;
+          });
+          widget.onVqaEnd?.call();
+        },
+        child: Stack(
+          children: [
+            // VQA active indicator overlay
+            if (_isVqaActive)
+              Container(
+                color: theme.primaryColor.withOpacity(0.1),
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: theme.primaryColor,
+                      borderRadius: BorderRadius.circular(24),
                     ),
-                  ],
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: Image.memory(
-                    image!,
-                    fit: BoxFit.cover,
+                    child: const Text(
+                      'VQA Recording...',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ),
               ),
+            // Centered soundwave or donut progress
+            Center(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final width = constraints.maxWidth;
+                  return SizedBox(
+                    width: width,
+                    height: 360, // Increased height for more noticeable sound wave
+                    child: (widget.downloadingModel && (widget.downloadProgress ?? 0) < 1.0)
+                        ? _DonutProgress(progress: widget.downloadProgress, size: width, color: theme.primaryColor)
+                        : AnimatedSoundWave(speaking: widget.speaking, processing: widget.processing || _isVqaActive, color: theme.primaryColor),
+                  );
+                },
+              ),
             ),
-          // Temperature at the very bottom
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 32,
-            child: Center(
-              child: (temperature != null)
-                  ? Text('Temperature: ${temperature!.toStringAsFixed(1)} °C', style: const TextStyle(fontSize: 24))
-                  : const Text('No temperature data.', style: TextStyle(fontSize: 24)),
+            // Small image in top right corner
+            if (widget.image != null)
+              Positioned(
+                top: 16,
+                right: 16,
+                child: Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: theme.primaryColor, width: 2),
+                    borderRadius: BorderRadius.circular(12),
+                    color: Colors.white,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black26,
+                        blurRadius: 4,
+                        offset: Offset(2, 2),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Image.memory(
+                      widget.image!,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+              ),
+            // VQA instruction hint
+            if (!_isVqaActive)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 100,
+                child: Center(
+                  child: Text(
+                    'Hold screen to start VQA',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: theme.primaryColor.withOpacity(0.7),
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ),
+              ),
+            // Temperature at the very bottom
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 32,
+              child: Center(
+                child: (widget.temperature != null)
+                    ? Text('Temperature: ${widget.temperature!.toStringAsFixed(1)} °C', style: const TextStyle(fontSize: 24))
+                    : const Text('No temperature data.', style: TextStyle(fontSize: 24)),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

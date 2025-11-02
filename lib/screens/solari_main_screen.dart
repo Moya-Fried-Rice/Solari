@@ -250,6 +250,17 @@ class _SolariScreenState extends State<SolariScreen>
     }
   }
 
+  // VQA Control Methods
+  void _startVqa() {
+    debugPrint('📸 Starting VQA session...');
+    _bleService.sendVqaCommand('VQA_START');
+  }
+
+  void _endVqa() {
+    debugPrint('🛑 Ending VQA session...');
+    _bleService.sendVqaCommand('VQA_END');
+  }
+
   // Initialize STT Service
   Future<void> _initializeStt() async {
     try {
@@ -576,6 +587,8 @@ class _SolariScreenState extends State<SolariScreen>
       image: _receivedImage,
       downloadingModel: _downloadingModel,
       downloadProgress: _downloadProgress,
+      onVqaStart: _startVqa,
+      onVqaEnd: _endVqa,
     ),
     SettingsTab(device: widget.device, onDisconnect: _handleDisconnect),
     HistoryTab(),

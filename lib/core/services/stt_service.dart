@@ -41,6 +41,12 @@ class SttService {
 
   /// Convert raw audio bytes to Float32List for Sherpa ONNX
   Float32List _convertBytesToFloat32(Uint8List bytes, [Endian endian = Endian.little]) {
+    // Validate minimum audio chunk size to prevent processing errors
+    if (bytes.length < 4) {
+      debugPrint('[STT] ⚠️ Audio chunk too small (${bytes.length} bytes), skipping');
+      return Float32List(0);
+    }
+
     final values = Float32List(bytes.length ~/ 2);
     final data = ByteData.view(bytes.buffer);
 
@@ -136,12 +142,20 @@ class SttService {
     }
 
     try {
+      // Validate audio chunk size
+      if (audioChunk.length < 2) {
+        debugPrint('[STT] ⚠️ Received very small audio chunk (${audioChunk.length} bytes), skipping');
+        return 'Recording...';
+      }
+
       // Convert the raw audio bytes to Float32List and add to buffer
       final audioBytes = Uint8List.fromList(audioChunk);
       final samplesFloat32 = _convertBytesToFloat32(audioBytes);
       
-      // Add samples to buffer for offline processing
-      _audioBuffer.addAll(samplesFloat32);
+      // Only add valid samples to buffer
+      if (samplesFloat32.isNotEmpty) {
+        _audioBuffer.addAll(samplesFloat32);
+      }
       
       // Provide feedback that audio is being collected
       final durationSeconds = _audioBuffer.length / _sampleRate;
@@ -181,40 +195,62 @@ class SttService {
       final durationSeconds = _audioBuffer.length / _sampleRate;
       debugPrint('[STT] Transcribing ${durationSeconds.toStringAsFixed(1)}s of audio...');
 
+      // Check minimum audio length to prevent ONNX shape errors
+      const double minAudioDuration = 0.5; // Minimum 0.5 seconds
+      if (durationSeconds < minAudioDuration) {
+        debugPrint('[STT] ⚠️ Audio too short (${durationSeconds.toStringAsFixed(3)}s < ${minAudioDuration}s)');
+        debugPrint('[STT] Samples collected: ${_audioBuffer.length} (need at least ${(_sampleRate * minAudioDuration).toInt()})');
+        debugPrint('[STT] Skipping transcription to prevent ONNX Conv node shape errors');
+        _audioBuffer.clear();
+        return null;
+      }
+
+      debugPrint('[STT] ✅ Audio length OK: ${durationSeconds.toStringAsFixed(3)}s (${_audioBuffer.length} samples)');
+
       // Create an offline stream for processing
       final stream = _recognizer!.createStream();
       
-      // Feed all collected audio to the stream
-      stream.acceptWaveform(
-        samples: Float32List.fromList(_audioBuffer),
-        sampleRate: _sampleRate,
-      );
-      
-      // Process the audio and get the result
-      _recognizer!.decode(stream);
-      final result = _recognizer!.getResult(stream);
-      final transcription = result.text.trim();
-
-      // Clean up
-      stream.free();
-      _audioBuffer.clear();
-
-      if (transcription.isNotEmpty) {
-        String finalText = transcription;
+      try {
+        // Feed all collected audio to the stream
+        stream.acceptWaveform(
+          samples: Float32List.fromList(_audioBuffer),
+          sampleRate: _sampleRate,
+        );
         
-        // Add punctuation to improve VLM prompt quality
-        if (_enhancePunctuation) {
-          finalText = PunctuationHelper.addPunctuationAdvanced(transcription);
-          debugPrint('[STT] Raw transcription: "$transcription"');
-          debugPrint('[STT] With punctuation: "$finalText"');
+        // Process the audio and get the result
+        _recognizer!.decode(stream);
+        final result = _recognizer!.getResult(stream);
+        final transcription = result.text.trim();
+
+        if (transcription.isNotEmpty) {
+          String finalText = transcription;
+          
+          // Add punctuation to improve VLM prompt quality
+          if (_enhancePunctuation) {
+            finalText = PunctuationHelper.addPunctuationAdvanced(transcription);
+            debugPrint('[STT] Raw transcription: "$transcription"');
+            debugPrint('[STT] With punctuation: "$finalText"');
+          } else {
+            debugPrint('[STT] Transcription completed: "$transcription"');
+          }
+          
+          return finalText;
         } else {
-          debugPrint('[STT] Transcription completed: "$transcription"');
+          debugPrint('[STT] No speech detected in audio');
+          return null;
         }
-        
-        return finalText;
-      } else {
-        debugPrint('[STT] No speech detected in audio');
+      } catch (onnxError) {
+        debugPrint('[STT] ❌ ONNX processing error: $onnxError');
+        debugPrint('[STT] Audio samples: ${_audioBuffer.length}, duration: ${durationSeconds.toStringAsFixed(3)}s');
         return null;
+      } finally {
+        // Always clean up resources
+        try {
+          stream.free();
+        } catch (e) {
+          debugPrint('[STT] Error freeing stream: $e');
+        }
+        _audioBuffer.clear();
       }
 
     } catch (e) {
