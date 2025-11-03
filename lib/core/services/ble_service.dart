@@ -10,6 +10,7 @@ class BleService {
 
   BluetoothDevice? _connectedDevice;
   BluetoothCharacteristic? _writeCharacteristic;
+  BluetoothCharacteristic? _vqaCharacteristic;
   bool _isInitialized = false;
 
   /// Initialize the BLE service with a connected device
@@ -27,15 +28,16 @@ class BleService {
     }
   }
 
-  /// Discover the speaker write characteristic for sending audio data
+  /// Discover the speaker write characteristic and VQA characteristic for sending data
   Future<void> _discoverWriteCharacteristic() async {
     if (_connectedDevice == null) return;
 
     const serviceUuid = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
     const speakerCharacteristicUuid = '12345678-1234-1234-1234-123456789abc';
+    const vqaCharacteristicUuid = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
 
     try {
-      debugPrint('🔍 Discovering services for speaker characteristic...');
+      debugPrint('🔍 Discovering services for characteristics...');
       List<BluetoothService> services = await _connectedDevice!.discoverServices();
       debugPrint('Found ${services.length} services');
       
@@ -47,13 +49,22 @@ class BleService {
           for (var characteristic in service.characteristics) {
             debugPrint('    Characteristic: ${characteristic.uuid}');
             debugPrint('      Properties: write=${characteristic.properties.write}, writeWithoutResponse=${characteristic.properties.writeWithoutResponse}');
+            
+            // Speaker characteristic
             if (characteristic.uuid.toString().toLowerCase() == speakerCharacteristicUuid &&
                 (characteristic.properties.write || characteristic.properties.writeWithoutResponse)) {
               _writeCharacteristic = characteristic;
               debugPrint('  ✅ Found speaker characteristic: ${characteristic.uuid}');
-              return;
+            }
+            
+            // VQA characteristic
+            if (characteristic.uuid.toString().toLowerCase() == vqaCharacteristicUuid &&
+                (characteristic.properties.write || characteristic.properties.writeWithoutResponse)) {
+              _vqaCharacteristic = characteristic;
+              debugPrint('  ✅ Found VQA characteristic: ${characteristic.uuid}');
             }
           }
+          break;
         }
       }
       
@@ -62,8 +73,14 @@ class BleService {
         debugPrint('Expected UUID: $speakerCharacteristicUuid');
         throw Exception('Speaker characteristic not found');
       }
+      
+      if (_vqaCharacteristic == null) {
+        debugPrint('❌ VQA characteristic not found!');
+        debugPrint('Expected UUID: $vqaCharacteristicUuid');
+        throw Exception('VQA characteristic not found');
+      }
     } catch (e) {
-      debugPrint('Error discovering speaker characteristic: $e');
+      debugPrint('Error discovering characteristics: $e');
       rethrow;
     }
   }
@@ -170,6 +187,31 @@ class BleService {
     }
   }
 
+  /// Send a VQA command to the connected BLE device
+  Future<void> sendVqaCommand(String command) async {
+    if (!_isInitialized) {
+      debugPrint('BLE service not initialized');
+      return;
+    }
+
+    if (_vqaCharacteristic == null) {
+      debugPrint('VQA characteristic not available');
+      return;
+    }
+
+    if (_connectedDevice?.isConnected != true) {
+      debugPrint('Device not connected');
+      return;
+    }
+
+    try {
+      await _vqaCharacteristic!.write(command.codeUnits, withoutResponse: false);
+      debugPrint('VQA command sent: $command');
+    } catch (e) {
+      debugPrint('Error sending VQA command: $e');
+    }
+  }
+
   /// Check if the service is ready to send data
   bool get isReady {
     bool ready = _isInitialized && 
@@ -190,6 +232,7 @@ class BleService {
   void dispose() {
     _connectedDevice = null;
     _writeCharacteristic = null;
+    _vqaCharacteristic = null;
     _isInitialized = false;
     debugPrint('BleService disposed');
   }

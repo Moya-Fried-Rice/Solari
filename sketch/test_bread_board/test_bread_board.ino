@@ -1,222 +1,388 @@
-#include "ESP_I2S.h"
-#include <SD.h>
-#include <SPI.h>
+#include <ESP_I2S.h>
+#include "done.h"
+#include "processing.h"
+#include "FS.h"
+#include "SD.h"
+#include "SPI.h"
 
-/*
- * A-LAW WAV PLAYER FOR SMART GLASSES
- * 
- * SUPPORTS ONLY:
- * - 8kHz, A-Law compressed, mono WAV files
- * - Optimized for BLE streaming (~8KB/second)
- * - A-Law provides better dynamic range than 8-bit PCM
- */
+// --- Pin Definitions ---
+#define I2S_BCLK   D1       // I2S BCLK
+#define I2S_LRC    D0       // I2S LRC / WS
+#define I2S_DOUT   D2       // I2S Data Out
+#define SD_CS      21       // SD Card CS pin
+#define VBUS_PIN   9        // Pin to monitor USB VBUS voltage (GPIO9 on XIAO ESP32-S3)
 
-// Xiao ESP32-S3 pin names (works fine)
-#define I2S_BCLK D1  // BCLK
-#define I2S_LRC  D0  // LRC / WS
-#define I2S_DOUT D2  // DIN
+// --- Button ---
+const int buttonPin = D8;        // Pin where the button is connected
+bool lastButtonState = HIGH;     // Previous button state (HIGH when not pressed with pull-up)
+bool buttonPressed = false;      // Track button press state
 
-// SD Card pins for Xiao ESP32-S3 (using pin 21 like in camera example)
-#define SD_CS_PIN 21
+// --- Auto Sleep ---
+const unsigned long IDLE_TIMEOUT = 20000;  // 20 seconds in milliseconds
+unsigned long lastActivityTime = 0;        // Track last activity time
 
-#define WAV_FILE_NAME "/test.wav"
+// --- USB State Tracking ---
+bool usbWasConnectedBeforeSleep = false;    // Track USB state before sleep
 
-int16_t amplitude = 20000;  // Default amplitude (can be changed via Serial)
+// --- Processing Loop ---
+bool isProcessingLooping = false;           // Track if processing sound is looping
+unsigned long lastProcessingPlay = 0;       // Track last time processing sound was played
 
-// Simplified WAV header for 8-bit files
-struct WAVHeader {
-  uint32_t sampleRate;
-  uint32_t dataSize;
-};
+// --- Auto Sleep Control ---
+bool isAutoSleepEnabled = true;             // Track if auto-sleep is enabled
 
-// Create I2S instance
-I2SClass i2s;
+I2SClass I2S;
 
-// Function declarations
-void setupI2S(uint32_t sampleRate);
-bool readWAVHeader(File &file, WAVHeader &header);
-void playWAVFile();
-void handleSerialInput();
-int16_t alawToLinear(uint8_t alaw);
+void playAudio(const unsigned char* audioData, unsigned int audioLength, const char* audioName) {
+  Serial.print("Playing ");
+  Serial.print(audioName);
+  Serial.println("...");
 
-// A-Law decompression lookup table for better performance
-static const int16_t alaw_table[256] = {
-  -5504, -5248, -6016, -5760, -4480, -4224, -4992, -4736,
-  -7552, -7296, -8064, -7808, -6528, -6272, -7040, -6784,
-  -2752, -2624, -3008, -2880, -2240, -2112, -2496, -2368,
-  -3776, -3648, -4032, -3904, -3264, -3136, -3520, -3392,
-  -22016, -20992, -24064, -23040, -17920, -16896, -19968, -18944,
-  -30208, -29184, -32256, -31232, -26112, -25088, -28160, -27136,
-  -11008, -10496, -12032, -11520, -8960, -8448, -9984, -9472,
-  -15104, -14592, -16128, -15616, -13056, -12544, -14080, -13568,
-  -344, -328, -376, -360, -280, -264, -312, -296,
-  -472, -456, -504, -488, -408, -392, -440, -424,
-  -88, -72, -120, -104, -24, -8, -56, -40,
-  -216, -200, -248, -232, -152, -136, -184, -168,
-  -1376, -1312, -1504, -1440, -1120, -1056, -1248, -1184,
-  -1888, -1824, -2016, -1952, -1632, -1568, -1760, -1696,
-  -688, -656, -752, -720, -560, -528, -624, -592,
-  -944, -912, -1008, -976, -816, -784, -880, -848,
-  5504, 5248, 6016, 5760, 4480, 4224, 4992, 4736,
-  7552, 7296, 8064, 7808, 6528, 6272, 7040, 6784,
-  2752, 2624, 3008, 2880, 2240, 2112, 2496, 2368,
-  3776, 3648, 4032, 3904, 3264, 3136, 3520, 3392,
-  22016, 20992, 24064, 23040, 17920, 16896, 19968, 18944,
-  30208, 29184, 32256, 31232, 26112, 25088, 28160, 27136,
-  11008, 10496, 12032, 11520, 8960, 8448, 9984, 9472,
-  15104, 14592, 16128, 15616, 13056, 12544, 14080, 13568,
-  344, 328, 376, 360, 280, 264, 312, 296,
-  472, 456, 504, 488, 408, 392, 440, 424,
-  88, 72, 120, 104, 24, 8, 56, 40,
-  216, 200, 248, 232, 152, 136, 184, 168,
-  1376, 1312, 1504, 1440, 1120, 1056, 1248, 1184,
-  1888, 1824, 2016, 1952, 1632, 1568, 1760, 1696,
-  688, 656, 752, 720, 560, 528, 624, 592,
-  944, 912, 1008, 976, 816, 784, 880, 848
-};
+  // Amplification factor (adjust this value to increase/decrease volume)
+  // Values: 1.0 = no change, 2.0 = double volume, 0.5 = half volume
+  const float amplification = 3.0;
+
+  // Play the raw audio data with amplification
+  const size_t BUFFER_SIZE = 512;
+  unsigned int bytesPlayed = 0;
+  int16_t amplifiedBuffer[BUFFER_SIZE / 2]; // Buffer for amplified samples
+
+  while (bytesPlayed < audioLength) {
+    size_t bytesToPlay = min(BUFFER_SIZE, audioLength - bytesPlayed);
+    
+    // Amplify the audio samples
+    for (size_t i = 0; i < bytesToPlay; i += 2) {
+      if (bytesPlayed + i + 1 < audioLength) {
+        // Convert bytes to 16-bit sample
+        int16_t sample = (int16_t)((audioData[bytesPlayed + i + 1] << 8) | audioData[bytesPlayed + i]);
+        
+        // Apply amplification with clipping protection
+        int32_t amplifiedSample = (int32_t)(sample * amplification);
+        if (amplifiedSample > 32767) amplifiedSample = 32767;
+        if (amplifiedSample < -32768) amplifiedSample = -32768;
+        
+        amplifiedBuffer[i / 2] = (int16_t)amplifiedSample;
+      }
+    }
+    
+    // Write amplified samples to I2S
+    I2S.write((uint8_t*)amplifiedBuffer, bytesToPlay);
+    bytesPlayed += bytesToPlay;
+  }
+
+  // 🔇 Send 50 ms of silence to avoid click
+  int silenceSamples = 11025 / 20; // 50ms of silence for 11025 Hz
+  for (int i = 0; i < silenceSamples; i++) {
+    int16_t silence = 0;
+    I2S.write((uint8_t *)&silence, sizeof(silence));
+  }
+
+  Serial.print(audioName);
+  Serial.println(" playback completed!");
+}
+
+void playDone() {
+  playAudio(done_audio_data, done_audio_length, "Done");
+}
+
+void playProcessing() {
+  playAudio(processing_audio_data, processing_audio_length, "Processing");
+}
+
+void playAudioFromSD(const char* filename, const char* audioName) {
+  Serial.print("Playing ");
+  Serial.print(audioName);
+  Serial.print(" from SD card: ");
+  Serial.println(filename);
+
+  File audioFile = SD.open(filename);
+  if (!audioFile) {
+    Serial.println("Failed to open audio file from SD card");
+    return;
+  }
+
+  // Amplification factor (adjust this value to increase/decrease volume)
+  const float amplification = 3.0;
+
+  // Buffer for reading and amplifying audio data
+  const size_t BUFFER_SIZE = 512;
+  uint8_t buffer[BUFFER_SIZE];
+  int16_t amplifiedBuffer[BUFFER_SIZE / 2];
+
+  while (audioFile.available()) {
+    size_t bytesRead = audioFile.read(buffer, BUFFER_SIZE);
+    
+    // Amplify the audio samples
+    for (size_t i = 0; i < bytesRead; i += 2) {
+      if (i + 1 < bytesRead) {
+        // Convert bytes to 16-bit sample
+        int16_t sample = (int16_t)((buffer[i + 1] << 8) | buffer[i]);
+        
+        // Apply amplification with clipping protection
+        int32_t amplifiedSample = (int32_t)(sample * amplification);
+        if (amplifiedSample > 32767) amplifiedSample = 32767;
+        if (amplifiedSample < -32768) amplifiedSample = -32768;
+        
+        amplifiedBuffer[i / 2] = (int16_t)amplifiedSample;
+      }
+    }
+    
+    // Write amplified samples to I2S
+    I2S.write((uint8_t*)amplifiedBuffer, bytesRead);
+  }
+
+  audioFile.close();
+
+  // Send 50 ms of silence to avoid click
+  int silenceSamples = 11025 / 20; // 50ms of silence for 11025 Hz
+  for (int i = 0; i < silenceSamples; i++) {
+    int16_t silence = 0;
+    I2S.write((uint8_t *)&silence, sizeof(silence));
+  }
+
+  Serial.print(audioName);
+  Serial.println(" playback completed!");
+}
+
+void playharvard() {
+  playAudioFromSD("/harvard.wav", "harvard");
+}
+
+void enterDeepSleep() {
+  Serial.println("Entering deep sleep...");
+  Serial.println("Device will wake up when USB-C charger is reconnected.");
+  
+  // Store current USB connection status before sleeping
+  usbWasConnectedBeforeSleep = isUSBConnected();
+  Serial.print("Current USB status before sleep: ");
+  Serial.println(usbWasConnectedBeforeSleep ? "Connected" : "Disconnected");
+  
+  // Always wake up on USB connection (HIGH), regardless of current state
+  // If USB is already connected, user needs to unplug and replug to wake up
+  esp_sleep_enable_ext1_wakeup(1ULL << VBUS_PIN, ESP_EXT1_WAKEUP_ANY_HIGH);
+  
+  delay(100); // Give time for serial message to be sent
+  
+  // Enter deep sleep
+  esp_deep_sleep_start();
+}
+
+bool isUSBConnected() {
+  // For XIAO ESP32-S3, we can check if USB is connected by reading GPIO9
+  // GPIO9 is connected to VBUS through a voltage divider
+  int vbusReading = analogRead(VBUS_PIN);
+  // The ADC reading will be higher when USB is connected
+  // Typical values: ~0 when disconnected, >1000 when connected
+  return vbusReading > 500; // Adjust threshold as needed
+}
+
+float readTemperature() {
+  // Use ESP32's built-in temperature sensor (same as Solari project)
+  // This reads the actual internal temperature of the ESP32 chip
+  return temperatureRead();
+}
+
 
 void setup() {
   Serial.begin(115200);
-  Serial.println("\nA-LAW WAV PLAYER FOR SMART GLASSES");
-  
-  // Initialize SD card
-  if (!SD.begin(SD_CS_PIN)) {
-    Serial.println("[ERROR] SD card failed!");
-    return;
-  }
-  
-  // Check if WAV file exists
-  if (!SD.exists(WAV_FILE_NAME)) {
-    Serial.println("[ERROR] test.wav not found!");
-    return;
-  }
-  
-  setupI2S(8000);  // Fixed 8kHz
-  Serial.println("Ready! Commands: 'p' = play, number = volume");
-}
+  Serial.println("\nRAW Audio Player with Command");
 
-void loop() {
-  handleSerialInput();
-  delay(100);  // Small delay to prevent excessive loop iterations
-}
-
-void setupI2S(uint32_t sampleRate) {
-  // Set the pins for I2S TX (output to MAX98357A)
-  i2s.setPins(I2S_BCLK, I2S_LRC, I2S_DOUT);
-  
-  // Begin I2S in TX mode, mono, 16-bit, at the specified sample rate
-  if (!i2s.begin(I2S_MODE_STD, sampleRate, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO)) {
-    Serial.println("[ERROR] Failed to initialize I2S!");
-    while (true) delay(1000);
-  }
-  
-  Serial.println("[DEBUG] ESP_I2S initialized successfully");
-  Serial.printf("[DEBUG] I2S configured for %d Hz, 16-bit, mono\n", sampleRate);
-}
-
-bool readWAVHeader(File &file, WAVHeader &header) {
-  // Based on hexdump: sample rate at offset 24 (0x18), data size at offset 40 (0x28)
-  file.seek(0);
-  
-  // Read sample rate from offset 24
-  file.seek(24);
-  file.read((uint8_t*)&header.sampleRate, 4);
-  
-  // Check format code at offset 20 (should be 6 for A-Law)
-  file.seek(20);
-  uint16_t formatCode;
-  file.read((uint8_t*)&formatCode, 2);
-  
-  if (formatCode != 6) {
-    Serial.printf("[WARN] Expected A-Law format (6), got format %d\n", formatCode);
-  }
-  
-  // Read data size from offset 40 (after "data" chunk header)
-  file.seek(40);
-  file.read((uint8_t*)&header.dataSize, 4);
-  
-  Serial.printf("[INFO] A-Law WAV: %d Hz, %d bytes, format=%d\n", header.sampleRate, header.dataSize, formatCode);
-  return true;
-}
-
-void playWAVFile() {
-  File wavFile = SD.open(WAV_FILE_NAME);
-  if (!wavFile) {
-    Serial.println("[ERROR] Failed to open WAV file");
-    return;
-  }
-  
-  WAVHeader header;
-  if (!readWAVHeader(wavFile, header)) {
-    wavFile.close();
-    return;
-  }
-  
-  // Always use 8kHz (our target format)
-  if (header.sampleRate != 8000) {
-    Serial.printf("[WARN] Expected 8kHz, got %d Hz - playing anyway\n", header.sampleRate);
-  }
-  
-  float duration = (float)header.dataSize / 8000.0;
-  Serial.printf("[INFO] Playing: %.1f seconds, %d bytes\n", duration, header.dataSize);
-  
-  // Audio data starts at offset 44 (0x2C) - after all headers
-  wavFile.seek(44);
-  
-  const size_t chunkSize = 128;
-  uint8_t audioData[chunkSize];
-  uint32_t totalBytesRead = 0;
-  
-  while (totalBytesRead < header.dataSize) {
-    size_t bytesToRead = min(chunkSize, (size_t)(header.dataSize - totalBytesRead));
-    size_t bytesRead = wavFile.read(audioData, bytesToRead);
-    
-    if (bytesRead == 0) break;
-    
-    // Convert A-Law compressed samples to 16-bit linear PCM and send to I2S
-    for (size_t i = 0; i < bytesRead; i++) {
-      // Decompress A-Law to 16-bit linear PCM using lookup table
-      int16_t sample = alaw_table[audioData[i]];
+  // Check wake-up reason
+  esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
+  switch(wakeup_reason) {
+    case ESP_SLEEP_WAKEUP_EXT1:
+      delay(100); // Small delay to stabilize readings
       
-      // Apply volume with better precision
-      sample = (int16_t)((int32_t)sample * amplitude / 32767);
-      
-      // Send to I2S
-      i2s.write((uint8_t*)&sample, sizeof(int16_t));
-    }
-    
-    totalBytesRead += bytesRead;
-  }
-  
-  wavFile.close();
-  Serial.println("[INFO] Playback complete");
-}
-
-// Listen for serial input and handle commands
-void handleSerialInput() {
-  if (Serial.available()) {
-    String input = Serial.readStringUntil('\n');
-    input.trim();
-    
-    if (input.equalsIgnoreCase("p") || input.equalsIgnoreCase("play")) {
-      Serial.println("[INFO] Playing A-Law compressed WAV file...");
-      playWAVFile();
-    } else {
-      int newAmp = input.toInt();
-      if (newAmp >= 0 && newAmp <= 32767) {
-        amplitude = newAmp;
-        Serial.printf("[INFO] Volume set to %d\n", amplitude);
+      // Check if this is a valid USB connection wake-up
+      if (isUSBConnected()) {
+        if (usbWasConnectedBeforeSleep) {
+          // USB was connected before sleep, so this must be a reconnection
+          Serial.println("Woke up from USB-C charger reconnection!");
+        } else {
+          // USB was not connected before sleep, so this is a new connection
+          Serial.println("Woke up from USB-C charger connection!");
+        }
       } else {
-        Serial.println("[INFO] Commands: 'p' = play, number = volume (0-32767)");
-        Serial.println("[INFO] Now supports A-Law compressed WAV files!");
+        // False wake-up, USB not actually connected
+        Serial.println("False wake-up, USB not connected. Going back to sleep...");
+        delay(100);
+        enterDeepSleep();
+      }
+      break;
+    case ESP_SLEEP_WAKEUP_UNDEFINED:
+      Serial.println("Power on or reset wake up");
+      break;
+    default:
+      Serial.printf("Wake up from other source: %d\n", wakeup_reason);
+      break;
+  }
+
+  // Initialize built-in LED
+  pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, LOW);
+
+  // Initialize VBUS monitoring pin
+  pinMode(VBUS_PIN, INPUT);
+
+  // Initialize SD card
+  if (!SD.begin(SD_CS)) {
+    Serial.println("SD Card Mount Failed");
+  } else {
+    Serial.println("SD Card initialized!");
+    uint8_t cardType = SD.cardType();
+    if (cardType != CARD_NONE) {
+      Serial.print("SD Card Type: ");
+      if (cardType == CARD_MMC) {
+        Serial.println("MMC");
+      } else if (cardType == CARD_SD) {
+        Serial.println("SDSC");
+      } else if (cardType == CARD_SDHC) {
+        Serial.println("SDHC");
+      } else {
+        Serial.println("UNKNOWN");
       }
     }
   }
+
+  I2S.setPins(I2S_BCLK, I2S_LRC, I2S_DOUT);
+  if (!I2S.begin(I2S_MODE_STD, 22050, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO)) {
+    Serial.println("I2S init failed!");
+    while (true);
+  }
+
+  // Initialize button pin as input with internal pull-up
+  pinMode(buttonPin, INPUT_PULLUP);
+
+  Serial.println("Audio system initialized!");
+  Serial.println("Button initialized!");
+  Serial.println("Available commands:");
+  Serial.println("  'done' - Play done audio");
+  Serial.println("  'processing' - Play processing audio");
+  Serial.println("  'harvard' - Play harvard audio from SD card");
+  Serial.println("  'play' - Play done audio (for compatibility)");
+  Serial.println("  'sleep' - Enter deep sleep mode");
+  Serial.println("  'usb' - Check USB connection status");
+  Serial.println("  'loop' - Start/stop looping processing sound every 5 seconds");
+  Serial.println("  'autosleep' - Enable/disable auto-sleep after 20 seconds of inactivity");
+  Serial.println("Press the button to play processing sound!");
+  
+  // Display initial USB connection status
+  Serial.print("USB connection status: ");
+  Serial.println(isUSBConnected() ? "Connected" : "Disconnected");
+  
+  // Initialize activity timer
+  lastActivityTime = millis();
+  Serial.print("Auto-sleep ");
+  Serial.print(isAutoSleepEnabled ? "enabled" : "disabled");
+  Serial.println(": Device will sleep after 20 seconds of inactivity when enabled");
 }
 
-// A-Law decompression function using lookup table for optimal performance
-int16_t alawToLinear(uint8_t alaw) {
-  return alaw_table[alaw];
+void loop() {
+  // Check for auto-sleep timeout
+  if (isAutoSleepEnabled && millis() - lastActivityTime > IDLE_TIMEOUT) {
+    Serial.println("Auto-sleep: 20 seconds of inactivity detected. Entering deep sleep...");
+    delay(100); // Give time for serial message
+    enterDeepSleep();
+  }
+
+  // Blink LED to show device is running
+  static unsigned long lastBlink = 0;
+  static bool ledState = false;
+  if (millis() - lastBlink > 1000) {  // Blink every 1 second
+    ledState = !ledState;
+    digitalWrite(LED_BUILTIN, ledState ? HIGH : LOW);
+    lastBlink = millis();
+  }
+
+  // Read and display temperature every 5 seconds
+  static unsigned long lastTempRead = 0;
+  if (millis() - lastTempRead > 5000) {  // Read temperature every 5 seconds
+    float temperature = readTemperature();
+    Serial.print("Temperature: ");
+    Serial.print(temperature);
+    Serial.println(" °C");
+    lastTempRead = millis();
+  }
+
+  // Monitor USB connection status every 10 seconds
+  static unsigned long lastUSBCheck = 0;
+  static bool lastUSBState = false;
+  if (millis() - lastUSBCheck > 10000) {  // Check USB every 10 seconds
+    bool currentUSBState = isUSBConnected();
+    if (currentUSBState != lastUSBState) {
+      Serial.print("USB status changed: ");
+      Serial.println(currentUSBState ? "Connected" : "Disconnected");
+      lastUSBState = currentUSBState;
+    }
+    lastUSBCheck = millis();
+  }
+
+  // Handle processing sound looping
+  if (isProcessingLooping) {
+    if (millis() - lastProcessingPlay >= 5000) {  // Play every 5 seconds
+      Serial.println("Loop: Playing processing sound...");
+      playProcessing();
+      lastProcessingPlay = millis();
+      lastActivityTime = millis(); // Reset activity timer when looping
+    }
+  }
+
+  // Check for button press
+  int currentButtonState = digitalRead(buttonPin);
+  
+  // Detect button press (HIGH to LOW transition with pull-up resistor)
+  if (currentButtonState == LOW && lastButtonState == HIGH) {
+    Serial.println("Button Pressed - Playing processing sound");
+    playProcessing();
+    lastActivityTime = millis(); // Reset activity timer on button press
+    buttonPressed = true;
+  } else if (currentButtonState == HIGH && lastButtonState == LOW) {
+    Serial.println("Button Released");
+    buttonPressed = false;
+  }
+  
+  lastButtonState = currentButtonState; // Remember state for next loop
+  
+  // Check for serial commands
+  if (Serial.available()) {
+    String cmd = Serial.readStringUntil('\n');
+    cmd.trim();
+    
+    // Reset activity timer on any command
+    lastActivityTime = millis();
+    
+    if (cmd.equalsIgnoreCase("done") || cmd.equalsIgnoreCase("play")) {
+      playDone();
+    } else if (cmd.equalsIgnoreCase("processing")) {
+      playProcessing();
+    } else if (cmd.equalsIgnoreCase("harvard")) {
+      playharvard();
+    } else if (cmd.equalsIgnoreCase("sleep")) {
+      enterDeepSleep();
+    } else if (cmd.equalsIgnoreCase("usb")) {
+      Serial.print("USB connection status: ");
+      Serial.println(isUSBConnected() ? "Connected" : "Disconnected");
+    } else if (cmd.equalsIgnoreCase("loop")) {
+      isProcessingLooping = !isProcessingLooping;
+      if (isProcessingLooping) {
+        Serial.println("Started looping processing sound every 5 seconds");
+        lastProcessingPlay = millis(); // Start immediately
+        playProcessing();
+      } else {
+        Serial.println("Stopped looping processing sound");
+      }
+    } else if (cmd.equalsIgnoreCase("autosleep")) {
+      isAutoSleepEnabled = !isAutoSleepEnabled;
+      if (isAutoSleepEnabled) {
+        Serial.println("Auto-sleep enabled: Device will sleep after 20 seconds of inactivity");
+        lastActivityTime = millis(); // Reset timer when enabling
+      } else {
+        Serial.println("Auto-sleep disabled: Device will not automatically sleep");
+      }
+    } else {
+      Serial.println("Unknown command. Available commands: 'done', 'processing', 'harvard', 'play', 'sleep', 'usb', 'loop', 'autosleep'");
+    }
+  }
+  
+  delay(50); // Small debounce delay for touch sensor
 }
-
-

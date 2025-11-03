@@ -64,6 +64,7 @@ class _SolariScreenState extends State<SolariScreen>
   // Audio streaming
   final List<int> _audioBuffer = [];
   bool _audioStreaming = false;
+  String? _transcribedText;
 
   // Image receiving
   final List<int> _imageBuffer = [];
@@ -148,6 +149,7 @@ class _SolariScreenState extends State<SolariScreen>
           _subscribeToService();
           _initModel();
           _initializeSpeaker();
+          _initializeStt();
         });
   }
 
@@ -161,7 +163,8 @@ class _SolariScreenState extends State<SolariScreen>
     _audioBuffer.clear();
     _imageBuffer.clear();
     _vlmService.dispose();
-    _speakerService.dispose();
+    _ttsService.dispose();
+    _sttService.dispose();
     super.dispose();
   }
   // ================================================================================================================================
@@ -203,7 +206,7 @@ class _SolariScreenState extends State<SolariScreen>
   // =================================================================================================================================
 
   // =================================================================================================================================
-  // Initialize Speaker Service
+  // Initialize TTS Service and BLE Service
   Future<void> _initializeSpeaker() async {
     try {
       // Initialize TTS service
@@ -230,7 +233,7 @@ class _SolariScreenState extends State<SolariScreen>
       debugPrint('   Sample Rate: ${engineInfo['sampleRate']}');
       
     } catch (e) {
-      debugPrint('Error initializing speaker service: $e');
+      debugPrint('❌ Error initializing TTS/BLE services: $e');
     }
   }
 
@@ -453,7 +456,7 @@ class _SolariScreenState extends State<SolariScreen>
 
   // =================================================================================================================================
   // Handle incoming data from characteristics
-  void _handleIncomingData(List<int> value) {
+  Future<void> _handleIncomingData(List<int> value) async {
     if (value.isEmpty) return;
 
     String asString = String.fromCharCodes(value);
@@ -477,7 +480,11 @@ class _SolariScreenState extends State<SolariScreen>
       _receivedImage = null;
       _receivingImage = false;
       _audioStreaming = false;
-      setState(() {});
+      
+      setState(() {
+        _transcribedText = null; // Reset transcription for new session
+        _lastTranscriptionDisplayed = null; // Clear tracking
+      });
       return;
     }
 
@@ -485,13 +492,23 @@ class _SolariScreenState extends State<SolariScreen>
       debugPrint("Audio streaming started");
       _audioStreaming = true;
       _audioBuffer.clear();
+      
+      // Start recording for offline transcription
+      _sttService.startRecording();
+      
+      setState(() {
+        _transcribedText = 'Recording audio...'; // Show recording status
+        _lastTranscriptionDisplayed = null; // Reset tracking
+      });
       return;
     }
 
     if (asString.startsWith("A_END")) {
       debugPrint("Audio streaming ended");
       _audioStreaming = false;
-      setState(() {});
+      
+      // Stop recording and transcribe the collected audio
+      await _finalizeTranscription();
       return;
     }
 
@@ -516,22 +533,29 @@ class _SolariScreenState extends State<SolariScreen>
         _receivedImage = Uint8List.fromList(_imageBuffer);
       });
 
-      debugPrint("[AI] Passing received image to model for processing...");
-      // Process image with model
-      _processReceivedImage(_receivedImage!, prompt: 'Describe this image.');
+      debugPrint("[AI] Image received, waiting for VQA session to complete...");
 
       return;
     }
 
     if (asString.startsWith("VQA_END")) {
       debugPrint("VQA session ended");
+      
+      // Process the complete VQA session (image + transcribed text)
+      if (_receivedImage != null) {
+        final prompt = _transcribedText ?? 'Describe this image.';
+        _processReceivedImage(_receivedImage!, prompt: prompt);
+      }
       return;
     }
 
     // --- OTHERWISE THIS IS BINARY DATA ---
     if (_audioStreaming) {
-      debugPrint("[BLE] Audio data chunk received: ${value.length} bytes");
+      // debugPrint("[BLE] Audio data chunk received: ${value.length} bytes");
       _audioBuffer.addAll(value);
+      
+      // Process audio chunk in real-time for STT
+      _processStreamingAudio(value);
     } else if (_receivingImage) {
       debugPrint(
         "[BLE] Image data chunk received: ${value.length} bytes (total: ${_imageBuffer.length + value.length}/${_expectedImageSize})",
@@ -564,6 +588,55 @@ class _SolariScreenState extends State<SolariScreen>
   // ================================================================================================================================
 
   // ================================================================================================================================
+  // Collect audio data for offline transcription
+  Future<void> _processStreamingAudio(List<int> audioChunk) async {
+    if (!_audioStreaming) return;
+    
+    try {
+      // Collect audio chunk for offline processing
+      final statusMessage = await _sttService.processAudioChunk(audioChunk);
+      
+      if (statusMessage != null && 
+          statusMessage.isNotEmpty && 
+          statusMessage != _lastTranscriptionDisplayed) {
+        setState(() {
+          _transcribedText = statusMessage; // Show recording duration
+          _lastTranscriptionDisplayed = statusMessage;
+        });
+      }
+      
+    } catch (e) {
+      debugPrint('[STT] Error collecting audio chunk: $e');
+    }
+  }
+
+  // Stop recording and transcribe the collected audio
+  Future<void> _finalizeTranscription() async {
+    try {
+      setState(() {
+        _transcribedText = 'Transcribing...';
+      });
+      
+      final finalTranscription = await _sttService.stopRecordingAndTranscribe();
+      
+      setState(() {
+        if (finalTranscription != null && finalTranscription.isNotEmpty) {
+          _transcribedText = finalTranscription;
+          debugPrint('[STT] Final transcription: "$finalTranscription"');
+        } else {
+          _transcribedText = 'No speech detected';
+          debugPrint('[STT] No speech detected in audio session');
+        }
+      });
+      
+    } catch (e) {
+      debugPrint('[STT] Error transcribing audio: $e');
+      setState(() {
+        _transcribedText = 'Transcription failed';
+      });
+    }
+  }
+
   // Process the received image with the Cactus VLM model
   Future<void> _processReceivedImage(
     Uint8List imageData, {
@@ -582,23 +655,32 @@ class _SolariScreenState extends State<SolariScreen>
     });
 
     try {
-      debugPrint('[AI] Passing image to VlmService for processing...');
+      // Sound effects removed - no processing/done sounds
+      
+      debugPrint('[AI] Passing image to VlmService for processing....');
       final response = await _vlmService.processImage(
         imageData,
         prompt: prompt,
       );
+      
+      // Sound effects removed - no processing/done sounds
+      
       if (response != null && mounted) {
         debugPrint('[AI] Image description complete: $response');
+        // Now TTS speaks the response
         _speakText(response);
-        // Add to history
+        // Add to history with both question (from STT) and response
         final historyProvider = Provider.of<HistoryProvider>(
           context,
           listen: false,
         );
-        historyProvider.addEntry(imageData, response);
+        final questionText = _transcribedText?.isNotEmpty == true ? _transcribedText : null;
+        historyProvider.addEntry(imageData, response, question: questionText);
       }
     } catch (e) {
       debugPrint('[AI] Error processing image: $e');
+      // Stop processing sound on error
+      // Sound effects removed
     } finally {
       if (mounted) {
         setState(() {
@@ -616,11 +698,13 @@ class _SolariScreenState extends State<SolariScreen>
   List<Widget> get _tabs => [
     SolariTab(
       temperature: _currentTemp,
-      speaking: _speakerService.isSpeaking,
+      speaking: _ttsService.isSpeaking,
       processing: _processingImage,
       image: _receivedImage,
       downloadingModel: _downloadingModel,
       downloadProgress: _downloadProgress,
+      onVqaStart: _startVqa,
+      onVqaEnd: _endVqa,
     ),
     SettingsTab(device: widget.device, onDisconnect: _handleDisconnect),
     HistoryTab(),
@@ -766,6 +850,10 @@ class _SolariScreenState extends State<SolariScreen>
                               prompt = 'Describe this image.';
                             }
 
+                            // Store the manual prompt as transcribed text for history
+                            setState(() {
+                              _transcribedText = prompt;
+                            });
                             await _processReceivedImage(bytes, prompt: prompt);
                           }
                         },
