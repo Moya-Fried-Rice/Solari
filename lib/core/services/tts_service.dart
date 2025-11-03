@@ -160,14 +160,14 @@ class TtsService {
           },
           onError: (error) {
             debugPrint('❌ BLE transmission failed: $error');
-            _isSpeaking = false;
-            onError?.call('BLE transmission failed: $error');
+            debugPrint('⚠️ Falling back to local playback');
+            // Fallback to local playback if BLE fails
+            _playAudioLocally(audio, onComplete, onError);
           },
         );
       } else {
-        debugPrint('❌ BLE not available - cannot transmit audio');
-        _isSpeaking = false;
-        onError?.call('BLE service not available');
+        debugPrint('⚠️ BLE not available - falling back to local playback');
+        await _playAudioLocally(audio, onComplete, onError);
       }
     } catch (e) {
       debugPrint('Error generating speech: $e');

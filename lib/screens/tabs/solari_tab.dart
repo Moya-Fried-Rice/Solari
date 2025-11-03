@@ -1,10 +1,10 @@
 import 'dart:typed_data';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import '../../widgets/widgets.dart';
+import '../../core/services/services.dart';
 
-class SolariTab extends StatefulWidget {
 class SolariTab extends StatefulWidget {
   final double? temperature;
   final bool speaking;
@@ -14,6 +14,8 @@ class SolariTab extends StatefulWidget {
   final double? downloadProgress;
   final VoidCallback? onVqaStart;
   final VoidCallback? onVqaEnd;
+  final BluetoothService? targetService;
+  final bool isMockMode;
 
   const SolariTab({
     super.key,
@@ -23,6 +25,10 @@ class SolariTab extends StatefulWidget {
     this.image,
     this.downloadingModel = false,
     this.downloadProgress,
+    this.onVqaStart,
+    this.onVqaEnd,
+    this.targetService,
+    this.isMockMode = false,
   });
 
   @override
@@ -33,8 +39,84 @@ class _SolariTabState extends State<SolariTab> with AutomaticKeepAliveClientMixi
   @override
   bool get wantKeepAlive => true;
 
+  // Long press state for VQA control
+  bool _isLongPressing = false;
+  BluetoothCharacteristic? _vqaCharacteristic;
+
   // Don't set context in initState - let the tab switching handle it
   // This prevents setting context when tab is built but not visible
+
+  @override
+  void initState() {
+    super.initState();
+    _findVqaCharacteristic();
+  }
+
+  // Find the VQA characteristic for sending commands
+  void _findVqaCharacteristic() {
+    if (widget.targetService == null || widget.isMockMode) return;
+    
+    const vqaUuid = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
+    
+    for (var characteristic in widget.targetService!.characteristics) {
+      if (characteristic.uuid.toString().toLowerCase() == vqaUuid) {
+        _vqaCharacteristic = characteristic;
+        debugPrint('🔍 VQA characteristic found for long-press control');
+        break;
+      }
+    }
+  }
+
+  // Send VQA command to the main board
+  Future<void> _sendVqaCommand(String command) async {
+    if (widget.isMockMode) {
+      debugPrint('📱 MOCK MODE: Would send VQA command: $command');
+      return;
+    }
+
+    if (_vqaCharacteristic == null) {
+      debugPrint('⚠️ VQA characteristic not found, cannot send command: $command');
+      return;
+    }
+
+    try {
+      final data = command.codeUnits;
+      await _vqaCharacteristic!.write(data);
+      debugPrint('📡 Sent VQA command to main board: $command');
+    } catch (e) {
+      debugPrint('❌ Error sending VQA command: $e');
+    }
+  }
+
+  // Handle long press start - send VQA_START
+  void _onLongPressStart() {
+    if (_isLongPressing) return; // Prevent duplicate calls
+    
+    setState(() {
+      _isLongPressing = true;
+    });
+    
+    debugPrint('🔥 Long press started - sending VQA_START');
+    _sendVqaCommand('VQA_START');
+    
+    // Trigger haptic feedback
+    VibrationService.lightFeedback();
+  }
+
+  // Handle long press end - send VQA_STOP (actually VQA_END based on Arduino code)
+  void _onLongPressEnd() {
+    if (!_isLongPressing) return; // Prevent duplicate calls
+    
+    setState(() {
+      _isLongPressing = false;
+    });
+    
+    debugPrint('🛑 Long press ended - sending VQA_END');
+    _sendVqaCommand('VQA_END');
+    
+    // Trigger haptic feedback
+    VibrationService.lightFeedback();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -42,34 +124,46 @@ class _SolariTabState extends State<SolariTab> with AutomaticKeepAliveClientMixi
     final theme = Theme.of(context);
     return Scaffold(
       body: ScreenReaderGestureDetector(
-        child: Stack(
-          children: [
-            // Centered soundwave or donut progress
-            Center(
-              child: ScreenReaderFocusable(
-                context: 'solari_tab',
-                label: widget.processing 
-                    ? 'Processing' 
-                    : widget.speaking 
-                        ? 'Speaking' 
-                        : widget.downloadingModel 
-                            ? 'Downloading model, ${((widget.downloadProgress ?? 0) * 100).toInt()} percent complete'
-                            : 'Solari is ready',
-                hint: 'Current status indicator',
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final width = constraints.maxWidth;
-                    return SizedBox(
-                      width: width,
-                      height: 360, // Increased height for more noticeable sound wave
-                      child: (widget.downloadingModel && (widget.downloadProgress ?? 0) < 1.0)
-                          ? _DonutProgress(progress: widget.downloadProgress, size: width, color: theme.primaryColor)
-                          : AnimatedSoundWave(speaking: widget.speaking, processing: widget.processing, color: theme.primaryColor),
-                    );
-                  },
+        child: GestureDetector(
+          onLongPressStart: (_) => _onLongPressStart(),
+          onLongPressEnd: (_) => _onLongPressEnd(),
+          onLongPressCancel: () => _onLongPressEnd(),
+          child: Stack(
+            children: [
+              // Centered soundwave or donut progress
+              Center(
+                child: ScreenReaderFocusable(
+                  context: 'solari_tab',
+                  label: widget.processing 
+                      ? 'Processing' 
+                      : widget.speaking 
+                          ? 'Speaking' 
+                          : widget.downloadingModel 
+                              ? 'Downloading model, ${((widget.downloadProgress ?? 0) * 100).toInt()} percent complete'
+                              : _isLongPressing 
+                                  ? 'VQA recording in progress - release to stop'
+                                  : 'Solari is ready - long press to start VQA',
+                  hint: _isLongPressing 
+                      ? 'Recording audio and will capture image when released'
+                      : 'Long press and hold to start VQA recording',
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final width = constraints.maxWidth;
+                      return SizedBox(
+                        width: width,
+                        height: 360, // Increased height for more noticeable sound wave
+                        child: (widget.downloadingModel && (widget.downloadProgress ?? 0) < 1.0)
+                            ? _DonutProgress(progress: widget.downloadProgress, size: width, color: theme.primaryColor)
+                            : AnimatedSoundWave(
+                                speaking: widget.speaking, 
+                                processing: widget.processing || _isLongPressing, 
+                                color: _isLongPressing ? Colors.red : theme.primaryColor
+                              ),
+                      );
+                    },
+                  ),
                 ),
               ),
-            ),
           // Small image in top right corner
           if (widget.image != null)
             Positioned(
@@ -117,7 +211,45 @@ class _SolariTabState extends State<SolariTab> with AutomaticKeepAliveClientMixi
               ),
             ),
           ),
+            
+          // Long press indicator overlay
+          if (_isLongPressing)
+            Positioned.fill(
+              child: Container(
+                color: Colors.black.withOpacity(0.3),
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.mic,
+                        size: 64,
+                        color: Colors.red,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Recording VQA...',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Release to stop and capture image',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.white70,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
         ],
+      ),
       ),
       ),
     );

@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 // Flutter imports
 import 'package:flutter/material.dart';
+import 'package:image/image.dart' as img;
 import 'package:provider/provider.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -23,9 +24,6 @@ import '../core/services/services.dart';
 
 // Widgets
 import '../widgets/widgets.dart';
-
-// Audio
-import 'package:audioplayers/audioplayers.dart';
 
 // Other
 import '../utils/helpers.dart';
@@ -79,11 +77,12 @@ class _SolariScreenState extends State<SolariScreen>
   // VLM Service
   final VlmService _vlmService = VlmService();
 
-  // Speaker Service
-  final SpeakerService _speakerService = SpeakerService();
-
   // TTS Service
   final TtsService _ttsService = TtsService();
+  
+  // STT Service
+  final SttService _sttService = SttService();
+  String? _lastTranscriptionDisplayed;
   
   // BLE Service for audio transmission
   final BleService _bleService = BleService();
@@ -213,12 +212,24 @@ class _SolariScreenState extends State<SolariScreen>
       await _ttsService.initialize();
       
       // Initialize BLE service with connected device for audio transmission
-      if (widget.device.isConnected) {
+      if (!widget.isMock && widget.device.isConnected) {
         debugPrint('🔗 Initializing BLE service for audio transmission...');
         await _bleService.initialize(widget.device);
         debugPrint('✅ BLE service initialized successfully');
+        
+        // Check if BLE is ready and configure TTS accordingly
+        if (_bleService.isReady) {
+          _ttsService.setBleTransmission(true);
+          debugPrint('✅ TTS service configured for BLE transmission to smart glasses');
+        } else {
+          _ttsService.setLocalPlayback(true);
+          debugPrint('⚠️ BLE not ready, TTS service configured for local playback');
+        }
       } else {
-        debugPrint('⚠️ Device not connected, BLE audio transmission unavailable');
+        debugPrint('⚠️ Device not connected or in mock mode, BLE audio transmission unavailable');
+        // Fall back to local playback when device is not connected or in mock mode
+        _ttsService.setLocalPlayback(true);
+        debugPrint('⚠️ TTS service configured for local playback');
       }
       
       // Log Sherpa ONNX engine information
@@ -237,16 +248,31 @@ class _SolariScreenState extends State<SolariScreen>
     }
   }
 
+  // Initialize STT Service
+  Future<void> _initializeStt() async {
+    try {
+      await _sttService.initialize();
+      debugPrint('✅ STT service initialized successfully');
+    } catch (e) {
+      debugPrint('❌ Error initializing STT service: $e');
+    }
+  }
+
+  // VQA callback methods
+  void _startVqa() {
+    debugPrint('VQA start callback triggered');
+    // Add VQA start logic here if needed
+  }
+
+  void _endVqa() {
+    debugPrint('VQA end callback triggered');
+    // Add VQA end logic here if needed
+  }
+
   Future<void> _speakText(String text) async {
     try {
-      // Play done.wav at the same time as TTS starts speaking
-      final player = AudioPlayer();
-      await player.play(
-        AssetSource('audio/done.wav'),
-        volume: 1.0,
-      );
-
-      await _speakerService.speakText(
+      // Sound effects removed - directly speak the text
+      await _ttsService.speakText(
         text,
         onStart: () {
           if (mounted) {
@@ -529,11 +555,15 @@ class _SolariScreenState extends State<SolariScreen>
       );
       _receivingImage = false;
 
+      // Rotate the image counter-clockwise before storing it
+      final originalImage = Uint8List.fromList(_imageBuffer);
+      final rotatedImage = _rotateImageCounterClockwise(originalImage);
+
       setState(() {
-        _receivedImage = Uint8List.fromList(_imageBuffer);
+        _receivedImage = rotatedImage ?? originalImage;
       });
 
-      debugPrint("[AI] Image received, waiting for VQA session to complete...");
+      debugPrint("[AI] Image received and rotated, waiting for VQA session to complete...");
 
       return;
     }
@@ -586,6 +616,31 @@ class _SolariScreenState extends State<SolariScreen>
     }
   }
   // ================================================================================================================================
+
+  // ================================================================================================================================
+  // Helper function to rotate image counter-clockwise (90 degrees left)
+  Uint8List? _rotateImageCounterClockwise(Uint8List imageData) {
+    try {
+      // Decode the image
+      img.Image? image = img.decodeImage(imageData);
+      if (image == null) {
+        debugPrint('[IMAGE] Failed to decode image for rotation');
+        return imageData; // Return original if decoding fails
+      }
+      
+      // Rotate counter-clockwise (90 degrees left)
+      img.Image rotatedImage = img.copyRotate(image, angle: -90);
+      
+      // Encode back to bytes (as JPEG to maintain compatibility)
+      List<int> rotatedBytes = img.encodeJpg(rotatedImage);
+      
+      debugPrint('[IMAGE] Image rotated counter-clockwise successfully');
+      return Uint8List.fromList(rotatedBytes);
+    } catch (e) {
+      debugPrint('[IMAGE] Error rotating image: $e');
+      return imageData; // Return original if rotation fails
+    }
+  }
 
   // ================================================================================================================================
   // Collect audio data for offline transcription
@@ -705,6 +760,8 @@ class _SolariScreenState extends State<SolariScreen>
       downloadProgress: _downloadProgress,
       onVqaStart: _startVqa,
       onVqaEnd: _endVqa,
+      targetService: _targetService,
+      isMockMode: widget.isMock,
     ),
     SettingsTab(device: widget.device, onDisconnect: _handleDisconnect),
     HistoryTab(),
@@ -854,7 +911,10 @@ class _SolariScreenState extends State<SolariScreen>
                             setState(() {
                               _transcribedText = prompt;
                             });
-                            await _processReceivedImage(bytes, prompt: prompt);
+                            
+                            // Rotate the manually selected image counter-clockwise for consistency
+                            final rotatedBytes = _rotateImageCounterClockwise(bytes) ?? bytes;
+                            await _processReceivedImage(rotatedBytes, prompt: prompt);
                           }
                         },
                         tooltip: 'Pick an image',
