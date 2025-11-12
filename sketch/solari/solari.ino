@@ -794,9 +794,9 @@ void initializeBluetoothSubsystem() {
   // FreeRTOS Tasks
   // ============================================================================
 
-// Visual Question Answering Streaming Task - Audio First, Then Image After Stop
+// Visual Question Answering Streaming Task - Record Complete Audio First, Then Send
 void visualQuestionAnsweringStreamingTask(void *taskParameters) {
-    logInfoMessage("VQA-STREAM", "VQA streaming task started (audio first, then image after stop)");
+    logInfoMessage("VQA-STREAM", "VQA streaming task started (record complete audio first, then send)");
     
     // Initialize VQA streaming state
     vqaSystemState.isOperationActive = true;
@@ -807,15 +807,7 @@ void visualQuestionAnsweringStreamingTask(void *taskParameters) {
     vqaSystemState.isAudioStreamingActive = false;
     vqaSystemState.totalAudioBytesStreamed = 0;
     
-    // Calculate streaming parameters for continuous audio (VQA uses lower quality for efficiency)
-    const int microphoneSampleRate = MICROPHONE_SAMPLE_RATE;
-    const int microphoneBytesPerSample = MICROPHONE_BIT_DEPTH / 8;
-    const int microphoneBytesPerSecond = microphoneSampleRate * microphoneBytesPerSample;
-    const int audioChunkDurationMs = VQA_AUDIO_CHUNK_DURATION_MS;
-    const int audioChunkSizeBytes = (microphoneBytesPerSecond * audioChunkDurationMs) / 1000;
-    
-    logDebugMessage("VQA-STREAM", "Stream configuration: " + String(audioChunkSizeBytes) + " bytes/chunk, " + 
-                   String(audioChunkDurationMs) + "ms/chunk, image capture after audio stops");
+    logInfoMessage("VQA-STREAM", "Using complete audio recording approach similar to recordWAV");
 
     // Play start sound to indicate VQA operation beginning
     logInfoMessage("VQA-STREAM", "Start sound");
@@ -831,110 +823,227 @@ void visualQuestionAnsweringStreamingTask(void *taskParameters) {
     // Brief pause after start sound to ensure clean transition
     vTaskDelay(pdMS_TO_TICKS(100));
 
-    // Initialize audio streaming state
+    // ============================================================================
+    // STEP 1: Record & Stream Audio Simultaneously Until Stop Requested
+    // ============================================================================
+    logInfoMessage("VQA-STREAM", "Starting simultaneous audio recording and streaming (waiting for button release)...");
+    
+    vqaSystemState.isAudioRecordingInProgress = true;
     vqaSystemState.isAudioStreamingActive = true;
     vqaSystemState.streamingStartTime = millis();
-    int audioChunkSequenceNumber = 0;
-    bool isStreamingSuccessful = true;
-
-    // ============================================================================
-    // STEP 1: Stream Audio Continuously Until Stop Requested
-    // ============================================================================
-    logInfoMessage("VQA-STREAM", "Starting continuous audio streaming...");
     
-    // Audio streaming start header
-    String audioStreamStartHeader = "A_START";  // Audio stream start marker
+    // Create dynamic buffer to store complete audio recording (for backup/verification)
+    std::vector<uint8_t> completeAudioBuffer;
+    const size_t RECORD_CHUNK_SIZE = 1024; // Larger chunks to reduce processing overhead
+    const size_t STREAM_CHUNK_SIZE = 2048; // Even larger chunks for more efficient streaming
+    const size_t BLE_TRANSMISSION_THRESHOLD = 4096; // Wait for more data before streaming to reduce BLE overhead
+    uint8_t recordBuffer[RECORD_CHUNK_SIZE];
+    std::vector<uint8_t> streamBuffer; // Accumulator for streaming chunks
+    size_t totalRecordedBytes = 0;
+    size_t totalStreamedBytes = 0;
+    bool isRecordingSuccessful = true;
+    int streamChunkCounter = 0;
+    
+    // Send audio streaming start header
+    String audioStreamStartHeader = "A_START_LIVE"; // Indicates live streaming mode
     vqaDataCharacteristic->setValue((uint8_t*)audioStreamStartHeader.c_str(), audioStreamStartHeader.length());
     vqaDataCharacteristic->notify();
     vTaskDelay(pdMS_TO_TICKS(20));
-    logDebugMessage("VQA-STREAM", "Audio stream start header transmitted");
-
-    while (!vqaSystemState.isStopRequested && isStreamingSuccessful && isBleClientConnected) {
-        audioChunkSequenceNumber++;
+    logDebugMessage("VQA-STREAM", "Live audio streaming started");
+    
+    logInfoMessage("VQA-STREAM", "Recording and streaming audio simultaneously... (release button to stop)");
+    
+    // Record and stream audio continuously until stop is requested (button released)
+    unsigned long lastStreamTime = millis();
+    const unsigned long STREAM_INTERVAL_MS = 100; // Stream every 100ms to reduce BLE overhead
+    
+    while (!vqaSystemState.isStopRequested && isRecordingSuccessful && isBleClientConnected) {
+        // Read audio data from microphone with timeout
+        size_t bytesRead = 0;
+        unsigned long readStartTime = millis();
         
-        // Allocate memory buffer for this audio chunk
-        uint8_t* audioChunkBuffer = new uint8_t[audioChunkSizeBytes];
-        if (!audioChunkBuffer) {
-            logErrorMessage("VQA-STREAM", "Failed to allocate audio chunk buffer");
-            isStreamingSuccessful = false;
-            break;
+        // Try to read with short timeout to prevent blocking
+        while (bytesRead < RECORD_CHUNK_SIZE && (millis() - readStartTime) < 50) {
+            size_t bytesThisRead = microphoneI2S.readBytes((char*)recordBuffer + bytesRead, RECORD_CHUNK_SIZE - bytesRead);
+            if (bytesThisRead > 0) {
+                bytesRead += bytesThisRead;
+            } else {
+                // Short yield if no data available
+                vTaskDelay(pdMS_TO_TICKS(1));
+            }
         }
-
-        // Record audio chunk from microphone
-        size_t bytesRecordedFromMicrophone = 0;
-        unsigned long chunkRecordingStartTime = millis();
         
-        while (bytesRecordedFromMicrophone < audioChunkSizeBytes && 
-               (millis() - chunkRecordingStartTime) < (audioChunkDurationMs + 100)) {
-            size_t bytesToReadFromMicrophone = min((size_t)negotiatedBleChunkSize, audioChunkSizeBytes - bytesRecordedFromMicrophone);
-            size_t bytesActuallyRead = microphoneI2S.readBytes((char*)(audioChunkBuffer + bytesRecordedFromMicrophone), bytesToReadFromMicrophone);
-            bytesRecordedFromMicrophone += bytesActuallyRead;
-            
-            if (bytesActuallyRead == 0) {
-                vTaskDelay(pdMS_TO_TICKS(1)); // Small delay if no microphone data available
+        if (bytesRead > 0) {
+            // 1. Append to complete audio buffer (for backup/verification)
+            try {
+                completeAudioBuffer.insert(completeAudioBuffer.end(), recordBuffer, recordBuffer + bytesRead);
+                totalRecordedBytes += bytesRead;
+            } catch (const std::exception& e) {
+                logErrorMessage("VQA-STREAM", "Failed to allocate memory for complete audio buffer");
+                isRecordingSuccessful = false;
+                break;
             }
             
-            // Check for stop request during audio recording
-            if (vqaSystemState.isStopRequested) {
+            // 2. Append to streaming buffer
+            try {
+                streamBuffer.insert(streamBuffer.end(), recordBuffer, recordBuffer + bytesRead);
+            } catch (const std::exception& e) {
+                logErrorMessage("VQA-STREAM", "Failed to allocate memory for stream buffer");
+                isRecordingSuccessful = false;
+                break;
+            }
+            
+            // 3. Stream periodically to balance recording quality and transmission efficiency
+            unsigned long currentTime = millis();
+            bool shouldStream = (streamBuffer.size() >= BLE_TRANSMISSION_THRESHOLD) || 
+                              (currentTime - lastStreamTime >= STREAM_INTERVAL_MS && streamBuffer.size() > 0) ||
+                              vqaSystemState.isStopRequested;
+                              
+            if (shouldStream) {
+                lastStreamTime = currentTime;
+                streamChunkCounter++;
+                
+                // Transmit streaming chunk in BLE-sized packets with reduced delays
+                size_t bytesToStream = streamBuffer.size();
+                for (size_t i = 0; i < bytesToStream && !vqaSystemState.isStopRequested && isBleClientConnected; i += negotiatedBleChunkSize) {
+                    size_t blePacketSize = min((size_t)negotiatedBleChunkSize, bytesToStream - i);
+                    vqaDataCharacteristic->setValue(streamBuffer.data() + i, blePacketSize);
+                    vqaDataCharacteristic->notify();
+                    
+                    // Reduced BLE delay for faster streaming (was 20ms, now 5ms)
+                    vTaskDelay(pdMS_TO_TICKS(5));
+                    
+                    // Check for BLE disconnection during streaming
+                    if (!isBleClientConnected) {
+                        logWarningMessage("VQA-STREAM", "BLE client disconnected during live audio streaming");
+                        isRecordingSuccessful = false;
+                        break;
+                    }
+                }
+                
+                totalStreamedBytes += bytesToStream;
+                vqaSystemState.totalAudioBytesStreamed = totalStreamedBytes;
+                
+                // Progress logging for streaming (less frequent to reduce overhead)
+                if (streamChunkCounter % 10 == 0) { // Log every 10 chunks to reduce spam
+                    float recordingDurationSeconds = (float)(totalRecordedBytes / 2) / (float)MICROPHONE_SAMPLE_RATE;
+                    unsigned long elapsedTime = millis() - vqaSystemState.streamingStartTime;
+                    float streamingRateKBps = (totalStreamedBytes / 1024.0) / (elapsedTime / 1000.0);
+                    
+                    logInfoMessage("VQA-STREAM", "Live streaming: " + String(totalRecordedBytes/1024.0, 1) + 
+                                  "KB recorded, " + String(totalStreamedBytes/1024.0, 1) + "KB streamed (" + 
+                                  String(recordingDurationSeconds, 1) + "s) @ " + String(streamingRateKBps, 1) + "KB/s");
+                }
+                
+                // Clear the stream buffer for next chunk
+                streamBuffer.clear();
+                
+                if (!isRecordingSuccessful) break;
+            }
+            
+            // Log progress every 8KB recorded (much less frequent to reduce overhead)
+            if (totalRecordedBytes % 8192 == 0) {
+                float recordingDurationSeconds = (float)(totalRecordedBytes / 2) / (float)MICROPHONE_SAMPLE_RATE;
+                logDebugMessage("VQA-STREAM", "Recorded " + String(totalRecordedBytes/1024.0, 1) + "KB (" + 
+                               String(recordingDurationSeconds, 1) + "s) - waiting for button release");
+            }
+        } else {
+            // No data available, yield to other tasks but don't delay recording
+            taskYIELD();
+        }
+        
+        // Check for BLE disconnection
+        if (!isBleClientConnected) {
+            logWarningMessage("VQA-STREAM", "BLE client disconnected during audio recording");
+            isRecordingSuccessful = false;
+            break;
+        }
+    }
+    
+    // Stream any remaining data in the buffer
+    if (isRecordingSuccessful && isBleClientConnected && streamBuffer.size() > 0) {
+        logDebugMessage("VQA-STREAM", "Streaming final audio chunk: " + String(streamBuffer.size()) + " bytes");
+        
+        size_t remainingBytes = streamBuffer.size();
+        for (size_t i = 0; i < remainingBytes && isBleClientConnected; i += negotiatedBleChunkSize) {
+            size_t blePacketSize = min((size_t)negotiatedBleChunkSize, remainingBytes - i);
+            vqaDataCharacteristic->setValue(streamBuffer.data() + i, blePacketSize);
+            vqaDataCharacteristic->notify();
+            vTaskDelay(pdMS_TO_TICKS(5)); // Reduced delay for final chunk
+        }
+        
+        totalStreamedBytes += remainingBytes;
+        vqaSystemState.totalAudioBytesStreamed = totalStreamedBytes;
+        streamBuffer.clear();
+    }
+    
+    vqaSystemState.isAudioRecordingInProgress = false;
+    vqaSystemState.isAudioRecordingComplete = true;
+    vqaSystemState.isAudioStreamingActive = false;
+    
+    unsigned long totalRecordingTime = millis() - vqaSystemState.streamingStartTime;
+    float recordingDurationSeconds = (float)(totalRecordedBytes / 2) / (float)MICROPHONE_SAMPLE_RATE;
+    float averageStreamingRateKBps = (totalStreamedBytes / 1024.0) / (totalRecordingTime / 1000.0);
+    
+    logInfoMessage("VQA-STREAM", "Live audio recording and streaming complete:");
+    logInfoMessage("VQA-STREAM", "  Recorded: " + String(totalRecordedBytes/1024.0, 1) + "KB (" + String(recordingDurationSeconds, 1) + "s)");
+    logInfoMessage("VQA-STREAM", "  Streamed: " + String(totalStreamedBytes/1024.0, 1) + "KB in " + String(totalRecordingTime) + "ms");
+    logInfoMessage("VQA-STREAM", "  Average rate: " + String(averageStreamingRateKBps, 1) + "KB/s");
+    logInfoMessage("VQA-STREAM", "  Stream chunks: " + String(streamChunkCounter));
+    
+    // Send audio streaming end signal
+    String audioStreamEndHeader = "A_END_LIVE";
+    vqaDataCharacteristic->setValue((uint8_t*)audioStreamEndHeader.c_str(), audioStreamEndHeader.length());
+    vqaDataCharacteristic->notify();
+    vTaskDelay(pdMS_TO_TICKS(20));
+    logDebugMessage("VQA-STREAM", "Live audio stream end header transmitted");
+    
+    // Optional: Send complete audio buffer as backup/verification (can be disabled for efficiency)
+    const bool SEND_COMPLETE_BACKUP = false; // Set to true if you want both live stream AND complete backup
+    if (SEND_COMPLETE_BACKUP && isRecordingSuccessful && isBleClientConnected && totalRecordedBytes > 0) {
+        logInfoMessage("VQA-STREAM", "Sending complete audio backup for verification...");
+        
+        // Send backup audio header
+        String backupAudioHeader = "A_BACKUP:" + String(totalRecordedBytes);
+        vqaDataCharacteristic->setValue((uint8_t*)backupAudioHeader.c_str(), backupAudioHeader.length());
+        vqaDataCharacteristic->notify();
+        vTaskDelay(pdMS_TO_TICKS(20));
+        
+        // Send complete audio data
+        size_t backupBytesSent = 0;
+        unsigned long backupStartTime = millis();
+        
+        for (size_t i = 0; i < totalRecordedBytes && isBleClientConnected; i += negotiatedBleChunkSize) {
+            size_t chunkSize = min((size_t)negotiatedBleChunkSize, totalRecordedBytes - i);
+            vqaDataCharacteristic->setValue(completeAudioBuffer.data() + i, chunkSize);
+            vqaDataCharacteristic->notify();
+            backupBytesSent += chunkSize;
+            vTaskDelay(pdMS_TO_TICKS(BLE_CHUNK_SEND_DELAY_MS));
+            
+            if (!isBleClientConnected) {
+                logWarningMessage("VQA-STREAM", "BLE disconnected during backup transmission");
+                isRecordingSuccessful = false;
                 break;
             }
         }
         
-        if (bytesRecordedFromMicrophone < audioChunkSizeBytes && !vqaSystemState.isStopRequested) {
-            logWarningMessage("VQA-STREAM", "Audio chunk " + String(audioChunkSequenceNumber) + " incomplete: " + 
-                             String(bytesRecordedFromMicrophone) + "/" + String(audioChunkSizeBytes) + " bytes");
+        // Send backup end signal
+        String backupEndHeader = "A_BACKUP_END";
+        vqaDataCharacteristic->setValue((uint8_t*)backupEndHeader.c_str(), backupEndHeader.length());
+        vqaDataCharacteristic->notify();
+        vTaskDelay(pdMS_TO_TICKS(20));
+        
+        if (isRecordingSuccessful && isBleClientConnected) {
+            unsigned long backupTime = millis() - backupStartTime;
+            logInfoMessage("VQA-STREAM", "Audio backup sent: " + String(backupBytesSent/1024.0, 1) + "KB in " + String(backupTime) + "ms");
         }
-
-        // Only transmit if we have recorded data and not stopping
-        if (bytesRecordedFromMicrophone > 0 && !vqaSystemState.isStopRequested) {
-            // Transmit audio chunk data in BLE-sized packets (no additional header needed)
-            for (size_t i = 0; i < bytesRecordedFromMicrophone && !vqaSystemState.isStopRequested; i += negotiatedBleChunkSize) {
-                size_t blePacketSize = min((size_t)negotiatedBleChunkSize, bytesRecordedFromMicrophone - i);
-                vqaDataCharacteristic->setValue(audioChunkBuffer + i, blePacketSize);
-                vqaDataCharacteristic->notify();
-                vTaskDelay(pdMS_TO_TICKS(BLE_CHUNK_SEND_DELAY_MS));
-                
-                // Check if BLE client disconnected during streaming
-                if (!isBleClientConnected) {
-                    logWarningMessage("VQA-STREAM", "BLE client disconnected during audio streaming");
-                    isStreamingSuccessful = false;
-                    break;
-                }
-            }
-
-            vqaSystemState.totalAudioBytesStreamed += bytesRecordedFromMicrophone;
-            logAudioStreamingProgress("VQA-STREAM", bytesRecordedFromMicrophone, vqaSystemState.totalAudioBytesStreamed, 
-                                    vqaSystemState.streamingStartTime, audioChunkSequenceNumber);
-        }
-
-        // Clean up audio chunk buffer
-        delete[] audioChunkBuffer;
-
-        if (!isStreamingSuccessful) break;
     }
 
-    // Finalize audio streaming operation
-    vqaSystemState.isAudioStreamingActive = false;
-    vqaSystemState.isAudioRecordingComplete = true;
-
-    // Send audio streaming end signal
-    String audioStreamEndHeader = "A_END";
-    vqaDataCharacteristic->setValue((uint8_t*)audioStreamEndHeader.c_str(), audioStreamEndHeader.length());
-    vqaDataCharacteristic->notify();
-    vTaskDelay(pdMS_TO_TICKS(20));
-    logDebugMessage("VQA-STREAM", "Audio stream end header transmitted");
-
-    unsigned long totalAudioStreamingTime = millis() - vqaSystemState.streamingStartTime;
-    float averageAudioStreamingRateKBps = (vqaSystemState.totalAudioBytesStreamed / 1024.0) / (totalAudioStreamingTime / 1000.0);
     
-    logInfoMessage("VQA-STREAM", "Audio streaming complete: " + String(vqaSystemState.totalAudioBytesStreamed) + " bytes (" + 
-                  String(vqaSystemState.totalAudioBytesStreamed/1024.0, 1) + " KB) in " + String(totalAudioStreamingTime) + 
-                  "ms (" + String(averageAudioStreamingRateKBps, 1) + " KB/s average)");
-
     // ============================================================================
-    // STEP 2: Capture and Send Image (only after audio streaming stops)
+    // STEP 2: Capture and Send Image (only after live audio streaming completes)
     // ============================================================================
-    if (isStreamingSuccessful && isBleClientConnected) {
+    if (isRecordingSuccessful && isBleClientConnected) {
         logInfoMessage("VQA-STREAM", "Starting image capture after audio streaming stopped...");
         
         // Take picture
@@ -947,11 +1056,11 @@ void visualQuestionAnsweringStreamingTask(void *taskParameters) {
             capturedImageFrameBuffer = esp_camera_fb_get();
             if (!capturedImageFrameBuffer) {
                 logErrorMessage("VQA-STREAM", "Camera capture failed after retry");
-                isStreamingSuccessful = false;
+                isRecordingSuccessful = false;
             }
         }
 
-        if (capturedImageFrameBuffer && isStreamingSuccessful) {
+        if (capturedImageFrameBuffer && isRecordingSuccessful) {
             size_t capturedImageSize = capturedImageFrameBuffer->len;
             uint8_t *capturedImageDataBuffer = capturedImageFrameBuffer->buf;
             logInfoMessage("VQA-STREAM", "Captured " + String(capturedImageSize) + " bytes (" + 
@@ -983,12 +1092,12 @@ void visualQuestionAnsweringStreamingTask(void *taskParameters) {
                 // Check if BLE client disconnected during image transfer
                 if (!isBleClientConnected) {
                     logWarningMessage("VQA-STREAM", "BLE client disconnected during image transfer");
-                    isStreamingSuccessful = false;
+                    isRecordingSuccessful = false;
                     break;
                 }
             }
 
-            if (isStreamingSuccessful && isBleClientConnected) {
+            if (isRecordingSuccessful && isBleClientConnected) {
                 unsigned long totalImageTransferTime = millis() - imageTransferStartTime;
                 float imageTransferRateKBps = (capturedImageSize / 1024.0) / (totalImageTransferTime / 1000.0);
                 
@@ -1021,11 +1130,11 @@ void visualQuestionAnsweringStreamingTask(void *taskParameters) {
     } else if (!isBleClientConnected) {
         operationCompletionReason = "BLE client disconnected";
     } else {
-        operationCompletionReason = "Streaming error";
+        operationCompletionReason = "Recording error";
     }
 
     // Send operation completion footer
-    if (isStreamingSuccessful || vqaSystemState.isStopRequested) {
+    if (isRecordingSuccessful || vqaSystemState.isStopRequested) {
         String vqaCompletionFooter = "VQA_END";
         vqaDataCharacteristic->setValue((uint8_t*)vqaCompletionFooter.c_str(), vqaCompletionFooter.length());
         vqaDataCharacteristic->notify();
@@ -1039,7 +1148,8 @@ void visualQuestionAnsweringStreamingTask(void *taskParameters) {
         
         logInfoMessage("VQA-STREAM", "VQA operation completed: " + operationCompletionReason);
         logInfoMessage("VQA-STREAM", "Total duration: " + String(totalOperationTime) + "ms");
-        logInfoMessage("VQA-STREAM", "Audio streamed: " + String(vqaSystemState.totalAudioBytesStreamed/1024.0, 1) + " KB");
+        logInfoMessage("VQA-STREAM", "Audio recorded: " + String(totalRecordedBytes/1024.0, 1) + " KB");
+        logInfoMessage("VQA-STREAM", "Audio transmitted: " + String(vqaSystemState.totalAudioBytesStreamed/1024.0, 1) + " KB");
         logInfoMessage("VQA-STREAM", "Image captured: " + String(vqaSystemState.isImageTransmissionComplete ? "Yes" : "No"));
         
         // Note: Processing sound will continue looping until server response is received
@@ -1048,7 +1158,7 @@ void visualQuestionAnsweringStreamingTask(void *taskParameters) {
         String vqaErrorFooter = "VQA_ERR";
         vqaDataCharacteristic->setValue((uint8_t*)vqaErrorFooter.c_str(), vqaErrorFooter.length());
         vqaDataCharacteristic->notify();
-        logErrorMessage("VQA-STREAM", "VQA streaming failed: " + operationCompletionReason);
+        logErrorMessage("VQA-STREAM", "VQA recording failed: " + operationCompletionReason);
         
         // Stop processing sound loop on error
         // stopProcessingSoundLoop(); // COMMENTED OUT FOR TESTING
@@ -1102,7 +1212,7 @@ void realTimeAudioStreamingTask(void *taskParameters) {
                         int16_t sample = (int16_t)((audioPlaybackSystem.audioDataBuffer[audioPlaybackSystem.currentPlaybackPosition + i + 1] << 8) | 
                                                  audioPlaybackSystem.audioDataBuffer[audioPlaybackSystem.currentPlaybackPosition + i]);
                         
-                        // Apply amplification with clipping protection (EXACT copy from test breadboard)
+                        // Apply amplification with clipping protection (EXACT copy from test breadboard logic)
                         int32_t amplifiedSample = (int32_t)(sample * amplification);
                         if (amplifiedSample > 32767) amplifiedSample = 32767;
                         if (amplifiedSample < -32768) amplifiedSample = -32768;
@@ -1525,7 +1635,7 @@ void loop() {
                     "VQAStreamingTask", 
                     20480, 
                     nullptr, 
-                    1, // Normal priority
+                    2, // Higher priority for audio recording
                     &vqaSystemState.vqaTaskHandle, 
                     1  // Core 1
                 );
@@ -1752,22 +1862,24 @@ void displayWelcomeArt() {
   }
 
 // ============================================================================
-// I2S Conflict Management Functions
+// Microphone Management During Audio Playback
 // ============================================================================
 
-// Temporarily disable microphone to avoid I2S conflicts during audio playback
 void disableMicrophoneForAudioPlayback() {
-    logDebugMessage("AUDIO-FIX", "Temporarily disabling microphone I2S to avoid conflicts during audio playback");
+    logDebugMessage("MICROPHONE", "Disabling microphone I2S for audio playback");
     microphoneI2S.end();
 }
 
-// Re-enable microphone after audio playback
 void enableMicrophoneAfterAudioPlayback() {
-    logDebugMessage("AUDIO-FIX", "Re-enabling microphone I2S after audio playback");
-    // Reinitialize microphone with a small delay
-    vTaskDelay(pdMS_TO_TICKS(50));
+    logDebugMessage("MICROPHONE", "Re-enabling microphone I2S after audio playback");
+    
+    // Re-configure PDM microphone input pins
     microphoneI2S.setPinsPdmRx(42, 41);
+    
+    // Re-initialize I2S in PDM RX mode for microphone recording
     if (!microphoneI2S.begin(I2S_MODE_PDM_RX, MICROPHONE_SAMPLE_RATE, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO)) {
-        logErrorMessage("AUDIO-FIX", "Failed to re-enable microphone I2S after audio playback");
+        logErrorMessage("MICROPHONE", "Failed to re-initialize microphone I2S after audio playback!");
+    } else {
+        logDebugMessage("MICROPHONE", "Microphone I2S re-initialized successfully");
     }
 }
