@@ -51,6 +51,10 @@ bool isStatusLedOn = false;                     // Current LED state (mirrors VQ
 bool previousButtonState = HIGH;                // Previous button state (HIGH = not pressed due to pullup)
 unsigned long lastButtonPressTime = 0;         // Timestamp of last button state change
 
+// LED blinking variables for disconnected state
+unsigned long lastLedBlinkTime = 0;             // Time of last LED blink
+const unsigned long LED_BLINK_INTERVAL_MS = 1000; // LED blink interval when disconnected (1 second)
+
 
 
 // ============================================================================
@@ -138,7 +142,7 @@ struct AudioPlaybackSystemState {
     bool isCurrentlyPlaying = false;
     bool isRealTimeStreamingEnabled = false;        // Enable real-time streaming during reception
     size_t currentPlaybackPosition = 0;
-    size_t streamingStartThreshold = 88200;         // Buffer 2 seconds of audio (extra buffer for smooth playback)
+    size_t streamingStartThreshold = 60000;         // Buffer 1 seconds of audio (extra buffer for smooth playback)
     unsigned long lastAudioSampleTime = 0;
     
     // Audio data and processing
@@ -282,6 +286,7 @@ class BleServerEventCallbacks : public BLEServerCallbacks {
         Serial.println();
         logInfoMessage("BLE", "!! Client connected !!");
         isBleClientConnected = true;
+        
         logSystemMemoryUsage("BLE");
         
         // Initialize system components when BLE client connects
@@ -396,9 +401,6 @@ class AudioPlaybackCharacteristicEventCallbacks : public BLECharacteristicCallba
             logInfoMessage("AUDIO-PLAYBACK", "Real-time audio streaming started - Expected size: " + 
                           String(audioPlaybackSystem.expectedTotalAudioSize) + " bytes");
             
-            // Turn on status LED to indicate audio loading
-            digitalWrite(STATUS_LED_PIN, HIGH);
-            isStatusLedOn = true;
             return;
         }
         
@@ -425,10 +427,6 @@ class AudioPlaybackCharacteristicEventCallbacks : public BLECharacteristicCallba
                 // If streaming didn't start (very small audio file), play normally
                 logInfoMessage("AUDIO-PLAYBACK", "Playing small audio file immediately...");
                 playCompleteAudioBuffer();
-                
-                // Turn off status LED after playback completes
-                digitalWrite(STATUS_LED_PIN, LOW);
-                isStatusLedOn = false;
                 
                 logInfoMessage("AUDIO-PLAYBACK", "Small audio file playback complete");
             } else {
@@ -657,11 +655,9 @@ void initializeCameraSubsystem() {
         // ============================================================================
         
         // Keep normal orientation - no flips or mirrors
-        s->set_vflip(s, 0);        // No vertical flip
+        s->set_vflip(s, 1);        // No vertical flip
         s->set_hmirror(s, 0);      // No horizontal mirror
-        
-        logInfoMessage("CAMERA", "Camera orientation: Normal (vflip=0, hmirror=0) - rotation will be handled at application level");
-        
+
         // Add delay to ensure settings are applied
         delay(50);
         
@@ -802,10 +798,6 @@ void initializeBluetoothSubsystem() {
 void visualQuestionAnsweringStreamingTask(void *taskParameters) {
     logInfoMessage("VQA-STREAM", "VQA streaming task started (audio first, then image after stop)");
     
-    // Ensure status LED reflects streaming state
-    digitalWrite(STATUS_LED_PIN, HIGH);
-    isStatusLedOn = true;
-
     // Initialize VQA streaming state
     vqaSystemState.isOperationActive = true;
     vqaSystemState.isStopRequested = false;
@@ -1067,10 +1059,6 @@ void visualQuestionAnsweringStreamingTask(void *taskParameters) {
     vqaSystemState.isStopRequested = false;
     vqaSystemState.vqaTaskHandle = nullptr;
 
-    // Turn off status indicator LED
-    digitalWrite(STATUS_LED_PIN, LOW);
-    isStatusLedOn = false;
-    
     // Task auto-cleanup
     vTaskDelete(NULL);
 }
@@ -1152,9 +1140,7 @@ void realTimeAudioStreamingTask(void *taskParameters) {
             // Re-enable microphone after audio playback
             enableMicrophoneAfterAudioPlayback();
             
-            // Turn off status LED and reset playback state
-            digitalWrite(STATUS_LED_PIN, LOW);
-            isStatusLedOn = false;
+            // Reset playback state
             audioPlaybackSystem.isCurrentlyPlaying = false;
             audioPlaybackSystem.isRealTimeStreamingEnabled = false;
             audioPlaybackSystem.currentPlaybackPosition = 0;
@@ -1483,6 +1469,26 @@ void setup() {
     logSystemMemoryUsage("SYSTEM");
 }
 
+// ============================================================================
+// LED Management Function
+// ============================================================================
+void manageLedState() {
+    if (isBleClientConnected) {
+        // Device is connected - LED should stay solid ON
+        if (!isStatusLedOn) {
+            digitalWrite(STATUS_LED_PIN, LOW);
+            isStatusLedOn = true;
+        }
+    } else {
+        // Device is not connected - LED should blink
+        if (millis() - lastLedBlinkTime >= LED_BLINK_INTERVAL_MS) {
+            lastLedBlinkTime = millis();
+            isStatusLedOn = !isStatusLedOn;
+            digitalWrite(STATUS_LED_PIN, isStatusLedOn ? HIGH : LOW);
+        }
+    }
+}
+
 
 
   // ============================================================================
@@ -1525,8 +1531,6 @@ void loop() {
                 );
                 if (taskCreationResult == pdPASS) {
                     logInfoMessage("USER-INPUT", "VQA streaming operation started - button pressed");
-                    digitalWrite(STATUS_LED_PIN, HIGH);
-                    isStatusLedOn = true;
                 } else {
                     logErrorMessage("USER-INPUT", "Failed to create VQA streaming task");
                 }
@@ -1572,8 +1576,6 @@ void loop() {
                     );
                     if (taskCreationResult == pdPASS) {
                         logInfoMessage("SERIAL-CMD", "VQA streaming operation started via serial command");
-                        digitalWrite(STATUS_LED_PIN, HIGH);
-                        isStatusLedOn = true;
                     } else {
                         logErrorMessage("SERIAL-CMD", "Failed to create VQA streaming task via serial command");
                     }
@@ -1709,6 +1711,11 @@ void loop() {
             logInfoMessage("SERIAL-CMD", "Sound commands: PROCESSING, PROCESSING_LOOP_START, PROCESSING_LOOP_STOP, DONE, SIMULATE_RESPONSE, TEST_SEQUENCE");
         }
     }
+
+    // ============================================================================
+    // LED State Management
+    // ============================================================================
+    manageLedState();
 
     delay(10);
   }
