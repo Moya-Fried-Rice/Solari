@@ -327,11 +327,21 @@ class VqaCharacteristicEventCallbacks : public BLECharacteristicCallbacks {
         if (receivedStringValue.equals("VQA_START")) {
             logInfoMessage("VQA-CONTROL", "VQA_START command received - starting VQA streaming task");
             
-            // Only start if not already active
-            if (!vqaSystemState.isOperationActive) {
-                xTaskCreate(visualQuestionAnsweringStreamingTask, "VQAStreamingTask", 16384, NULL, 1, &vqaSystemState.vqaTaskHandle);
+            // Only start if not already active and no existing task handle
+            if (!vqaSystemState.isOperationActive && vqaSystemState.vqaTaskHandle == nullptr) {
+                // Set active state BEFORE creating task to prevent race conditions
+                vqaSystemState.isOperationActive = true;
+                vqaSystemState.isStopRequested = false;
+                BaseType_t taskResult = xTaskCreate(visualQuestionAnsweringStreamingTask, "VQAStreamingTask", 16384, NULL, 1, &vqaSystemState.vqaTaskHandle);
+                if (taskResult != pdPASS) {
+                    // If task creation failed, reset the state
+                    vqaSystemState.isOperationActive = false;
+                    vqaSystemState.vqaTaskHandle = nullptr;
+                    logErrorMessage("VQA-CONTROL", "Failed to create VQA streaming task");
+                }
             } else {
-                logWarningMessage("VQA-CONTROL", "VQA session already active, ignoring START command");
+                logWarningMessage("VQA-CONTROL", "VQA session already active (isActive=" + String(vqaSystemState.isOperationActive) + 
+                                 ", taskHandle=" + String(vqaSystemState.vqaTaskHandle != nullptr ? "SET" : "NULL") + "), ignoring START command");
             }
             return;
         }
@@ -814,8 +824,7 @@ void visualQuestionAnsweringStreamingTask(void *taskParameters) {
     playStartSound();
     
     // Initialize VQA streaming state INSTANTLY - no logging or BLE yet
-    vqaSystemState.isOperationActive = true;
-    vqaSystemState.isStopRequested = false;
+    // Note: isOperationActive is already set to true before task creation to prevent race conditions
     vqaSystemState.isAudioRecordingInProgress = true; // START RECORDING IMMEDIATELY
     vqaSystemState.isAudioRecordingComplete = false;
     vqaSystemState.isImageTransmissionComplete = false;
@@ -1629,8 +1638,9 @@ void loop() {
                 logWarningMessage("USER-INPUT", "Button press ignored - BLE client not connected");
             } else if (!isSystemInitialized) {
                 logWarningMessage("USER-INPUT", "Button press ignored - system components not initialized");
-            } else if (!vqaSystemState.isOperationActive) {
-                // Start VQA streaming operation immediately
+            } else if (!vqaSystemState.isOperationActive && vqaSystemState.vqaTaskHandle == nullptr) {
+                // Set active state BEFORE creating task to prevent race conditions
+                vqaSystemState.isOperationActive = true;
                 vqaSystemState.isStopRequested = false;
                 BaseType_t taskCreationResult = xTaskCreatePinnedToCore(
                     visualQuestionAnsweringStreamingTask, 
@@ -1644,10 +1654,14 @@ void loop() {
                 if (taskCreationResult == pdPASS) {
                     logInfoMessage("USER-INPUT", "VQA streaming started immediately - recording now active");
                 } else {
+                    // If task creation failed, reset the state
+                    vqaSystemState.isOperationActive = false;
+                    vqaSystemState.vqaTaskHandle = nullptr;
                     logErrorMessage("USER-INPUT", "Failed to create VQA streaming task");
                 }
             } else {
-                logWarningMessage("USER-INPUT", "VQA operation already active");
+                logWarningMessage("USER-INPUT", "VQA operation already active (isActive=" + String(vqaSystemState.isOperationActive) + 
+                                 ", taskHandle=" + String(vqaSystemState.vqaTaskHandle != nullptr ? "SET" : "NULL") + "), ignoring button press");
             }
         } else {
             // Button released - stop VQA operation
@@ -1674,8 +1688,9 @@ void loop() {
             if (!isBleClientConnected) {
                 logWarningMessage("SERIAL-CMD", "VQA operation ignored - BLE client not connected");
             } else if (isSystemInitialized) {
-                if (!vqaSystemState.isOperationActive) {
-                    // Start VQA streaming operation via serial command
+                if (!vqaSystemState.isOperationActive && vqaSystemState.vqaTaskHandle == nullptr) {
+                    // Set active state BEFORE creating task to prevent race conditions
+                    vqaSystemState.isOperationActive = true;
                     vqaSystemState.isStopRequested = false;
                     BaseType_t taskCreationResult = xTaskCreatePinnedToCore(
                         visualQuestionAnsweringStreamingTask, 
@@ -1689,10 +1704,14 @@ void loop() {
                     if (taskCreationResult == pdPASS) {
                         logInfoMessage("SERIAL-CMD", "VQA streaming operation started via serial command");
                     } else {
+                        // If task creation failed, reset the state
+                        vqaSystemState.isOperationActive = false;
+                        vqaSystemState.vqaTaskHandle = nullptr;
                         logErrorMessage("SERIAL-CMD", "Failed to create VQA streaming task via serial command");
                     }
                 } else {
-                    logWarningMessage("SERIAL-CMD", "VQA operation already active");
+                    logWarningMessage("SERIAL-CMD", "VQA operation already active (isActive=" + String(vqaSystemState.isOperationActive) + 
+                                     ", taskHandle=" + String(vqaSystemState.vqaTaskHandle != nullptr ? "SET" : "NULL") + "), ignoring serial command");
                 }
             } else {
                 logWarningMessage("SERIAL-CMD", "VQA operation ignored - system components not initialized");
