@@ -61,6 +61,13 @@ class ScreenReaderService extends ChangeNotifier {
       // Apply current speech settings from SelectToSpeakService
       _ttsService.setSpeechSpeed(_selectToSpeakService.speechRate);
       
+      // Apply output device preference from SelectToSpeakService
+      if (_selectToSpeakService.outputToSolari) {
+        _ttsService.setBleTransmission(true);
+      } else {
+        _ttsService.setLocalPlayback(true);
+      }
+      
       VibrationService.mediumFeedback();
       await _speakText('Screen reader enabled');
       
@@ -216,9 +223,16 @@ class ScreenReaderService extends ChangeNotifier {
   /// Internal speak method
   Future<void> _speakText(String text) async {
     try {
+      // Use the same output device preference as SelectToSpeakService
+      if (_selectToSpeakService.outputToSolari) {
+        _ttsService.setBleTransmission(true);
+      } else {
+        _ttsService.setLocalPlayback(true);
+      }
+      
       await _ttsService.speakText(
         text,
-        onStart: () => debugPrint('Screen reader speaking: "$text"'),
+        onStart: () => debugPrint('Screen reader speaking: "$text" via ${_selectToSpeakService.outputToSolari ? "Solari device" : "Phone"}'),
         onComplete: () => debugPrint('Screen reader finished speaking'),
         onError: (error) => debugPrint('Screen reader error: $error'),
       );

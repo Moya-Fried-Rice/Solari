@@ -25,6 +25,7 @@ class ScanScreen extends StatefulWidget {
 class _ScanScreenState extends State<ScanScreen> {
   BluetoothDevice? _solariDevice;
   bool _isScanning = false;
+  bool _hasStartedFirstScan = false; // Track if we've ever started scanning
   late StreamSubscription<List<ScanResult>> _scanResultsSubscription;
   late StreamSubscription<bool> _isScanningSubscription;
 
@@ -61,7 +62,15 @@ class _ScanScreenState extends State<ScanScreen> {
     );
 
     _isScanningSubscription = FlutterBluePlus.isScanning.listen((state) {
-      if (mounted) setState(() => _isScanning = state);
+      if (mounted) {
+        setState(() {
+          _isScanning = state;
+          // Mark that we've started scanning when we first see scanning = true
+          if (state) {
+            _hasStartedFirstScan = true;
+          }
+        });
+      }
     });
 
     _startSolariDeviceScan();
@@ -125,14 +134,20 @@ class _ScanScreenState extends State<ScanScreen> {
       }
 
       // Reset any previously found device
-      setState(() => _solariDevice = null);
+      setState(() {
+        _solariDevice = null;
+        // Don't reset _hasStartedFirstScan here - let the subscription handle it
+      });
 
       // Restart scan fresh
       await FlutterBluePlus.startScan(
         timeout: const Duration(seconds: 15),
         withServices: [Guid(_solariServiceUUID)],
       );
+      
+      // No need for delays - the subscription will handle state changes
     } catch (e, backtrace) {
+      // No need to reset any initialization state - let the normal flow handle it
       Snackbar.show(
         ABC.b,
         prettyException("Solari Device Scan Error:", e),
@@ -184,7 +199,9 @@ class _ScanScreenState extends State<ScanScreen> {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     String status;
-    if (_isScanning) {
+    if (!_hasStartedFirstScan) {
+      status = 'Initializing...';
+    } else if (_isScanning) {
       status = 'Scanning for Solari...';
     } else if (_solariDevice != null) {
       status = 'Solari Found!';
@@ -243,10 +260,13 @@ class _ScanScreenState extends State<ScanScreen> {
                           height: 200,
                           backgroundColor: Theme.of(context).primaryColor,
                         ),
-                      if (!_isScanning && _solariDevice == null)
+                      if (!_isScanning && _hasStartedFirstScan && _solariDevice == null)
                         ConnectionButton(
                           label: 'Retry',
-                          onPressed: _startSolariDeviceScan,
+                          onPressed: () {
+                            setState(() => _hasStartedFirstScan = false);
+                            _startSolariDeviceScan();
+                          },
                           height: 200,
                           backgroundColor: Theme.of(context).primaryColor,
                         ),
@@ -284,6 +304,28 @@ class _ScanScreenState extends State<ScanScreen> {
                     },
                   );
                 },
+              ),
+            ),
+
+            // Refresh/Scan again button on top-right
+            Positioned(
+              top: 8,
+              right: 8,
+              child: IconButton(
+                icon: Icon(
+                  _isScanning ? Icons.stop : Icons.refresh,
+                  size: 28,
+                  color: _isScanning ? Colors.red : null,
+                ),
+                tooltip: _isScanning ? "Stop scanning" : "Scan again",
+                onPressed: _isScanning
+                    ? () async {
+                        await _stopScan();
+                      }
+                    : () {
+                        setState(() => _hasStartedFirstScan = false);
+                        _startSolariDeviceScan();
+                      },
               ),
             ),
           ],

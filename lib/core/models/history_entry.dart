@@ -18,22 +18,27 @@ class HistoryEntry {
   /// The image associated with the entry
   final Uint8List image;
 
+  /// The raw audio data (if available) for debugging/playback
+  final Uint8List? rawAudio;
+
   HistoryEntry({
     required this.sender,
     this.question,
     required this.response,
     required this.time,
     required this.image,
+    this.rawAudio,
   });
 
-  /// Create a history entry from Solari (the AI) with optional question
-  factory HistoryEntry.fromSolari(String response, Uint8List image, {String? question}) {
+  /// Create a history entry from Solari (the AI) with optional question and raw audio
+  factory HistoryEntry.fromSolari(String response, Uint8List image, {String? question, Uint8List? rawAudio}) {
     return HistoryEntry(
       sender: 'Solari',
       question: question,
       response: response,
       time: DateTime.now(),
       image: image,
+      rawAudio: rawAudio,
     );
   }
 

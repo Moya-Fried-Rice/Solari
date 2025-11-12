@@ -12,3 +12,4 @@ export 'user_preferences_service.dart';
 export 'vibration_service.dart';
 export 'vlm_service.dart';
 export 'voice_assist_service.dart';
+export 'vqa_settings_service.dart';

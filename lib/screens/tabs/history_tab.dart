@@ -106,11 +106,16 @@ class _HistoryTabState extends State<HistoryTab>
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Image.memory(
-                            history[i].image,
-                            width: double.infinity,
-                            height: 150,
-                            fit: BoxFit.cover,
+                          // Display image at full size with proper aspect ratio
+                          ScreenReaderFocusable(
+                            context: 'history_tab',
+                            label: 'Image from history entry ${i + 1}',
+                            hint: 'Image captured during conversation',
+                            child: Image.memory(
+                              history[i].image,
+                              width: double.infinity,
+                              fit: BoxFit.fitWidth, // Show full image with proper aspect ratio
+                            ),
                           ),
                           const SizedBox(height: 12),
                           Padding(
@@ -118,10 +123,41 @@ class _HistoryTabState extends State<HistoryTab>
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                // Show user's question if available
+                                if (history[i].question != null && history[i].question!.isNotEmpty) ...[
+                                  ScreenReaderFocusable(
+                                    context: 'history_tab',
+                                    label: 'Your question ${i + 1}',
+                                    hint: history[i].question!,
+                                    child: Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Icon(
+                                          Icons.person,
+                                          size: 16,
+                                          color: theme.textColor,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: SelectToSpeakText(
+                                            history[i].question!,
+                                            style: TextStyle(
+                                              fontSize: theme.fontSize,
+                                              fontStyle: FontStyle.italic,
+                                              color: theme.textColor,
+                                              shadows: _getTextShadows(theme),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                ],
                                 // Show the text/response from Solari - make this focusable
                                 ScreenReaderFocusable(
                                   context: 'history_tab',
-                                  label: 'History entry ${i + 1}',
+                                  label: 'Solari response ${i + 1}',
                                   hint: history[i].text,
                                   child: Row(
                                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -146,6 +182,14 @@ class _HistoryTabState extends State<HistoryTab>
                                     ],
                                   ),
                                 ),
+                                // Show debug audio player if raw audio is available
+                                if (history[i].rawAudio != null) ...[
+                                  const SizedBox(height: 8),
+                                  DebugAudioPlayer(
+                                    audioData: history[i].rawAudio!,
+                                    label: 'Raw Audio (Debug)',
+                                  ),
+                                ],
                                 const SizedBox(height: 8),
                                 // Make sender and time info focusable separately
                                 ScreenReaderFocusable(

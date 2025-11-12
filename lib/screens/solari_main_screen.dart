@@ -217,13 +217,19 @@ class _SolariScreenState extends State<SolariScreen>
         await _bleService.initialize(widget.device);
         debugPrint('✅ BLE service initialized successfully');
         
-        // Check if BLE is ready and configure TTS accordingly
-        if (_bleService.isReady) {
+        // Apply user's output device preference from SelectToSpeakService
+        final selectToSpeakService = SelectToSpeakService();
+        await selectToSpeakService.initialize(); // Make sure preferences are loaded
+        
+        if (selectToSpeakService.outputToSolari && _bleService.isReady) {
           _ttsService.setBleTransmission(true);
-          debugPrint('✅ TTS service configured for BLE transmission to smart glasses');
+          debugPrint('✅ TTS service configured for BLE transmission to smart glasses (user preference)');
+        } else if (selectToSpeakService.outputToSolari && !_bleService.isReady) {
+          _ttsService.setLocalPlayback(true);
+          debugPrint('⚠️ User prefers Solari device but BLE not ready, falling back to local playback');
         } else {
           _ttsService.setLocalPlayback(true);
-          debugPrint('⚠️ BLE not ready, TTS service configured for local playback');
+          debugPrint('✅ TTS service configured for local playback (user preference)');
         }
       } else {
         debugPrint('⚠️ Device not connected or in mock mode, BLE audio transmission unavailable');
@@ -261,7 +267,18 @@ class _SolariScreenState extends State<SolariScreen>
   // VQA callback methods
   void _startVqa() {
     debugPrint('VQA start callback triggered');
-    // Add VQA start logic here if needed
+    
+    // Configure STT service based on VQA settings
+    final vqaSettings = VqaSettingsService();
+    if (vqaSettings.useSolariMicrophone) {
+      // Use BLE audio input from Solari device (default behavior)
+      _sttService.setMobileMode(false);
+      debugPrint('VQA configured for Solari device microphone');
+    } else {
+      // Use phone microphone
+      _sttService.setMobileMode(true);
+      debugPrint('VQA configured for phone microphone');
+    }
   }
 
   void _endVqa() {
@@ -271,6 +288,10 @@ class _SolariScreenState extends State<SolariScreen>
 
   Future<void> _speakText(String text) async {
     try {
+      // VQA responses should always use BLE transmission to Solari device
+      // This overrides user preferences since VQA is core Solari functionality
+      _ttsService.forceVqaBleTransmission();
+      
       // Sound effects removed - directly speak the text
       await _ttsService.speakText(
         text,
@@ -305,6 +326,10 @@ class _SolariScreenState extends State<SolariScreen>
   Future<void> _initializeVoiceAssist() async {
     try {
       final theme = Provider.of<ThemeProvider>(context, listen: false);
+      
+      // Initialize VQA settings service
+      await VqaSettingsService().initialize();
+      debugPrint('✅ VQA settings service initialized');
       
       // Initialize the voice assist service (loads enabled state)
       await _voiceAssistService.initialize();
@@ -573,7 +598,18 @@ class _SolariScreenState extends State<SolariScreen>
       
       // Process the complete VQA session (image + transcribed text)
       if (_receivedImage != null) {
-        final prompt = _transcribedText ?? 'Describe this image.';
+        // Use VQA settings to determine prompt
+        final vqaSettings = VqaSettingsService();
+        String prompt;
+        
+        if (vqaSettings.shouldTranscribeAudio() && _transcribedText != null && _transcribedText!.isNotEmpty) {
+          // VQA enabled and we have transcribed text
+          prompt = _transcribedText!;
+        } else {
+          // VQA disabled or no transcribed text - use default prompt
+          prompt = vqaSettings.getPromptText();
+        }
+        
         _processReceivedImage(_receivedImage!, prompt: prompt);
       }
       return;
@@ -646,6 +682,17 @@ class _SolariScreenState extends State<SolariScreen>
   // Collect audio data for offline transcription
   Future<void> _processStreamingAudio(List<int> audioChunk) async {
     if (!_audioStreaming) return;
+    
+    // Check VQA settings - skip audio processing if VQA is disabled
+    final vqaSettings = VqaSettingsService();
+    if (!vqaSettings.shouldTranscribeAudio()) {
+      // VQA disabled - skip audio transcription
+      setState(() {
+        _transcribedText = "VQA transcription disabled";
+        _lastTranscriptionDisplayed = "VQA transcription disabled";
+      });
+      return;
+    }
     
     try {
       // Collect audio chunk for offline processing
@@ -730,7 +777,9 @@ class _SolariScreenState extends State<SolariScreen>
           listen: false,
         );
         final questionText = _transcribedText?.isNotEmpty == true ? _transcribedText : null;
-        historyProvider.addEntry(imageData, response, question: questionText);
+        // Convert audio buffer to Uint8List for debugging/playback
+        final rawAudio = _audioBuffer.isNotEmpty ? Uint8List.fromList(_audioBuffer) : null;
+        historyProvider.addEntry(imageData, response, question: questionText, rawAudio: rawAudio);
       }
     } catch (e) {
       debugPrint('[AI] Error processing image: $e');

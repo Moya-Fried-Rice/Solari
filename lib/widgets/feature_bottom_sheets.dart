@@ -108,14 +108,17 @@ class FeatureBottomSheets {
     );
   }
 
-  /// Shows text to speech settings (speed only)
+  /// Shows text to speech settings (speed and output device)
   static void showTextToSpeechSettings({
     required BuildContext context,
     required ThemeProvider theme,
     required double ttsSpeed,
+    required bool outputToSolari,
     required Function(double) onSpeedChanged,
+    required Function(bool) onOutputDeviceChanged,
   }) {
     double currentSpeed = ttsSpeed;
+    bool currentOutputToSolari = outputToSolari;
 
     VibrationService.mediumFeedback();
     // Activate text-to-speech sheet context for screen reader
@@ -197,6 +200,137 @@ class FeatureBottomSheets {
                               currentSpeed = value;
                             });
                             onSpeedChanged(value);
+                          },
+                        ),
+                        const SizedBox(height: 30),
+                        // Output Device Control
+                        _buildOutputDeviceButtons(
+                          theme: themeProvider,
+                          outputToSolari: currentOutputToSolari,
+                          onChanged: (value) {
+                            setModalState(() {
+                              currentOutputToSolari = value;
+                            });
+                            onOutputDeviceChanged(value);
+                          },
+                        ),
+                        const SizedBox(height: 20),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Shows VQA (Visual Question Answering) settings
+  static void showVqaSettings({
+    required BuildContext context,
+    required ThemeProvider theme,
+    required bool vqaEnabled,
+    required bool useSolariMicrophone,
+    required Function(bool) onVqaEnabledChanged,
+    required Function(bool) onMicrophoneSourceChanged,
+  }) {
+    bool currentVqaEnabled = vqaEnabled;
+    bool currentUseSolariMicrophone = useSolariMicrophone;
+
+    VibrationService.mediumFeedback();
+    // Activate VQA settings sheet context for screen reader
+    ScreenReaderService().setActiveContext('vqa_settings');
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      isScrollControlled: true,
+      builder: (context) => Consumer<ThemeProvider>(
+        builder: (context, themeProvider, _) => WillPopScope(
+          onWillPop: () async {
+            ScreenReaderService().setActiveContext('preferences');
+            return true;
+          },
+          child: Container(
+            decoration: BoxDecoration(
+              color: themeProvider.primaryColor,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Theme(
+              data: Theme.of(context).copyWith(
+                textTheme: Theme.of(context).textTheme.apply(
+                  bodyColor: themeProvider.labelColor,
+                  displayColor: themeProvider.labelColor,
+                ),
+              ),
+              child: StatefulBuilder(
+                builder: (context, setModalState) => ScreenReaderGestureDetector(
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      bottom: MediaQuery.of(context).viewInsets.bottom,
+                      top: 10,
+                      left: 20,
+                      right: 20,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Down arrow button at top center
+                        Center(
+                          child: ScreenReaderFocusable(
+                            context: 'vqa_settings',
+                            label: 'Close button',
+                            hint: 'Double tap to close VQA settings',
+                            onTap: () {
+                              VibrationService.mediumFeedback();
+                              ScreenReaderService().setActiveContext('preferences');
+                              Navigator.pop(context);
+                            },
+                            child: GestureDetector(
+                              onTap: () {
+                                VibrationService.mediumFeedback();
+                                ScreenReaderService().setActiveContext('preferences');
+                                Navigator.pop(context);
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(8),
+                                child: Icon(
+                                  Icons.keyboard_arrow_down,
+                                  size: 48,
+                                  color: themeProvider.buttonTextColor,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        // VQA Enable/Disable Control
+                        _buildVqaEnabledButtons(
+                          theme: themeProvider,
+                          vqaEnabled: currentVqaEnabled,
+                          onChanged: (value) {
+                            setModalState(() {
+                              currentVqaEnabled = value;
+                            });
+                            onVqaEnabledChanged(value);
+                          },
+                        ),
+                        const SizedBox(height: 30),
+                        // Microphone Source Control
+                        _buildMicrophoneSourceButtons(
+                          theme: themeProvider,
+                          useSolariMicrophone: currentUseSolariMicrophone,
+                          onChanged: (value) {
+                            setModalState(() {
+                              currentUseSolariMicrophone = value;
+                            });
+                            onMicrophoneSourceChanged(value);
                           },
                         ),
                         const SizedBox(height: 20),
@@ -574,6 +708,426 @@ class FeatureBottomSheets {
                   ),
                 ),
                 child: Icon(Icons.add, size: theme.fontSize + 6),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// Helper method to build output device control buttons
+  static Widget _buildOutputDeviceButtons({
+    required ThemeProvider theme,
+    required bool outputToSolari,
+    required void Function(bool) onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ScreenReaderFocusable(
+          context: 'text_to_speech_settings',
+          label: 'Output Device, ${outputToSolari ? "Solari Device" : "Phone"}',
+          hint: 'Current audio output device',
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Output Device',
+                style: TextStyle(
+                  fontSize: theme.fontSize + 4,
+                  color: theme.labelColor,
+                  fontWeight: FontWeight.bold,
+                  shadows: _getTextShadows(theme),
+                ),
+              ),
+              Text(
+                outputToSolari ? 'Solari' : 'Phone',
+                style: TextStyle(
+                  fontSize: theme.fontSize + 4,
+                  color: theme.labelColor,
+                  fontWeight: FontWeight.bold,
+                  shadows: _getTextShadows(theme),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ScreenReaderFocusable(
+              context: 'text_to_speech_settings',
+              label: 'Phone speaker',
+              hint: outputToSolari
+                  ? 'Double tap to output speech to phone speaker'
+                  : 'Phone speaker is currently selected',
+              onTap: !outputToSolari
+                  ? null
+                  : () {
+                      onChanged(false);
+                      VibrationService.mediumFeedback();
+                    },
+              child: ElevatedButton(
+                onPressed: !outputToSolari
+                    ? null
+                    : () {
+                        onChanged(false);
+                        VibrationService.mediumFeedback();
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: !outputToSolari 
+                      ? theme.labelColor.withOpacity(0.2)
+                      : theme.labelColor,
+                  foregroundColor: !outputToSolari
+                      ? theme.labelColor
+                      : theme.primaryColor,
+                  disabledBackgroundColor: theme.labelColor.withOpacity(0.2),
+                  disabledForegroundColor: theme.labelColor,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 16,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.phone_android, size: theme.fontSize + 4),
+                    const SizedBox(width: 8),
+                    Text('Phone', style: TextStyle(fontSize: theme.fontSize)),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 20),
+            ScreenReaderFocusable(
+              context: 'text_to_speech_settings',
+              label: 'Solari device',
+              hint: outputToSolari
+                  ? 'Solari device is currently selected'
+                  : 'Double tap to output speech to Solari device',
+              onTap: outputToSolari
+                  ? null
+                  : () {
+                      onChanged(true);
+                      VibrationService.mediumFeedback();
+                    },
+              child: ElevatedButton(
+                onPressed: outputToSolari
+                    ? null
+                    : () {
+                        onChanged(true);
+                        VibrationService.mediumFeedback();
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: outputToSolari 
+                      ? theme.labelColor.withOpacity(0.2)
+                      : theme.labelColor,
+                  foregroundColor: outputToSolari
+                      ? theme.labelColor
+                      : theme.primaryColor,
+                  disabledBackgroundColor: theme.labelColor.withOpacity(0.2),
+                  disabledForegroundColor: theme.labelColor,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 16,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.smart_display, size: theme.fontSize + 4),
+                    const SizedBox(width: 8),
+                    Text('Solari', style: TextStyle(fontSize: theme.fontSize)),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// Helper method to build VQA enable/disable control buttons
+  static Widget _buildVqaEnabledButtons({
+    required ThemeProvider theme,
+    required bool vqaEnabled,
+    required void Function(bool) onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ScreenReaderFocusable(
+          context: 'vqa_settings',
+          label: 'VQA Transcription, ${vqaEnabled ? "On" : "Off"}',
+          hint: 'Current VQA transcription mode',
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'VQA Transcription',
+                style: TextStyle(
+                  fontSize: theme.fontSize + 4,
+                  color: theme.labelColor,
+                  fontWeight: FontWeight.bold,
+                  shadows: _getTextShadows(theme),
+                ),
+              ),
+              Text(
+                vqaEnabled ? 'On' : 'Off',
+                style: TextStyle(
+                  fontSize: theme.fontSize + 4,
+                  color: theme.labelColor,
+                  fontWeight: FontWeight.bold,
+                  shadows: _getTextShadows(theme),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ScreenReaderFocusable(
+              context: 'vqa_settings',
+              label: 'Turn VQA off',
+              hint: vqaEnabled
+                  ? 'Double tap to turn VQA transcription off'
+                  : 'VQA transcription is currently off',
+              onTap: vqaEnabled
+                  ? () {
+                      onChanged(false);
+                      VibrationService.mediumFeedback();
+                    }
+                  : null,
+              child: ElevatedButton(
+                onPressed: vqaEnabled
+                    ? () {
+                        onChanged(false);
+                        VibrationService.mediumFeedback();
+                      }
+                    : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: !vqaEnabled 
+                      ? theme.labelColor.withOpacity(0.2)
+                      : theme.labelColor,
+                  foregroundColor: !vqaEnabled
+                      ? theme.labelColor
+                      : theme.primaryColor,
+                  disabledBackgroundColor: theme.labelColor.withOpacity(0.2),
+                  disabledForegroundColor: theme.labelColor,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 16,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.mic_off, size: theme.fontSize + 4),
+                    const SizedBox(width: 8),
+                    Text('Off', style: TextStyle(fontSize: theme.fontSize)),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 20),
+            ScreenReaderFocusable(
+              context: 'vqa_settings',
+              label: 'Turn VQA on',
+              hint: vqaEnabled
+                  ? 'VQA transcription is currently on'
+                  : 'Double tap to turn VQA transcription on',
+              onTap: !vqaEnabled
+                  ? () {
+                      onChanged(true);
+                      VibrationService.mediumFeedback();
+                    }
+                  : null,
+              child: ElevatedButton(
+                onPressed: !vqaEnabled
+                    ? () {
+                        onChanged(true);
+                        VibrationService.mediumFeedback();
+                      }
+                    : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: vqaEnabled 
+                      ? theme.labelColor.withOpacity(0.2)
+                      : theme.labelColor,
+                  foregroundColor: vqaEnabled
+                      ? theme.labelColor
+                      : theme.primaryColor,
+                  disabledBackgroundColor: theme.labelColor.withOpacity(0.2),
+                  disabledForegroundColor: theme.labelColor,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 16,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.mic, size: theme.fontSize + 4),
+                    const SizedBox(width: 8),
+                    Text('On', style: TextStyle(fontSize: theme.fontSize)),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// Helper method to build microphone source control buttons
+  static Widget _buildMicrophoneSourceButtons({
+    required ThemeProvider theme,
+    required bool useSolariMicrophone,
+    required void Function(bool) onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ScreenReaderFocusable(
+          context: 'vqa_settings',
+          label: 'Microphone, ${useSolariMicrophone ? "Solari Device" : "Phone"}',
+          hint: 'Current microphone input source',
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Microphone Source',
+                style: TextStyle(
+                  fontSize: theme.fontSize + 4,
+                  color: theme.labelColor,
+                  fontWeight: FontWeight.bold,
+                  shadows: _getTextShadows(theme),
+                ),
+              ),
+              Text(
+                useSolariMicrophone ? 'Solari' : 'Phone',
+                style: TextStyle(
+                  fontSize: theme.fontSize + 4,
+                  color: theme.labelColor,
+                  fontWeight: FontWeight.bold,
+                  shadows: _getTextShadows(theme),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ScreenReaderFocusable(
+              context: 'vqa_settings',
+              label: 'Phone microphone',
+              hint: useSolariMicrophone
+                  ? 'Double tap to use phone microphone'
+                  : 'Phone microphone is currently selected',
+              onTap: useSolariMicrophone
+                  ? () {
+                      onChanged(false);
+                      VibrationService.mediumFeedback();
+                    }
+                  : null,
+              child: ElevatedButton(
+                onPressed: useSolariMicrophone
+                    ? () {
+                        onChanged(false);
+                        VibrationService.mediumFeedback();
+                      }
+                    : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: !useSolariMicrophone 
+                      ? theme.labelColor.withOpacity(0.2)
+                      : theme.labelColor,
+                  foregroundColor: !useSolariMicrophone
+                      ? theme.labelColor
+                      : theme.primaryColor,
+                  disabledBackgroundColor: theme.labelColor.withOpacity(0.2),
+                  disabledForegroundColor: theme.labelColor,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 16,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.phone_android, size: theme.fontSize + 4),
+                    const SizedBox(width: 8),
+                    Text('Phone', style: TextStyle(fontSize: theme.fontSize)),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 20),
+            ScreenReaderFocusable(
+              context: 'vqa_settings',
+              label: 'Solari device microphone',
+              hint: useSolariMicrophone
+                  ? 'Solari device microphone is currently selected'
+                  : 'Double tap to use Solari device microphone',
+              onTap: !useSolariMicrophone
+                  ? () {
+                      onChanged(true);
+                      VibrationService.mediumFeedback();
+                    }
+                  : null,
+              child: ElevatedButton(
+                onPressed: !useSolariMicrophone
+                    ? () {
+                        onChanged(true);
+                        VibrationService.mediumFeedback();
+                      }
+                    : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: useSolariMicrophone 
+                      ? theme.labelColor.withOpacity(0.2)
+                      : theme.labelColor,
+                  foregroundColor: useSolariMicrophone
+                      ? theme.labelColor
+                      : theme.primaryColor,
+                  disabledBackgroundColor: theme.labelColor.withOpacity(0.2),
+                  disabledForegroundColor: theme.labelColor,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 16,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.smart_display, size: theme.fontSize + 4),
+                    const SizedBox(width: 8),
+                    Text('Solari', style: TextStyle(fontSize: theme.fontSize)),
+                  ],
+                ),
               ),
             ),
           ],

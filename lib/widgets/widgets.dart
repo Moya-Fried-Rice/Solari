@@ -3,6 +3,7 @@
 
 export 'app_bar.dart';
 export 'custom_button.dart';
+export 'debug_audio_player.dart';
 export 'feature_bottom_sheets.dart';
 export 'feature_card.dart';
 export 'magnification_wrapper.dart';

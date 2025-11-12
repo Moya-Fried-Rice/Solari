@@ -12,12 +12,16 @@ class SelectToSpeakService extends ChangeNotifier {
   final TtsService _ttsService = TtsService();
   bool _isEnabled = false;
   double _speechRate = 1.0; // Default speech rate (speed)
+  bool _outputToSolari = true; // Default to Solari device output
 
   /// Get whether select-to-speak is currently enabled
   bool get isEnabled => _isEnabled;
   
   /// Get current speech rate
   double get speechRate => _speechRate;
+  
+  /// Get whether output should go to Solari device (true) or phone (false)
+  bool get outputToSolari => _outputToSolari;
 
   /// Initialize the service and load saved preferences
   Future<void> initialize() async {
@@ -30,7 +34,8 @@ class SelectToSpeakService extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     _isEnabled = prefs.getBool('selectToSpeakEnabled') ?? false;
     _speechRate = prefs.getDouble('selectToSpeakRate') ?? 1.0;
-    debugPrint('Select-to-speak loaded: enabled=$_isEnabled, rate=$_speechRate');
+    _outputToSolari = prefs.getBool('selectToSpeakOutputToSolari') ?? true;
+    debugPrint('Select-to-speak loaded: enabled=$_isEnabled, rate=$_speechRate, outputToSolari=$_outputToSolari');
   }
 
   /// Save preferences
@@ -38,7 +43,8 @@ class SelectToSpeakService extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('selectToSpeakEnabled', _isEnabled);
     await prefs.setDouble('selectToSpeakRate', _speechRate);
-    debugPrint('Select-to-speak saved: enabled=$_isEnabled, rate=$_speechRate');
+    await prefs.setBool('selectToSpeakOutputToSolari', _outputToSolari);
+    debugPrint('Select-to-speak saved: enabled=$_isEnabled, rate=$_speechRate, outputToSolari=$_outputToSolari');
   }
 
   /// Enable or disable select-to-speak
@@ -57,15 +63,38 @@ class SelectToSpeakService extends ChangeNotifier {
     notifyListeners(); // Notify widgets of the change
     debugPrint('Select-to-speak rate set to: $_speechRate');
   }
+  
+  /// Set output device (true for Solari device, false for phone)
+  Future<void> setOutputToSolari(bool outputToSolari) async {
+    _outputToSolari = outputToSolari;
+    
+    // Configure TTS service accordingly
+    if (outputToSolari) {
+      _ttsService.setBleTransmission(true);
+    } else {
+      _ttsService.setLocalPlayback(true);
+    }
+    
+    await _savePreferences();
+    notifyListeners(); // Notify widgets of the change
+    debugPrint('Select-to-speak output device set to: ${outputToSolari ? "Solari device" : "Phone"}');
+  }
 
   /// Speak the given text (used when text is tapped)
   Future<void> speakText(String text) async {
     if (!_isEnabled) return;
     
     try {
+      // Ensure output device setting is applied
+      if (_outputToSolari) {
+        _ttsService.setBleTransmission(true);
+      } else {
+        _ttsService.setLocalPlayback(true);
+      }
+      
       await _ttsService.speakText(
         text,
-        onStart: () => debugPrint('Speaking: "$text"'),
+        onStart: () => debugPrint('Speaking: "$text" via ${_outputToSolari ? "Solari device" : "Phone"}'),
         onComplete: () => debugPrint('Finished speaking'),
         onError: (error) => debugPrint('Error speaking: $error'),
       );

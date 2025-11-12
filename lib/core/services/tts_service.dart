@@ -74,6 +74,13 @@ class TtsService {
     debugPrint('Local playback ${enabled ? "enabled" : "disabled"} - will use ${enabled ? "mobile device" : "smart glasses"}');
   }
 
+  /// Force BLE transmission for VQA responses (overrides user preferences)
+  void forceVqaBleTransmission() {
+    _useBleTransmission = true;
+    _useLocalPlayback = false;
+    debugPrint('🎯 VQA: Forcing BLE transmission to Solari device (overrides user preferences)');
+  }
+
   /// Check if BLE transmission is enabled and available
   bool get canUseBle => _useBleTransmission && _bleService.isReady;
 

@@ -313,6 +313,13 @@ class VoiceAssistService extends ChangeNotifier {
       await _setSpeechSpeed(1.0, 'Speech speed reset to normal');
     }
     
+    // Audio output commands
+    else if (_matchesPattern(lowerCommand, ['switch to phone', 'use phone speaker', 'phone output', 'output to phone'])) {
+      await _setAudioOutput(false, 'Audio output switched to phone');
+    } else if (_matchesPattern(lowerCommand, ['switch to solari', 'use solari device', 'solari output', 'output to solari', 'use glasses'])) {
+      await _setAudioOutput(true, 'Audio output switched to Solari device');
+    }
+    
     // Help command
     else if (_matchesPattern(lowerCommand, ['help', 'what can i say', 'commands', 'show commands'])) {
       await _showHelp();
@@ -497,6 +504,14 @@ class VoiceAssistService extends ChangeNotifier {
     VibrationService.lightFeedback();
   }
 
+  /// Set audio output device
+  Future<void> _setAudioOutput(bool outputToSolari, String feedback) async {
+    final selectToSpeak = SelectToSpeakService();
+    await selectToSpeak.setOutputToSolari(outputToSolari);
+    await _speakFeedback(feedback);
+    VibrationService.lightFeedback();
+  }
+
   /// Show help with available commands
   Future<void> _showHelp() async {
     final helpText = '''
@@ -504,7 +519,7 @@ Available voice commands:
 Navigation: Go home, Open settings, Show history, Go back.
 Features: Enable screen reader, Disable select to speak, Turn on magnification, Enable high contrast, Invert colors, Enable vibration.
 Theme: Dark mode, Light mode, Increase text size, Enable sync.
-Speech: Speed up, Slow down, Normal speed.
+Speech: Speed up, Slow down, Normal speed, Switch to phone, Switch to Solari.
 Say any command to get started.
 ''';
     await _speakFeedback(helpText);
@@ -512,6 +527,14 @@ Say any command to get started.
 
   /// Speak feedback to user
   Future<void> _speakFeedback(String text) async {
+    // Use the same output device preference as SelectToSpeakService
+    final selectToSpeakService = SelectToSpeakService();
+    if (selectToSpeakService.outputToSolari) {
+      _ttsService.setBleTransmission(true);
+    } else {
+      _ttsService.setLocalPlayback(true);
+    }
+    
     await _ttsService.speakText(text);
   }
 
