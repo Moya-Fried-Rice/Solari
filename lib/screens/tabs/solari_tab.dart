@@ -16,6 +16,8 @@ class SolariTab extends StatefulWidget {
   final VoidCallback? onVqaEnd;
   final BluetoothService? targetService;
   final bool isMockMode;
+  final bool receivingAudio;
+  final bool receivingImage;
 
   const SolariTab({
     super.key,
@@ -29,6 +31,8 @@ class SolariTab extends StatefulWidget {
     this.onVqaEnd,
     this.targetService,
     this.isMockMode = false,
+    this.receivingAudio = false,
+    this.receivingImage = false,
   });
 
   @override
@@ -140,12 +144,18 @@ class _SolariTabState extends State<SolariTab> with AutomaticKeepAliveClientMixi
                           ? 'Speaking' 
                           : widget.downloadingModel 
                               ? 'Downloading model, ${((widget.downloadProgress ?? 0) * 100).toInt()} percent complete'
-                              : _isLongPressing 
-                                  ? 'VQA recording in progress - release to stop'
-                                  : 'Solari is ready - long press to start VQA',
-                  hint: _isLongPressing 
-                      ? 'Recording audio and will capture image when released'
-                      : 'Long press and hold to start VQA recording',
+                              : widget.receivingAudio
+                                  ? 'Receiving audio from device'
+                                  : widget.receivingImage
+                                      ? 'Receiving image from device'
+                                      : _isLongPressing 
+                                          ? 'VQA recording in progress - release to stop'
+                                          : 'Solari is ready - long press to start VQA',
+                  hint: widget.receivingAudio || widget.receivingImage
+                      ? 'Device is streaming data over Bluetooth'
+                      : _isLongPressing 
+                          ? 'Recording audio and will capture image when released'
+                          : 'Long press and hold to start VQA recording',
                   child: LayoutBuilder(
                     builder: (context, constraints) {
                       final width = constraints.maxWidth;
@@ -157,7 +167,10 @@ class _SolariTabState extends State<SolariTab> with AutomaticKeepAliveClientMixi
                             : AnimatedSoundWave(
                                 speaking: widget.speaking, 
                                 processing: widget.processing || _isLongPressing, 
-                                color: _isLongPressing ? Colors.red : theme.primaryColor
+                                receiving: widget.receivingAudio || widget.receivingImage,
+                                color: _isLongPressing 
+                                    ? Colors.red 
+                                    : theme.primaryColor
                               ),
                       );
                     },
@@ -294,8 +307,9 @@ class _DonutProgress extends StatelessWidget {
 class AnimatedSoundWave extends StatefulWidget {
   final bool speaking;
   final bool processing;
+  final bool receiving;
   final Color color;
-  const AnimatedSoundWave({Key? key, required this.speaking, required this.processing, required this.color}) : super(key: key);
+  const AnimatedSoundWave({Key? key, required this.speaking, required this.processing, this.receiving = false, required this.color}) : super(key: key);
 
   @override
   State<AnimatedSoundWave> createState() => AnimatedSoundWaveState();
@@ -306,9 +320,9 @@ class AnimatedSoundWaveState extends State<AnimatedSoundWave> with SingleTickerP
   @override
   void didUpdateWidget(covariant AnimatedSoundWave oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if ((widget.speaking || widget.processing) && !_controller.isAnimating) {
+    if ((widget.speaking || widget.processing || widget.receiving) && !_controller.isAnimating) {
       _controller.repeat();
-    } else if (!widget.speaking && !widget.processing && _controller.isAnimating) {
+    } else if (!widget.speaking && !widget.processing && !widget.receiving && _controller.isAnimating) {
       _controller.stop();
     }
   }
@@ -321,7 +335,7 @@ class AnimatedSoundWaveState extends State<AnimatedSoundWave> with SingleTickerP
       vsync: this,
       duration: const Duration(seconds: 2),
     );
-    if (widget.speaking || widget.processing) {
+    if (widget.speaking || widget.processing || widget.receiving) {
       _controller.repeat();
     }
   }
@@ -334,7 +348,17 @@ class AnimatedSoundWaveState extends State<AnimatedSoundWave> with SingleTickerP
 
   @override
   Widget build(BuildContext context) {
-    if (widget.processing && !widget.speaking) {
+    if (widget.receiving && !widget.processing && !widget.speaking) {
+      // Show flowing bars while receiving data from BLE
+      return AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          return CustomPaint(
+            painter: ReceivingDataPainter(_controller.value, color: widget.color),
+          );
+        },
+      );
+    } else if (widget.processing && !widget.speaking) {
       // Show pulsing sphere while processing and not speaking
       return AnimatedBuilder(
         animation: _controller,
@@ -419,4 +443,52 @@ class SoundWavePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant SoundWavePainter oldDelegate) =>
       oldDelegate.progress != progress || oldDelegate.flat != flat || oldDelegate.color != color;
+}
+
+/// Custom painter that draws flowing bars to indicate data reception
+class ReceivingDataPainter extends CustomPainter {
+  /// Animation progress value (0.0 to 1.0)
+  final double progress;
+  /// Color of the bars
+  final Color color;
+
+  /// Creates a receiving data painter
+  ReceivingDataPainter(this.progress, {required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 8.0
+      ..strokeCap = StrokeCap.round;
+
+    final midY = size.height / 2;
+    final barCount = 7; // Reduced for simplicity
+    final barAreaWidth = size.width * 0.6;
+    final startX = (size.width - barAreaWidth) / 2;
+    final phase = progress * 2 * math.pi;
+
+    for (int i = 0; i < barCount; i++) {
+      final x = startX + i * (barAreaWidth / (barCount - 1));
+      
+      // Simple pulsing effect - bars grow and shrink in sequence
+      final delay = i * 0.2; // Stagger the animation
+      final barScale = (math.sin(phase + delay) * 0.5 + 0.5).clamp(0.3, 1.0);
+      
+      final baseHeight = size.height * 0.2;
+      final barHeight = baseHeight * barScale;
+      final y1 = midY - barHeight / 2;
+      final y2 = midY + barHeight / 2;
+      
+      // Simple opacity based on scale
+      final opacity = (barScale * 0.6 + 0.4).clamp(0.4, 1.0);
+      paint.color = color.withOpacity(opacity);
+      
+      canvas.drawLine(Offset(x, y1), Offset(x, y2), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant ReceivingDataPainter oldDelegate) =>
+      oldDelegate.progress != progress || oldDelegate.color != color;
 }

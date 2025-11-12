@@ -811,6 +811,8 @@ class _SolariScreenState extends State<SolariScreen>
       onVqaEnd: _endVqa,
       targetService: _targetService,
       isMockMode: widget.isMock,
+      receivingAudio: _audioStreaming,
+      receivingImage: _receivingImage,
     ),
     SettingsTab(device: widget.device, onDisconnect: _handleDisconnect),
     HistoryTab(),

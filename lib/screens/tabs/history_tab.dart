@@ -183,13 +183,13 @@ class _HistoryTabState extends State<HistoryTab>
                                   ),
                                 ),
                                 // Show debug audio player if raw audio is available
-                                if (history[i].rawAudio != null) ...[
-                                  const SizedBox(height: 8),
-                                  DebugAudioPlayer(
-                                    audioData: history[i].rawAudio!,
-                                    label: 'Raw Audio (Debug)',
-                                  ),
-                                ],
+                                // if (history[i].rawAudio != null) ...[
+                                //   const SizedBox(height: 8),
+                                //   DebugAudioPlayer(
+                                //     audioData: history[i].rawAudio!,
+                                //     label: 'Raw Audio (Debug)',
+                                //   ),
+                                // ],
                                 const SizedBox(height: 8),
                                 // Make sender and time info focusable separately
                                 ScreenReaderFocusable(

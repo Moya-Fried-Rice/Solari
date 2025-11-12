@@ -38,9 +38,6 @@ class _PreferencePageState extends State<PreferencePage> {
   bool vibrationEnabled = true; // Default to enabled
   // Voice assist
   bool voiceAssistEnabled = false;
-  // VQA settings
-  bool vqaEnabled = true; // Default enabled
-  bool vqaUseSolariMicrophone = true; // Default to Solari device
   // Persisted features
   static const String _magnificationKey = 'magnification_enabled';
   static const String _voiceAssistKey = 'voice_assist_enabled';
@@ -55,7 +52,6 @@ class _PreferencePageState extends State<PreferencePage> {
     ScreenReaderService().addListener(_onScreenReaderChanged);
     SelectToSpeakService().addListener(_onSelectToSpeakChanged);
     VoiceAssistService().addListener(_onVoiceAssistChanged);
-    VqaSettingsService().addListener(_onVqaSettingsChanged);
     
     // Set the active context for screen reader when page loads
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -124,16 +120,6 @@ class _PreferencePageState extends State<PreferencePage> {
     }
   }
   
-  void _onVqaSettingsChanged() {
-    if (mounted) {
-      setState(() {
-        final service = VqaSettingsService();
-        vqaEnabled = service.isVqaEnabled;
-        vqaUseSolariMicrophone = service.useSolariMicrophone;
-      });
-    }
-  }
-  
   void _onThemeChanged() async {
     final theme = Provider.of<ThemeProvider>(context, listen: false);
     final systemTheme = await PreferencesService.getUseSystemTheme();
@@ -153,7 +139,6 @@ class _PreferencePageState extends State<PreferencePage> {
     ScreenReaderService().removeListener(_onScreenReaderChanged);
     SelectToSpeakService().removeListener(_onSelectToSpeakChanged);
     VoiceAssistService().removeListener(_onVoiceAssistChanged);
-    VqaSettingsService().removeListener(_onVqaSettingsChanged);
     
     // Remove theme listener
     final theme = Provider.of<ThemeProvider>(context, listen: false);
@@ -175,8 +160,6 @@ class _PreferencePageState extends State<PreferencePage> {
     await selectToSpeakService.initialize();
     final screenReaderService = ScreenReaderService();
     await screenReaderService.initialize();
-    final vqaSettingsService = VqaSettingsService();
-    await vqaSettingsService.initialize();
     // Load persisted toggles
     final prefs = await SharedPreferences.getInstance();
     final persistedMagnification = prefs.getBool(_magnificationKey);
@@ -203,9 +186,6 @@ class _PreferencePageState extends State<PreferencePage> {
         // Load speech settings from SelectToSpeakService
         ttsSpeed = selectToSpeakService.speechRate;
         ttsOutputToSolari = selectToSpeakService.outputToSolari;
-        // Load VQA settings
-        vqaEnabled = vqaSettingsService.isVqaEnabled;
-        vqaUseSolariMicrophone = vqaSettingsService.useSolariMicrophone;
         if (persistedVoiceAssist != null) voiceAssistEnabled = persistedVoiceAssist;
       });
     }
@@ -280,26 +260,6 @@ class _PreferencePageState extends State<PreferencePage> {
             final selectToSpeakService = SelectToSpeakService();
             await selectToSpeakService.setOutputToSolari(val);
             if (mounted) setState(() => ttsOutputToSolari = val);
-          },
-        ),
-      },
-      {
-        'icon': Icons.camera_alt,
-        'label': 'VQA Settings',
-        'onTap': () => FeatureBottomSheets.showVqaSettings(
-          context: context,
-          theme: theme,
-          vqaEnabled: vqaEnabled,
-          useSolariMicrophone: vqaUseSolariMicrophone,
-          onVqaEnabledChanged: (val) async {
-            final vqaService = VqaSettingsService();
-            await vqaService.setVqaEnabled(val);
-            if (mounted) setState(() => vqaEnabled = val);
-          },
-          onMicrophoneSourceChanged: (val) async {
-            final vqaService = VqaSettingsService();
-            await vqaService.setUseSolariMicrophone(val);
-            if (mounted) setState(() => vqaUseSolariMicrophone = val);
           },
         ),
       },
