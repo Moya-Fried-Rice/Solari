@@ -32,7 +32,7 @@
 #define BLE_CHUNK_SEND_DELAY_MS             20
 #define VQA_AUDIO_CHUNK_DURATION_MS         150  // Audio chunk duration for VQA streaming
 #define VQA_STREAMING_BUFFER_COUNT          4    // Number of buffers for smooth streaming
-#define BUTTON_DEBOUNCE_MS                  200  // Button debounce time
+#define BUTTON_DEBOUNCE_MS                  50   // Reduced button debounce for faster response
 
 // ============================================================================
 // Hardware Pin Definitions
@@ -329,7 +329,6 @@ class VqaCharacteristicEventCallbacks : public BLECharacteristicCallbacks {
             
             // Only start if not already active
             if (!vqaSystemState.isOperationActive) {
-                playStartSound();
                 xTaskCreate(visualQuestionAnsweringStreamingTask, "VQAStreamingTask", 16384, NULL, 1, &vqaSystemState.vqaTaskHandle);
             } else {
                 logWarningMessage("VQA-CONTROL", "VQA session already active, ignoring START command");
@@ -706,6 +705,21 @@ void initializeMicrophoneSubsystem() {
         while (true) delay(100);
     }
     
+    // Pre-warm the microphone more aggressively to ensure immediate recording capability
+    uint8_t warmupBuffer[1024];
+    for (int i = 0; i < 5; i++) {
+        microphoneI2S.readBytes((char*)warmupBuffer, sizeof(warmupBuffer));
+        delay(5); // Reduced delay for faster warmup
+    }
+    
+    // Final readiness check - ensure microphone is responding
+    size_t testRead = microphoneI2S.readBytes((char*)warmupBuffer, 256);
+    if (testRead > 0) {
+        logDebugMessage("MICROPHONE", "Microphone pre-warmed and verified - ready for instant recording");
+    } else {
+        logWarningMessage("MICROPHONE", "Microphone warmup complete but no initial data detected");
+    }
+    
     logInfoMessage("MICROPHONE", "Microphone input subsystem ready");
     logSystemMemoryUsage("MICROPHONE");
 }
@@ -796,80 +810,68 @@ void initializeBluetoothSubsystem() {
 
 // Visual Question Answering Streaming Task - Record Complete Audio First, Then Send
 void visualQuestionAnsweringStreamingTask(void *taskParameters) {
-    logInfoMessage("VQA-STREAM", "VQA streaming task started (record complete audio first, then send)");
+    // Play start sound immediately
+    playStartSound();
     
-    // Initialize VQA streaming state
+    // Initialize VQA streaming state INSTANTLY - no logging or BLE yet
     vqaSystemState.isOperationActive = true;
     vqaSystemState.isStopRequested = false;
-    vqaSystemState.isAudioRecordingInProgress = false;
+    vqaSystemState.isAudioRecordingInProgress = true; // START RECORDING IMMEDIATELY
     vqaSystemState.isAudioRecordingComplete = false;
     vqaSystemState.isImageTransmissionComplete = false;
-    vqaSystemState.isAudioStreamingActive = false;
-    vqaSystemState.totalAudioBytesStreamed = 0;
-    
-    logInfoMessage("VQA-STREAM", "Using complete audio recording approach similar to recordWAV");
-
-    // Play start sound to indicate VQA operation beginning
-    logInfoMessage("VQA-STREAM", "Start sound");
-    playStartSound(); // COMMENTED OUT FOR TESTING
-    
-    // Send VQA operation start header
-    String vqaStartHeader = "VQA_START";
-    vqaDataCharacteristic->setValue((uint8_t*)vqaStartHeader.c_str(), vqaStartHeader.length());
-    vqaDataCharacteristic->notify();
-    vTaskDelay(pdMS_TO_TICKS(20));
-    logDebugMessage("VQA-STREAM", "VQA start header transmitted");
-
-    // Brief pause after start sound to ensure clean transition
-    vTaskDelay(pdMS_TO_TICKS(100));
-
-    // ============================================================================
-    // STEP 1: Record & Stream Audio Simultaneously Until Stop Requested
-    // ============================================================================
-    logInfoMessage("VQA-STREAM", "Starting simultaneous audio recording and streaming (waiting for button release)...");
-    
-    vqaSystemState.isAudioRecordingInProgress = true;
     vqaSystemState.isAudioStreamingActive = true;
+    vqaSystemState.totalAudioBytesStreamed = 0;
     vqaSystemState.streamingStartTime = millis();
-    
+
+    // ============================================================================
+    // STEP 1: START RECORDING INSTANTLY - NO DELAYS, NO BLE, NO LOGGING
+    // ============================================================================
     // Create dynamic buffer to store complete audio recording (for backup/verification)
     std::vector<uint8_t> completeAudioBuffer;
+    completeAudioBuffer.reserve(50000); // Pre-allocate ~50KB to avoid reallocations during recording
+    
     const size_t RECORD_CHUNK_SIZE = 1024; // Larger chunks to reduce processing overhead
     const size_t STREAM_CHUNK_SIZE = 2048; // Even larger chunks for more efficient streaming
     const size_t BLE_TRANSMISSION_THRESHOLD = 4096; // Wait for more data before streaming to reduce BLE overhead
     uint8_t recordBuffer[RECORD_CHUNK_SIZE];
     std::vector<uint8_t> streamBuffer; // Accumulator for streaming chunks
+    streamBuffer.reserve(8192); // Pre-allocate streaming buffer to avoid reallocations
+    
     size_t totalRecordedBytes = 0;
     size_t totalStreamedBytes = 0;
     bool isRecordingSuccessful = true;
     int streamChunkCounter = 0;
-    
-    // Send audio streaming start header
-    String audioStreamStartHeader = "A_START_LIVE"; // Indicates live streaming mode
-    vqaDataCharacteristic->setValue((uint8_t*)audioStreamStartHeader.c_str(), audioStreamStartHeader.length());
-    vqaDataCharacteristic->notify();
-    vTaskDelay(pdMS_TO_TICKS(20));
-    logDebugMessage("VQA-STREAM", "Live audio streaming started");
-    
-    logInfoMessage("VQA-STREAM", "Recording and streaming audio simultaneously... (release button to stop)");
+    bool headersSent = false;
     
     // Record and stream audio continuously until stop is requested (button released)
     unsigned long lastStreamTime = millis();
     const unsigned long STREAM_INTERVAL_MS = 100; // Stream every 100ms to reduce BLE overhead
     
     while (!vqaSystemState.isStopRequested && isRecordingSuccessful && isBleClientConnected) {
-        // Read audio data from microphone with timeout
-        size_t bytesRead = 0;
-        unsigned long readStartTime = millis();
+        // Send headers after first successful read (non-blocking approach)
+        if (!headersSent) {
+            // Send VQA operation start header 
+            String vqaStartHeader = "VQA_START";
+            vqaDataCharacteristic->setValue((uint8_t*)vqaStartHeader.c_str(), vqaStartHeader.length());
+            vqaDataCharacteristic->notify();
+            
+            // Send audio streaming start header
+            String audioStreamStartHeader = "A_START_LIVE";
+            vqaDataCharacteristic->setValue((uint8_t*)audioStreamStartHeader.c_str(), audioStreamStartHeader.length());
+            vqaDataCharacteristic->notify();
+            
+            logInfoMessage("VQA-STREAM", "RECORDING STARTED - headers sent");
+            headersSent = true;
+        }
         
-        // Try to read with short timeout to prevent blocking
-        while (bytesRead < RECORD_CHUNK_SIZE && (millis() - readStartTime) < 50) {
-            size_t bytesThisRead = microphoneI2S.readBytes((char*)recordBuffer + bytesRead, RECORD_CHUNK_SIZE - bytesRead);
-            if (bytesThisRead > 0) {
-                bytesRead += bytesThisRead;
-            } else {
-                // Short yield if no data available
-                vTaskDelay(pdMS_TO_TICKS(1));
+        // Read audio data from microphone - start immediately with any available data
+        size_t bytesRead = microphoneI2S.readBytes((char*)recordBuffer, RECORD_CHUNK_SIZE);
+        
+        // If no data immediately available, try a few more times with minimal delay
+        if (bytesRead == 0) {
+            for (int retry = 0; retry < 3 && bytesRead == 0; retry++) {
+                vTaskDelay(pdMS_TO_TICKS(1)); // Minimal delay
+                bytesRead = microphoneI2S.readBytes((char*)recordBuffer, RECORD_CHUNK_SIZE);
             }
         }
         
@@ -1628,19 +1630,19 @@ void loop() {
             } else if (!isSystemInitialized) {
                 logWarningMessage("USER-INPUT", "Button press ignored - system components not initialized");
             } else if (!vqaSystemState.isOperationActive) {
-                // Start VQA streaming operation
+                // Start VQA streaming operation immediately
                 vqaSystemState.isStopRequested = false;
                 BaseType_t taskCreationResult = xTaskCreatePinnedToCore(
                     visualQuestionAnsweringStreamingTask, 
                     "VQAStreamingTask", 
                     20480, 
                     nullptr, 
-                    2, // Higher priority for audio recording
+                    3, // Even higher priority for immediate audio recording
                     &vqaSystemState.vqaTaskHandle, 
                     1  // Core 1
                 );
                 if (taskCreationResult == pdPASS) {
-                    logInfoMessage("USER-INPUT", "VQA streaming operation started - button pressed");
+                    logInfoMessage("USER-INPUT", "VQA streaming started immediately - recording now active");
                 } else {
                     logErrorMessage("USER-INPUT", "Failed to create VQA streaming task");
                 }
