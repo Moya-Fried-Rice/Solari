@@ -1,6 +1,7 @@
 #include <ESP_I2S.h>
 #include "done.h"
 #include "processing.h"
+#include "harvard.h"
 #include "FS.h"
 #include "SD.h"
 #include "SPI.h"
@@ -89,16 +90,54 @@ void playProcessing() {
   playAudio(processing_audio_data, processing_audio_length, "Processing");
 }
 
+void playHarvard() {
+  playAudio(harvard_audio_data, harvard_audio_length, "Harvard");
+}
+
 void playAudioFromSD(const char* filename, const char* audioName) {
   Serial.print("Playing ");
   Serial.print(audioName);
   Serial.print(" from SD card: ");
   Serial.println(filename);
 
+  // Check if SD card is still mounted
+  if (SD.cardType() == CARD_NONE) {
+    Serial.println("SD Card not detected or not mounted");
+    return;
+  }
+
+  // Check if file exists
+  if (!SD.exists(filename)) {
+    Serial.print("File does not exist: ");
+    Serial.println(filename);
+    Serial.println("Listing files on SD card:");
+    File root = SD.open("/");
+    File file = root.openNextFile();
+    while(file) {
+      Serial.print("  ");
+      Serial.println(file.name());
+      file = root.openNextFile();
+    }
+    root.close();
+    return;
+  }
+
   File audioFile = SD.open(filename);
   if (!audioFile) {
     Serial.println("Failed to open audio file from SD card");
     return;
+  }
+
+  // Get file size for progress tracking
+  size_t fileSize = audioFile.size();
+  Serial.print("File size: ");
+  Serial.print(fileSize);
+  Serial.println(" bytes");
+
+  // Skip WAV header (44 bytes) if it's a WAV file
+  if (String(filename).endsWith(".wav") || String(filename).endsWith(".WAV")) {
+    audioFile.seek(44);
+    Serial.println("Skipped WAV header (44 bytes)");
   }
 
   // Amplification factor (adjust this value to increase/decrease volume)
@@ -108,9 +147,22 @@ void playAudioFromSD(const char* filename, const char* audioName) {
   const size_t BUFFER_SIZE = 512;
   uint8_t buffer[BUFFER_SIZE];
   int16_t amplifiedBuffer[BUFFER_SIZE / 2];
+  
+  size_t totalBytesRead = 0;
+  unsigned long startTime = millis();
 
   while (audioFile.available()) {
     size_t bytesRead = audioFile.read(buffer, BUFFER_SIZE);
+    totalBytesRead += bytesRead;
+    
+    // Progress indicator every 10KB
+    if (totalBytesRead % 10240 == 0) {
+      Serial.print("Progress: ");
+      Serial.print(totalBytesRead);
+      Serial.print(" / ");
+      Serial.print(fileSize);
+      Serial.println(" bytes");
+    }
     
     // Amplify the audio samples
     for (size_t i = 0; i < bytesRead; i += 2) {
@@ -129,9 +181,18 @@ void playAudioFromSD(const char* filename, const char* audioName) {
     
     // Write amplified samples to I2S
     I2S.write((uint8_t*)amplifiedBuffer, bytesRead);
+    
+    // Add a small delay to prevent watchdog timeout on large files
+    if (millis() - startTime > 100) {
+      delay(1);
+      startTime = millis();
+    }
   }
 
   audioFile.close();
+
+  Serial.print("Total bytes played: ");
+  Serial.println(totalBytesRead);
 
   // Send 50 ms of silence to avoid click
   int silenceSamples = 11025 / 20; // 50ms of silence for 11025 Hz
@@ -145,7 +206,11 @@ void playAudioFromSD(const char* filename, const char* audioName) {
 }
 
 void playharvard() {
-  playAudioFromSD("/harvard.wav", "harvard");
+  playAudioFromSD("/harvard.wav", "harvard from SD");
+}
+
+void playsdharvard() {
+  playAudioFromSD("/harvard.wav", "harvard from SD");
 }
 
 void enterDeepSleep() {
@@ -258,12 +323,15 @@ void setup() {
   Serial.println("Available commands:");
   Serial.println("  'done' - Play done audio");
   Serial.println("  'processing' - Play processing audio");
-  Serial.println("  'harvard' - Play harvard audio from SD card");
+  Serial.println("  'harvard' - Play harvard audio from memory");
+  Serial.println("  'sdharvard' - Play harvard audio from SD card");
   Serial.println("  'play' - Play done audio (for compatibility)");
   Serial.println("  'sleep' - Enter deep sleep mode");
   Serial.println("  'usb' - Check USB connection status");
   Serial.println("  'loop' - Start/stop looping processing sound every 5 seconds");
   Serial.println("  'autosleep' - Enable/disable auto-sleep after 20 seconds of inactivity");
+  Serial.println("  'ls' - List files on SD card");
+  Serial.println("  'lsall' - List all files recursively on SD card");
   Serial.println("Press the button to play processing sound!");
   
   // Display initial USB connection status
@@ -356,7 +424,9 @@ void loop() {
     } else if (cmd.equalsIgnoreCase("processing")) {
       playProcessing();
     } else if (cmd.equalsIgnoreCase("harvard")) {
-      playharvard();
+      playHarvard();
+    } else if (cmd.equalsIgnoreCase("sdharvard")) {
+      playsdharvard();
     } else if (cmd.equalsIgnoreCase("sleep")) {
       enterDeepSleep();
     } else if (cmd.equalsIgnoreCase("usb")) {
@@ -379,8 +449,28 @@ void loop() {
       } else {
         Serial.println("Auto-sleep disabled: Device will not automatically sleep");
       }
+    } else if (cmd.equalsIgnoreCase("ls")) {
+      Serial.println("Files on SD card:");
+      if (SD.cardType() == CARD_NONE) {
+        Serial.println("SD Card not detected or not mounted");
+      } else {
+        File root = SD.open("/");
+        File file = root.openNextFile();
+        if (!file) {
+          Serial.println("  (no files found)");
+        }
+        while(file) {
+          Serial.print("  ");
+          Serial.print(file.name());
+          Serial.print(" (");
+          Serial.print(file.size());
+          Serial.println(" bytes)");
+          file = root.openNextFile();
+        }
+        root.close();
+      }
     } else {
-      Serial.println("Unknown command. Available commands: 'done', 'processing', 'harvard', 'play', 'sleep', 'usb', 'loop', 'autosleep'");
+      Serial.println("Unknown command. Available commands: 'done', 'processing', 'harvard', 'sdharvard', 'play', 'sleep', 'usb', 'loop', 'autosleep', 'ls', 'lsall'");
     }
   }
   

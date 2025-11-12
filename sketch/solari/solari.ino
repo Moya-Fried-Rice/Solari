@@ -116,7 +116,7 @@ const int SPEAKER_BYTES_PER_SAMPLE = 2;             // Bytes per audio sample (1
 const char* SPEAKER_AUDIO_QUALITY_NAME = "High Quality";
 const int SPEAKER_AUDIO_CHUNK_SIZE = 512;           // Chunk size for audio processing (matched to test breadboard)
 const int SPEAKER_PLAYBACK_DELAY_MS = 12;           // Target delay between audio chunks
-const float SPEAKER_AMPLIFICATION = 3.0;            // Volume amplification factor (matched to test breadboard max amplitude)
+const float SPEAKER_AMPLIFICATION = 2.0;            // Volume amplification factor (matched to test breadboard max amplitude)
 
 // Microphone Input Configuration (for VQA recording)
 const int MICROPHONE_SAMPLE_RATE = 16000;            // Lower sample rate for efficient VQA transmission
@@ -371,9 +371,9 @@ class AudioPlaybackCharacteristicEventCallbacks : public BLECharacteristicCallba
         if (receivedStringValue.startsWith("S_START:")) {
             // This is a server response - stop processing sound and play done sound
             if (isProcessingSoundLooping) {
-                logInfoMessage("AUDIO-RESPONSE", "Server response received (S_START) - sound effects disabled for testing");
-                // stopProcessingSoundLoop(); // COMMENTED OUT FOR TESTING
-                // playDoneSoundWhenReady(); // COMMENTED OUT FOR TESTING
+                logInfoMessage("AUDIO-RESPONSE", "Server response received (S_START)");
+                stopProcessingSoundLoop(); // COMMENTED OUT FOR TESTING
+                playDoneSoundWhenReady(); // COMMENTED OUT FOR TESTING
             }
             
             audioPlaybackSystem.expectedTotalAudioSize = receivedStringValue.substring(8).toInt();
@@ -406,8 +406,8 @@ class AudioPlaybackCharacteristicEventCallbacks : public BLECharacteristicCallba
         if (receivedStringValue.startsWith("S_END")) {
             // This is also a server response - stop processing sound if still running
             if (isProcessingSoundLooping) {
-                logInfoMessage("AUDIO-RESPONSE", "Server response received (S_END) - sound effects disabled for testing");
-                // stopProcessingSoundLoop(); // COMMENTED OUT FOR TESTING
+                logInfoMessage("AUDIO-RESPONSE", "Server response received (S_END)");
+                stopProcessingSoundLoop(); // COMMENTED OUT FOR TESTING
                 // Don't play done sound here since audio will start playing
             }
             
@@ -826,8 +826,8 @@ void visualQuestionAnsweringStreamingTask(void *taskParameters) {
                    String(audioChunkDurationMs) + "ms/chunk, image capture after audio stops");
 
     // Play start sound to indicate VQA operation beginning
-    logInfoMessage("VQA-STREAM", "Start sound disabled for testing");
-    // playStartSound(); // COMMENTED OUT FOR TESTING
+    logInfoMessage("VQA-STREAM", "Start sound");
+    playStartSound(); // COMMENTED OUT FOR TESTING
     
     // Send VQA operation start header
     String vqaStartHeader = "VQA_START";
@@ -1040,8 +1040,8 @@ void visualQuestionAnsweringStreamingTask(void *taskParameters) {
         logDebugMessage("VQA-STREAM", "VQA completion footer sent");
 
         // Start processing sound loop now that VQA data has been sent to server
-        logInfoMessage("VQA-STREAM", "VQA data transmission complete - processing sound disabled for testing");
-        // startProcessingSoundLoop(); // COMMENTED OUT FOR TESTING
+        logInfoMessage("VQA-STREAM", "VQA data transmission complete");
+        startProcessingSoundLoop(); // COMMENTED OUT FOR TESTING
 
         unsigned long totalOperationTime = millis() - vqaSystemState.streamingStartTime;
         
@@ -1075,103 +1075,82 @@ void visualQuestionAnsweringStreamingTask(void *taskParameters) {
     vTaskDelete(NULL);
 }
 
-// Real-time Audio Streaming Task for immediate playback
+// Real-time Audio Streaming Task for immediate playback (simplified to match test breadboard)
 void realTimeAudioStreamingTask(void *taskParameters) {
-    logInfoMessage("AUDIO-STREAM", String("Starting real-time audio streaming task (") + 
+    logInfoMessage("AUDIO-STREAM", String("Starting real-time streaming with test breadboard audio logic (") + 
                                   String(SPEAKER_SAMPLE_RATE) + "Hz, " + String(SPEAKER_BIT_DEPTH) + "-bit, " + 
                                   String(SPEAKER_AUDIO_QUALITY_NAME) + ")");
     
-    const size_t audioProcessingChunkSize = SPEAKER_AUDIO_CHUNK_SIZE;  // Configurable chunk size
-    const unsigned long targetPlaybackDelayMs = SPEAKER_PLAYBACK_DELAY_MS;  // Configurable delay
+    // Disable microphone to avoid I2S conflicts during audio playback
+    disableMicrophoneForAudioPlayback();
     
-    // Anti-click: Send silence first to initialize I2S cleanly
-    const size_t silenceBufferSize = 64;  // Small silence buffer
-    uint8_t silenceInitializationBuffer[silenceBufferSize] = {0};  // Zero-filled silence
-    speakerI2S.write(silenceInitializationBuffer, silenceBufferSize);
-    vTaskDelay(pdMS_TO_TICKS(10));  // Brief pause
+    // Use exact test breadboard audio processing with streaming capability
+    const float amplification = 3.0;                    // Exact copy from test breadboard
+    const size_t BUFFER_SIZE = 512;                     // Exact copy from test breadboard
+    int16_t amplifiedBuffer[BUFFER_SIZE / 2];           // Buffer for amplified samples
+    
+    logInfoMessage("AUDIO-STREAM", "Real-time streaming started with test breadboard audio processing");
     
     while (true) {
-        // Check if we have enough audio data available to play
+        // Check how much audio data is available to play
         size_t availableAudioData = audioPlaybackSystem.receivedAudioDataSize - audioPlaybackSystem.currentPlaybackPosition;
         
-        if (availableAudioData >= audioProcessingChunkSize || 
+        // Process data if we have enough for a chunk OR if streaming is complete
+        if (availableAudioData >= BUFFER_SIZE || 
             (audioPlaybackSystem.isAudioLoadingComplete && availableAudioData > 0)) {
             
-            size_t bytesToPlayInThisChunk = min(audioProcessingChunkSize, availableAudioData);
+            size_t bytesToPlay = min(BUFFER_SIZE, availableAudioData);
             
-            // Ensure we don't split samples (align to bytes per sample)
-            if (bytesToPlayInThisChunk % SPEAKER_BYTES_PER_SAMPLE != 0) {
-                bytesToPlayInThisChunk = (bytesToPlayInThisChunk / SPEAKER_BYTES_PER_SAMPLE) * SPEAKER_BYTES_PER_SAMPLE;
+            // Ensure we don't split 16-bit samples
+            if (bytesToPlay % 2 == 1) {
+                bytesToPlay--;
             }
             
-            if (bytesToPlayInThisChunk > 0) {
-                // Process and play chunk with volume control and filtering
-                std::vector<uint8_t> processedAudioChunk(bytesToPlayInThisChunk);
-                
-                // Anti-click: Volume ramp for first few chunks
-                static bool isFirstAudioChunk = true;
-                static int volumeRampCounter = 0;
-                const int totalVolumeRampChunks = 5;  // Ramp over 5 chunks (~80ms)
-                
-                for (size_t i = 0; i < bytesToPlayInThisChunk; i += SPEAKER_BYTES_PER_SAMPLE) {
-                    size_t audioBufferIndex = audioPlaybackSystem.currentPlaybackPosition + i;
-                    
-                    // Extract sample based on configured bit depth (currently 16-bit little-endian)
-                    int16_t audioSample = audioPlaybackSystem.audioDataBuffer[audioBufferIndex] | 
-                                         (audioPlaybackSystem.audioDataBuffer[audioBufferIndex + 1] << 8);
-                    
-                    // Apply amplification with clipping protection (matched to test breadboard)
-                    int32_t amplifiedSample = (int32_t)(audioSample * SPEAKER_AMPLIFICATION);
-                    
-                    // Anti-click: Gradual volume ramp for smooth start
-                    if (volumeRampCounter < totalVolumeRampChunks) {
-                        amplifiedSample = (amplifiedSample * (volumeRampCounter + 1)) / totalVolumeRampChunks;
-                    }
-                    
-                    // Apply clipping protection
-                    if (amplifiedSample > 32767) amplifiedSample = 32767;
-                    if (amplifiedSample < -32768) amplifiedSample = -32768;
-                    
-                    audioSample = (int16_t)amplifiedSample;
-                    
-                    // Apply simple high-pass filter to reduce DC offset and clicks
-                    static int16_t previousAudioSample = 0;
-                    int16_t filteredAudioSample = audioSample - (previousAudioSample >> 4);  // Simple HPF
-                    previousAudioSample = audioSample;
-                    
-                    // Store back as little-endian
-                    processedAudioChunk[i] = filteredAudioSample & 0xFF;
-                    processedAudioChunk[i + 1] = (filteredAudioSample >> 8) & 0xFF;
-                }
-                
-                // Increment volume ramp counter
-                if (volumeRampCounter < totalVolumeRampChunks) {
-                    volumeRampCounter++;
-                }
-                
-                // Send processed audio chunk to I2S speaker
-                size_t bytesWrittenToSpeaker = 0;
-                while (bytesWrittenToSpeaker < bytesToPlayInThisChunk) {
-                    size_t bytesActuallyWritten = speakerI2S.write(processedAudioChunk.data() + bytesWrittenToSpeaker, 
-                                                                 bytesToPlayInThisChunk - bytesWrittenToSpeaker);
-                    bytesWrittenToSpeaker += bytesActuallyWritten;
-                    
-                    if (bytesActuallyWritten == 0) {
-                        vTaskDelay(pdMS_TO_TICKS(1));
+            if (bytesToPlay > 0) {
+                // Amplify the audio samples (EXACT copy from test breadboard logic)
+                for (size_t i = 0; i < bytesToPlay; i += 2) {
+                    if (audioPlaybackSystem.currentPlaybackPosition + i + 1 < audioPlaybackSystem.receivedAudioDataSize) {
+                        // Convert bytes to 16-bit sample (EXACT copy from test breadboard)
+                        int16_t sample = (int16_t)((audioPlaybackSystem.audioDataBuffer[audioPlaybackSystem.currentPlaybackPosition + i + 1] << 8) | 
+                                                 audioPlaybackSystem.audioDataBuffer[audioPlaybackSystem.currentPlaybackPosition + i]);
+                        
+                        // Apply amplification with clipping protection (EXACT copy from test breadboard)
+                        int32_t amplifiedSample = (int32_t)(sample * amplification);
+                        if (amplifiedSample > 32767) amplifiedSample = 32767;
+                        if (amplifiedSample < -32768) amplifiedSample = -32768;
+                        
+                        amplifiedBuffer[i / 2] = (int16_t)amplifiedSample;
                     }
                 }
                 
-                audioPlaybackSystem.currentPlaybackPosition += bytesToPlayInThisChunk;
+                // Write amplified samples to I2S (EXACT copy from test breadboard)
+                speakerI2S.write((uint8_t*)amplifiedBuffer, bytesToPlay);
+                audioPlaybackSystem.currentPlaybackPosition += bytesToPlay;
             }
+        } else {
+            // Not enough data available, wait for more data
+            vTaskDelay(pdMS_TO_TICKS(10)); // Short wait to allow more data to arrive
+            continue;
         }
         
-        // Check if real-time streaming is complete
+        // Check if streaming is complete
         if (audioPlaybackSystem.isAudioLoadingComplete && 
             audioPlaybackSystem.currentPlaybackPosition >= audioPlaybackSystem.receivedAudioDataSize) {
             
+            // Send 50 ms of silence to avoid click (EXACT copy from test breadboard)
+            int silenceSamples = 11025 / 20; // 50ms of silence for 11025 Hz (test breadboard uses 11025, but we'll use our rate)
+            silenceSamples = SPEAKER_SAMPLE_RATE / 20; // Adjust for our actual sample rate
+            for (int i = 0; i < silenceSamples; i++) {
+                int16_t silence = 0;
+                speakerI2S.write((uint8_t *)&silence, sizeof(silence));
+            }
+            
             float totalPlaybackDurationSeconds = (float)(audioPlaybackSystem.currentPlaybackPosition / SPEAKER_BYTES_PER_SAMPLE) / (float)SPEAKER_SAMPLE_RATE;
-            logInfoMessage("AUDIO-STREAM", "Real-time streaming complete - " + String(totalPlaybackDurationSeconds, 1) + 
+            logInfoMessage("AUDIO-STREAM", "Real-time streaming completed using test breadboard logic - " + String(totalPlaybackDurationSeconds, 1) + 
                           "s played (" + String(audioPlaybackSystem.currentPlaybackPosition/1024.0, 1) + "KB)");
+            
+            // Re-enable microphone after audio playback
+            enableMicrophoneAfterAudioPlayback();
             
             // Turn off status LED and reset playback state
             digitalWrite(STATUS_LED_PIN, LOW);
@@ -1187,96 +1166,79 @@ void realTimeAudioStreamingTask(void *taskParameters) {
             return;
         }
         
-        // Wait for next chunk interval
-        vTaskDelay(pdMS_TO_TICKS(targetPlaybackDelayMs));
+        // Small delay between processing chunks (similar to test breadboard's watchdog prevention)
+        vTaskDelay(pdMS_TO_TICKS(1));
     }
 }
 
-// High-Quality Audio Playback Function with 16-bit PCM
+// High-Quality Audio Playback Function with 16-bit PCM (simplified to match test breadboard)
 void playCompleteAudioBuffer() {
     if (audioPlaybackSystem.audioDataBuffer.size() == 0) {
         logWarningMessage("AUDIO-PLAYBACK", "No audio data available to play");
         return;
     }
     
+    // Disable microphone to avoid I2S conflicts during audio playback
+    disableMicrophoneForAudioPlayback();
+    
     size_t totalAudioDataSize = audioPlaybackSystem.audioDataBuffer.size();
     // Each sample is 2 bytes (16-bit) at the configured sample rate
     float audioDurationSeconds = (float)(totalAudioDataSize / 2) / SPEAKER_SAMPLE_RATE;
     logInfoMessage("AUDIO-PLAYBACK", "Playing 16-bit PCM audio: " + String(audioDurationSeconds, 1) + " seconds, " + String(totalAudioDataSize) + " bytes");
     
-    // Anti-click: Send silence first to initialize I2S cleanly
-    const size_t silenceBufferSize = 64;
-    uint8_t silenceInitBuffer[silenceBufferSize] = {0};
-    speakerI2S.write(silenceInitBuffer, silenceBufferSize);
-    vTaskDelay(pdMS_TO_TICKS(5));
-    
-    // Use larger chunks for smoother playback at higher quality
-    const size_t playbackChunkSize = 512;  // Increased for configured sample rate
+    // Simplified audio playback matching test breadboard approach
+    const float amplification = 3.0;  // Match test breadboard exactly
+    const size_t BUFFER_SIZE = 512;   // Match test breadboard buffer size
     size_t totalBytesPlayed = 0;
-    const int volumeRampChunks = 3;  // Ramp over 3 chunks for quick start
-    int playbackChunkCounter = 0;
-    
+    int16_t amplifiedBuffer[BUFFER_SIZE / 2]; // Buffer for amplified samples
+
     while (totalBytesPlayed < totalAudioDataSize) {
-        size_t bytesToPlayInChunk = min(playbackChunkSize, totalAudioDataSize - totalBytesPlayed);
+        size_t bytesToPlay = min(BUFFER_SIZE, totalAudioDataSize - totalBytesPlayed);
         
         // Ensure we don't split 16-bit samples
-        if (bytesToPlayInChunk % 2 == 1) {
-            bytesToPlayInChunk--;
+        if (bytesToPlay % 2 == 1) {
+            bytesToPlay--;
         }
         
-        if (bytesToPlayInChunk == 0) break;
+        if (bytesToPlay == 0) break;
         
-        // Apply volume control and filtering to 16-bit PCM samples
-        std::vector<uint8_t> processedPlaybackChunk(bytesToPlayInChunk);
-        for (size_t i = 0; i < bytesToPlayInChunk; i += 2) {
-            // Extract 16-bit sample (little-endian)
-            int16_t audioSample = audioPlaybackSystem.audioDataBuffer[totalBytesPlayed + i] | 
-                                 (audioPlaybackSystem.audioDataBuffer[totalBytesPlayed + i + 1] << 8);
-            
-            // Apply amplification with clipping protection and anti-click ramping (matched to test breadboard)
-            int32_t amplifiedSample = (int32_t)(audioSample * SPEAKER_AMPLIFICATION);
-            if (playbackChunkCounter < volumeRampChunks) {
-                amplifiedSample = (amplifiedSample * (playbackChunkCounter + 1)) / volumeRampChunks;
-            }
-            
-            // Apply clipping protection
-            if (amplifiedSample > 32767) amplifiedSample = 32767;
-            if (amplifiedSample < -32768) amplifiedSample = -32768;
-            
-            audioSample = (int16_t)amplifiedSample;
-            
-            // Apply simple high-pass filter to reduce DC offset and clicks
-            static int16_t previousSample = 0;
-            int16_t filteredSample = audioSample - (previousSample >> 4);  // Simple HPF
-            previousSample = audioSample;
-            
-            // Store back as little-endian
-            processedPlaybackChunk[i] = filteredSample & 0xFF;
-            processedPlaybackChunk[i + 1] = (filteredSample >> 8) & 0xFF;
-        }
-        
-        playbackChunkCounter++;
-        
-        // Send entire chunk to I2S at once for smoother playback
-        size_t bytesWrittenToSpeaker = 0;
-        while (bytesWrittenToSpeaker < bytesToPlayInChunk) {
-            size_t bytesActuallyWritten = speakerI2S.write(processedPlaybackChunk.data() + bytesWrittenToSpeaker, 
-                                                          bytesToPlayInChunk - bytesWrittenToSpeaker);
-            bytesWrittenToSpeaker += bytesActuallyWritten;
-            
-            // Prevent watchdog timeout on large audio files
-            if (bytesActuallyWritten == 0) {
-                vTaskDelay(pdMS_TO_TICKS(1));
+        // Amplify the audio samples (exactly matching test breadboard logic)
+        for (size_t i = 0; i < bytesToPlay; i += 2) {
+            if (totalBytesPlayed + i + 1 < totalAudioDataSize) {
+                // Convert bytes to 16-bit sample (FIXED: exact same as test breadboard)
+                int16_t sample = (int16_t)((audioPlaybackSystem.audioDataBuffer[totalBytesPlayed + i + 1] << 8) | 
+                                         audioPlaybackSystem.audioDataBuffer[totalBytesPlayed + i]);
+                
+                // Apply amplification with clipping protection (exact test breadboard logic)
+                int32_t amplifiedSample = (int32_t)(sample * amplification);
+                if (amplifiedSample > 32767) amplifiedSample = 32767;
+                if (amplifiedSample < -32768) amplifiedSample = -32768;
+                
+                amplifiedBuffer[i / 2] = (int16_t)amplifiedSample;
             }
         }
         
-        totalBytesPlayed += bytesToPlayInChunk;
+        // Write amplified samples to I2S (matching test breadboard)
+        speakerI2S.write((uint8_t*)amplifiedBuffer, bytesToPlay);
+        totalBytesPlayed += bytesToPlay;
         
-        // Yield periodically to prevent watchdog timeout
-        if (totalBytesPlayed % 2048 == 0) {
-            vTaskDelay(pdMS_TO_TICKS(1));
+        // Add a small delay to prevent watchdog timeout on large files (matching test breadboard)
+        static unsigned long startTime = millis();
+        if (millis() - startTime > 100) {
+            delay(1);
+            startTime = millis();
         }
     }
+
+    // Send 50 ms of silence to avoid click (matching test breadboard)
+    int silenceSamples = SPEAKER_SAMPLE_RATE / 20; // 50ms of silence for 22050 Hz
+    for (int i = 0; i < silenceSamples; i++) {
+        int16_t silence = 0;
+        speakerI2S.write((uint8_t *)&silence, sizeof(silence));
+    }
+    
+    // Re-enable microphone after audio playback
+    enableMicrophoneAfterAudioPlayback();
     
     logInfoMessage("AUDIO-PLAYBACK", "High-quality PCM audio playback finished - played " + String(totalBytesPlayed) + " bytes");
 }
@@ -1289,63 +1251,36 @@ void playSoundEffect(const unsigned char* audioData, unsigned int audioLength, c
     isSoundEffectPlaying = true;
     logInfoMessage("SOUND-EFFECT", String("Playing ") + audioName + " sound effect...");
     
-    // Ensure I2S is in a clean state before playing sound effect
-    // Flush any pending data and add brief pause for I2S stability
-    vTaskDelay(pdMS_TO_TICKS(10));
-    
-    // Anti-click: Send silence first to initialize cleanly
-    const size_t silenceBufferSize = 64;
-    uint8_t silenceBuffer[silenceBufferSize] = {0};
-    size_t bytesWritten = 0;
-    while (bytesWritten < silenceBufferSize) {
-        size_t written = speakerI2S.write(silenceBuffer + bytesWritten, silenceBufferSize - bytesWritten);
-        if (written == 0) {
-            vTaskDelay(pdMS_TO_TICKS(1));
-            continue;
-        }
-        bytesWritten += written;
-    }
-    vTaskDelay(pdMS_TO_TICKS(10));
+    // Simplified audio playback matching test breadboard approach
+    // Amplification factor (matched exactly to test breadboard)
+    const float amplification = 3.0;
 
-    // Play the sound effect in chunks
-    const size_t effectChunkSize = 256;
+    // Play the raw audio data with amplification (matching test breadboard implementation)
+    const size_t BUFFER_SIZE = 512;
     unsigned int bytesPlayed = 0;
+    int16_t amplifiedBuffer[BUFFER_SIZE / 2]; // Buffer for amplified samples
 
     while (bytesPlayed < audioLength) {
-        size_t bytesToPlay = min(effectChunkSize, audioLength - bytesPlayed);
+        size_t bytesToPlay = min(BUFFER_SIZE, audioLength - bytesPlayed);
         
-        // Apply amplification with clipping protection (matched to test breadboard)
-        std::vector<uint8_t> processedChunk(bytesToPlay);
+        // Amplify the audio samples (exactly matching test breadboard logic)
         for (size_t i = 0; i < bytesToPlay; i += 2) {
-            // Extract 16-bit sample (little-endian)
-            int16_t sample = audioData[bytesPlayed + i] | (audioData[bytesPlayed + i + 1] << 8);
-            
-            // Apply amplification with clipping protection (matched to test breadboard max amplitude)
-            int32_t amplifiedSample = (int32_t)(sample * SPEAKER_AMPLIFICATION);
-            if (amplifiedSample > 32767) amplifiedSample = 32767;
-            if (amplifiedSample < -32768) amplifiedSample = -32768;
-            
-            // Store back as little-endian
-            processedChunk[i] = amplifiedSample & 0xFF;
-            processedChunk[i + 1] = (amplifiedSample >> 8) & 0xFF;
-        }
-        
-        // Write chunk with error handling for I2S state issues
-        size_t chunkBytesWritten = 0;
-        while (chunkBytesWritten < bytesToPlay) {
-            size_t written = speakerI2S.write(processedChunk.data() + chunkBytesWritten, 
-                                            bytesToPlay - chunkBytesWritten);
-            if (written == 0) {
-                vTaskDelay(pdMS_TO_TICKS(1));
-                continue;
+            if (bytesPlayed + i + 1 < audioLength) {
+                // Convert bytes to 16-bit sample (matching test breadboard)
+                int16_t sample = (int16_t)((audioData[bytesPlayed + i + 1] << 8) | audioData[bytesPlayed + i]);
+                
+                // Apply amplification with clipping protection (exact test breadboard logic)
+                int32_t amplifiedSample = (int32_t)(sample * amplification);
+                if (amplifiedSample > 32767) amplifiedSample = 32767;
+                if (amplifiedSample < -32768) amplifiedSample = -32768;
+                
+                amplifiedBuffer[i / 2] = (int16_t)amplifiedSample;
             }
-            chunkBytesWritten += written;
         }
         
+        // Write amplified samples to I2S (matching test breadboard)
+        speakerI2S.write((uint8_t*)amplifiedBuffer, bytesToPlay);
         bytesPlayed += bytesToPlay;
-        
-        // Small delay to prevent overwhelming the I2S
-        vTaskDelay(pdMS_TO_TICKS(5));
     }
 
     // Send 50 ms of silence to avoid click (matched to test breadboard approach)
@@ -1808,3 +1743,24 @@ void displayWelcomeArt() {
     
     logInfoMessage("SYSTEM", "Welcome, Cj");
   }
+
+// ============================================================================
+// I2S Conflict Management Functions
+// ============================================================================
+
+// Temporarily disable microphone to avoid I2S conflicts during audio playback
+void disableMicrophoneForAudioPlayback() {
+    logDebugMessage("AUDIO-FIX", "Temporarily disabling microphone I2S to avoid conflicts during audio playback");
+    microphoneI2S.end();
+}
+
+// Re-enable microphone after audio playback
+void enableMicrophoneAfterAudioPlayback() {
+    logDebugMessage("AUDIO-FIX", "Re-enabling microphone I2S after audio playback");
+    // Reinitialize microphone with a small delay
+    vTaskDelay(pdMS_TO_TICKS(50));
+    microphoneI2S.setPinsPdmRx(42, 41);
+    if (!microphoneI2S.begin(I2S_MODE_PDM_RX, MICROPHONE_SAMPLE_RATE, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO)) {
+        logErrorMessage("AUDIO-FIX", "Failed to re-enable microphone I2S after audio playback");
+    }
+}
