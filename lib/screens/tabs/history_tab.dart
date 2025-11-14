@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/providers/history_provider.dart';
 import '../../core/providers/theme_provider.dart';
+import '../../utils/image_utils.dart';
 import '../../widgets/widgets.dart';
 
 String timeAgo(DateTime dateTime) {
@@ -117,6 +118,44 @@ class _HistoryTabState extends State<HistoryTab>
                               fit: BoxFit.fitWidth, // Show full image with proper aspect ratio
                             ),
                           ),
+                          // TODO: Uncomment save button when needed
+                          // Stack(
+                          //   children: [
+                          //     Image.memory(
+                          //       history[i].image,
+                          //       width: double.infinity,
+                          //       fit: BoxFit.fitWidth, // Show full image with proper aspect ratio
+                          //     ),
+                          //     // Save button overlay
+                          //     Positioned(
+                          //       top: 8,
+                          //       right: 8,
+                          //       child: Material(
+                          //         color: Colors.black54,
+                          //         borderRadius: BorderRadius.circular(20),
+                          //         child: InkWell(
+                          //           borderRadius: BorderRadius.circular(20),
+                          //           onTap: () async {
+                          //             await ImageUtils.saveImageToGallery(
+                          //               history[i].image,
+                          //               name: 'solari_history_${DateTime.now().millisecondsSinceEpoch}',
+                          //               context: context,
+                          //             );
+                          //           },
+                          //           child: Container(
+                          //             padding: const EdgeInsets.all(8),
+                          //             child: Icon(
+                          //               Icons.download,
+                          //               color: Colors.white,
+                          //               size: 20,
+                          //               semanticLabel: 'Save image to gallery',
+                          //             ),
+                          //           ),
+                          //         ),
+                          //       ),
+                          //     ),
+                          //   ],
+                          // ),
                           const SizedBox(height: 12),
                           Padding(
                             padding: const EdgeInsets.only(left: 16.0, right: 16.0, bottom: 16.0),
