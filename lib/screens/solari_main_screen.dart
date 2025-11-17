@@ -96,6 +96,7 @@ class _SolariScreenState extends State<SolariScreen>
   // Downloading state
   bool _downloadingModel = false;
   double? _downloadProgress;
+  bool _vlmFailed = false; // Track VLM initialization failures
   // =================================================================================================================================
 
   // =================================================================================================================================
@@ -108,7 +109,8 @@ class _SolariScreenState extends State<SolariScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         ScreenReaderService().setActiveContext('solari_tab');
-        _initializeVoiceAssist();
+        // Voice assist disabled to stop annoying debug output
+        // _initializeVoiceAssist();
       }
     });
 
@@ -191,11 +193,13 @@ class _SolariScreenState extends State<SolariScreen>
       setState(() {
         _downloadingModel = false;
         _downloadProgress = 1.0;
+        _vlmFailed = false; // VLM loaded successfully
         debugPrint('Model loaded!');
       });
     } catch (e) {
       setState(() {
         _downloadingModel = false;
+        _vlmFailed = true; // Mark VLM as failed
         debugPrint('Error initializing model: $e');
       });
       debugPrint('Error initializing model: $e');
@@ -803,10 +807,11 @@ class _SolariScreenState extends State<SolariScreen>
     SolariTab(
       temperature: _currentTemp,
       speaking: _ttsService.isSpeaking,
-      processing: _processingImage,
-      image: _receivedImage,
+      processing: _vlmFailed ? false : _processingImage, // Don't show processing animation if VLM failed
+      image: _vlmFailed ? null : _receivedImage, // Don't show images if VLM failed
       downloadingModel: _downloadingModel,
       downloadProgress: _downloadProgress,
+      vlmFailed: _vlmFailed, // Pass VLM failure state
       onVqaStart: _startVqa,
       onVqaEnd: _endVqa,
       targetService: _targetService,

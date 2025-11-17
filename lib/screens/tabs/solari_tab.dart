@@ -12,6 +12,7 @@ class SolariTab extends StatefulWidget {
   final Uint8List? image;
   final bool downloadingModel;
   final double? downloadProgress;
+  final bool vlmFailed; // Track if VLM initialization failed
   final VoidCallback? onVqaStart;
   final VoidCallback? onVqaEnd;
   final BluetoothService? targetService;
@@ -27,6 +28,7 @@ class SolariTab extends StatefulWidget {
     this.image,
     this.downloadingModel = false,
     this.downloadProgress,
+    this.vlmFailed = false, // Default to false
     this.onVqaStart,
     this.onVqaEnd,
     this.targetService,
@@ -94,7 +96,7 @@ class _SolariTabState extends State<SolariTab> with AutomaticKeepAliveClientMixi
 
   // Handle long press start - send VQA_START
   void _onLongPressStart() {
-    if (_isLongPressing) return; // Prevent duplicate calls
+    if (_isLongPressing || widget.vlmFailed) return; // Prevent VQA if VLM failed
     
     setState(() {
       _isLongPressing = true;
@@ -150,12 +152,16 @@ class _SolariTabState extends State<SolariTab> with AutomaticKeepAliveClientMixi
                                       ? 'Receiving image from device'
                                       : _isLongPressing 
                                           ? 'VQA recording in progress - release to stop'
-                                          : 'Solari is ready - long press to start VQA',
+                                          : widget.vlmFailed
+                                              ? 'VLM unavailable - vision features disabled'
+                                              : 'Solari is ready - long press to start VQA',
                   hint: widget.receivingAudio || widget.receivingImage
                       ? 'Device is streaming data over Bluetooth'
                       : _isLongPressing 
                           ? 'Recording audio and will capture image when released'
-                          : 'Long press and hold to start VQA recording',
+                          : widget.vlmFailed
+                              ? 'VLM unavailable - check model configuration in settings'
+                              : 'Long press and hold to start VQA recording',
                   child: LayoutBuilder(
                     builder: (context, constraints) {
                       final width = constraints.maxWidth;
@@ -224,6 +230,50 @@ class _SolariTabState extends State<SolariTab> with AutomaticKeepAliveClientMixi
               ),
             ),
           ),
+          
+          // VLM failure message
+          if (widget.vlmFailed)
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: 100,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.9),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.orange, width: 1),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.warning_amber,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'VLM Unavailable',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      Text(
+                        'Check model configuration',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.white70,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
             
           // Long press indicator overlay
           if (_isLongPressing)

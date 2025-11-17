@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:provider/provider.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 // Core
 import 'core/providers/history_provider.dart';
@@ -19,6 +20,14 @@ import 'widgets/widgets.dart';
 void main() async {
   // Ensure Flutter binding is initialized
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Enable wakelock to prevent the device from sleeping
+  try {
+    await WakelockPlus.enable();
+    debugPrint('Wakelock enabled: Device will not sleep while app is active');
+  } catch (e) {
+    debugPrint('Warning: Wakelock could not be enabled: $e');
+  }
   
   // Initialize accessibility services with error handling
   try {
@@ -81,6 +90,10 @@ class _SolariAppState extends State<SolariApp> {
   @override
   void dispose() {
     SystemPreferencesService.instance.dispose();
+    // Disable wakelock when app is disposed
+    WakelockPlus.disable().catchError((e) {
+      debugPrint('Warning: Failed to disable wakelock: $e');
+    });
     super.dispose();
   }
 
@@ -161,7 +174,8 @@ class RouteTracker extends NavigatorObserver {
   
   void _updateRoute(Route? route) {
     currentRouteNotifier.value = route?.settings.name;
-    debugPrint('RouteTracker: Current route = ${route?.settings.name}');
+    // Voice assist disabled - debug output commented out
+    // debugPrint('RouteTracker: Current route = ${route?.settings.name}');
   }
   
   @override
@@ -214,26 +228,28 @@ class _GlobalVoiceAssistOverlayState extends State<GlobalVoiceAssistOverlay> wit
   
   @override
   Widget build(BuildContext context) {
-    final isDeviceConnectionScreen = AppRoutes.isDeviceConnectionRoute(_currentRoute);
-    
-    // Determine position based on current route
-    // Main screen (/solari) has bottom nav, so button should be higher
-    final isMainScreen = _currentRoute == AppRoutes.solari;
-    final buttonBottom = isMainScreen ? 130.0 : 16.0;
-    
-    // Debug output
-    debugPrint('Voice Assist Button - Route: $_currentRoute, IsDeviceConnection: $isDeviceConnectionScreen, IsMainScreen: $isMainScreen, Bottom: $buttonBottom');
+    // VOICE ASSIST DISABLED - Commented out to stop annoying debug output
+    // final isDeviceConnectionScreen = AppRoutes.isDeviceConnectionRoute(_currentRoute);
+    // 
+    // // Determine position based on current route
+    // // Main screen (/solari) has bottom nav, so button should be higher
+    // final isMainScreen = _currentRoute == AppRoutes.solari;
+    // final buttonBottom = isMainScreen ? 130.0 : 16.0;
+    // 
+    // // Debug output
+    // debugPrint('Voice Assist Button - Route: $_currentRoute, IsDeviceConnection: $isDeviceConnectionScreen, IsMainScreen: $isMainScreen, Bottom: $buttonBottom');
     
     return Stack(
       children: [
         widget.child,
-        // Voice assist button - hide on device connection screens
-        if (!isDeviceConnectionScreen)
-          Positioned(
-            right: 16,
-            bottom: buttonBottom,
-            child: const VoiceAssistButton(),
-          ),
+        // Voice assist button - DISABLED to stop annoying debug output
+        // TODO: Re-enable when positioning is fixed and debug output is removed
+        // if (!isDeviceConnectionScreen)
+        //   Positioned(
+        //     right: 16,
+        //     bottom: buttonBottom,
+        //     child: const VoiceAssistButton(),
+        //   ),
       ],
     );
   }
