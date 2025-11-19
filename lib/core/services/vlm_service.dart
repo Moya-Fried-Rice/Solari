@@ -231,8 +231,21 @@ class VlmService {
       await tempFile.writeAsBytes(imageData, flush: true);
       String response = '';
       await _vlm!.completion(
-        [ChatMessage(role: 'user', content: prompt)],
+        [
+          ChatMessage(
+            role: 'system', 
+            content: """
+            You are a helpful assistant for visually impaired users.
+            Your main job is to clearly describe images, focusing on key details like objects, people, actions, and any text.
+            Always prioritize simple, clear, and helpful descriptions.
+            """
+          ),
+          ChatMessage(role: 'user', content: prompt)
+        ],
         imagePaths: [tempFile.path],
+        temperature: 0.1,
+        topK: 32,
+        topP: 0.5,
         maxTokens: 50,
         stopSequences: ["<|im_end|>", "<end_of_turn>", "<end_of_utterance>"],
         onToken: (token) {
