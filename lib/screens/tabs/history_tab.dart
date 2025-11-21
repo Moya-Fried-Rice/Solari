@@ -74,9 +74,9 @@ class _HistoryTabState extends State<HistoryTab>
                     ScreenReaderFocusable(
                       context: 'history_tab',
                       label: 'No history yet',
-                      hint: 'No conversation history available',
+                      hint: 'No conversation history',
                       child: SelectToSpeakText(
-                        'No history yet.',
+                        'No history yet...',
                         style: TextStyle(
                           fontSize: theme.fontSize + 4,
                           fontWeight: FontWeight.w500,

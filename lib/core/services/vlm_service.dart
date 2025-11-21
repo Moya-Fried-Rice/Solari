@@ -235,17 +235,20 @@ class VlmService {
           ChatMessage(
             role: 'system', 
             content: """
-            You are a helpful assistant for visually impaired users.
-            Your main job is to clearly describe images, focusing on key details like objects, people, actions, and any text.
-            Always prioritize simple, clear, and helpful descriptions.
+            Analyze the image carefully.
+            Answer the following question based on the image provided. 
+            Do not add any additional commentary.
             """
           ),
-          ChatMessage(role: 'user', content: prompt)
+          ChatMessage(
+            role: 'user',
+            content: "Q: $prompt\nA:",
+          )
         ],
         imagePaths: [tempFile.path],
-        temperature: 0.1,
-        topK: 32,
-        topP: 0.5,
+        temperature: 0.3,
+        topK: 40,
+        topP: 0.9,
         maxTokens: 50,
         stopSequences: ["<|im_end|>", "<end_of_turn>", "<end_of_utterance>"],
         onToken: (token) {
