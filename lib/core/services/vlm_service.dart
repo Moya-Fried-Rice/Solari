@@ -235,14 +235,13 @@ class VlmService {
           ChatMessage(
             role: 'system', 
             content: """
-            Analyze the image carefully.
-            Answer the following question based on the image provided. 
-            Do not add any additional commentary.
+            You are a visual agent and should provide concise answers.
+            Answer the following question based on the image provided.
             """
           ),
           ChatMessage(
             role: 'user',
-            content: "Q: $prompt\nA:",
+            content: "Here is an image. Given this image, answer the following question: $prompt",
           )
         ],
         imagePaths: [tempFile.path],
