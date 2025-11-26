@@ -109,6 +109,9 @@ struct VisualQuestionAnsweringState {
 };
 VisualQuestionAnsweringState vqaSystemState;
 
+// Toggle state for VQA recording
+bool isVqaRecordingActive = false;
+
 // ============================================================================
 // Audio Configuration - Modify these values to test different audio formats
 // ============================================================================
@@ -323,43 +326,30 @@ class VqaCharacteristicEventCallbacks : public BLECharacteristicCallbacks {
         uint8_t* receivedBinaryData = vqaCharacteristic->getData();
         size_t receivedDataLength = vqaCharacteristic->getLength();
         
-        // Handle VQA_START command - toggle recording on/off
+        // Handle VQA_START command
         if (receivedStringValue.equals("VQA_START")) {
-            if (!vqaSystemState.isOperationActive) {
-                // Start recording
-                logInfoMessage("VQA-CONTROL", "VQA_START command received - starting VQA streaming task");
-                
-                // Only start if not already active and no existing task handle
-                if (vqaSystemState.vqaTaskHandle == nullptr) {
-                    // Set active state BEFORE creating task to prevent race conditions
-                    vqaSystemState.isOperationActive = true;
-                    vqaSystemState.isStopRequested = false;
-                    BaseType_t taskResult = xTaskCreate(visualQuestionAnsweringStreamingTask, "VQAStreamingTask", 16384, NULL, 1, &vqaSystemState.vqaTaskHandle);
-                    if (taskResult != pdPASS) {
-                        // If task creation failed, reset the state
-                        vqaSystemState.isOperationActive = false;
-                        vqaSystemState.vqaTaskHandle = nullptr;
-                        logErrorMessage("VQA-CONTROL", "Failed to create VQA streaming task");
-                    }
-                } else {
-                    logWarningMessage("VQA-CONTROL", "VQA task handle exists but not active, ignoring START command");
+            logInfoMessage("VQA-CONTROL", "VQA_START command received - starting VQA streaming task");
+            
+            // Only start if not already active and no existing task handle
+            if (!vqaSystemState.isOperationActive && vqaSystemState.vqaTaskHandle == nullptr) {
+                // Set active state BEFORE creating task to prevent race conditions
+                vqaSystemState.isOperationActive = true;
+                vqaSystemState.isStopRequested = false;
+                BaseType_t taskResult = xTaskCreate(visualQuestionAnsweringStreamingTask, "VQAStreamingTask", 16384, NULL, 1, &vqaSystemState.vqaTaskHandle);
+                if (taskResult != pdPASS) {
+                    // If task creation failed, reset the state
+                    vqaSystemState.isOperationActive = false;
+                    vqaSystemState.vqaTaskHandle = nullptr;
+                    logErrorMessage("VQA-CONTROL", "Failed to create VQA streaming task");
                 }
             } else {
-                // Stop recording
-                logInfoMessage("VQA-CONTROL", "VQA_START command received while active - stopping VQA streaming task");
-                
-                // Stop the VQA task if it's running
-                if (vqaSystemState.vqaTaskHandle != nullptr) {
-                    vqaSystemState.isStopRequested = true;
-                    logInfoMessage("VQA-CONTROL", "Stop requested for active VQA session");
-                } else {
-                    logWarningMessage("VQA-CONTROL", "VQA marked active but no task handle found");
-                }
+                logWarningMessage("VQA-CONTROL", "VQA session already active (isActive=" + String(vqaSystemState.isOperationActive) + 
+                                 ", taskHandle=" + String(vqaSystemState.vqaTaskHandle != nullptr ? "SET" : "NULL") + "), ignoring START command");
             }
             return;
         }
         
-        // Handle VQA_END command (legacy support, if needed)
+        // Handle VQA_END command  
         if (receivedStringValue.equals("VQA_END")) {
             logInfoMessage("VQA-CONTROL", "VQA_END command received - stopping VQA streaming task");
             
@@ -1192,6 +1182,7 @@ void visualQuestionAnsweringStreamingTask(void *taskParameters) {
     vqaSystemState.isOperationActive = false;
     vqaSystemState.isStopRequested = false;
     vqaSystemState.vqaTaskHandle = nullptr;
+    isVqaRecordingActive = false;
 
     // Task auto-cleanup
     vTaskDelete(NULL);
@@ -1631,7 +1622,7 @@ void manageLedState() {
 
 void loop() {
     // ============================================================================
-    // User Button Handling (press to start, release to stop VQA)
+    // User Button Handling (toggle: press to start/stop VQA)
     // ============================================================================
     int currentButtonState = digitalRead(USER_BUTTON_PIN);
     
@@ -1641,12 +1632,12 @@ void loop() {
         lastButtonDebugTime = millis();
     }
 
-    // Detect button state changes with debounce protection
-    if (currentButtonState != previousButtonState && (millis() - lastButtonPressTime) > BUTTON_DEBOUNCE_MS) {
+    // Detect button press with debounce protection (toggle behavior)
+    if (currentButtonState == LOW && previousButtonState == HIGH && (millis() - lastButtonPressTime) > BUTTON_DEBOUNCE_MS) {
         lastButtonPressTime = millis();
 
-        if (currentButtonState == LOW) {
-            // Button pressed - start VQA operation
+        if (!isVqaRecordingActive) {
+            // Start VQA operation
             if (!isBleClientConnected) {
                 logWarningMessage("USER-INPUT", "Button press ignored - BLE client not connected");
             } else if (!isSystemInitialized) {
@@ -1665,7 +1656,8 @@ void loop() {
                     1  // Core 1
                 );
                 if (taskCreationResult == pdPASS) {
-                    logInfoMessage("USER-INPUT", "VQA streaming started immediately - recording now active");
+                    isVqaRecordingActive = true;
+                    logInfoMessage("USER-INPUT", "VQA streaming started - recording now active");
                 } else {
                     // If task creation failed, reset the state
                     vqaSystemState.isOperationActive = false;
@@ -1673,16 +1665,16 @@ void loop() {
                     logErrorMessage("USER-INPUT", "Failed to create VQA streaming task");
                 }
             } else {
-                logWarningMessage("USER-INPUT", "VQA operation already active (isActive=" + String(vqaSystemState.isOperationActive) + 
-                                 ", taskHandle=" + String(vqaSystemState.vqaTaskHandle != nullptr ? "SET" : "NULL") + "), ignoring button press");
+                logWarningMessage("USER-INPUT", "VQA operation already active, ignoring button press");
             }
         } else {
-            // Button released - stop VQA operation
+            // Stop VQA operation
             if (vqaSystemState.isOperationActive) {
                 vqaSystemState.isStopRequested = true;
-                logInfoMessage("USER-INPUT", "VQA streaming stop requested - button released");
+                isVqaRecordingActive = false;
+                logInfoMessage("USER-INPUT", "VQA streaming stop requested");
             } else {
-                logDebugMessage("USER-INPUT", "Button released - no VQA operation to stop");
+                logDebugMessage("USER-INPUT", "No VQA operation to stop");
             }
         }
     }
