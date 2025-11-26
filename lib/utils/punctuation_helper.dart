@@ -143,6 +143,11 @@ class PunctuationHelper {
     return false;
   }
   
+  /// Check if the given text is likely a question
+  static bool isQuestion(String text) {
+    return _isQuestion(text.toLowerCase().trim());
+  }
+  
   /// Get detailed analysis of punctuation decision (useful for debugging)
   static Map<String, dynamic> analyzePunctuation(String text) {
     if (text.isEmpty) return {'type': 'empty', 'punctuation': '', 'reason': 'Empty text'};

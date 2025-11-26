@@ -42,6 +42,13 @@ class _PreferencePageState extends State<PreferencePage> {
   bool isRefreshingVlm = false;
   String? vlmRefreshStatus;
   
+  // VLM parameters
+  String systemInstructions = '';
+  double temperature = 0.3;
+  int topK = 40;
+  double topP = 0.9;
+  int maxTokens = 50;
+  
   // Haptic features
   bool vibrationEnabled = true; // Default to enabled
   // Voice assist
@@ -248,12 +255,22 @@ class _PreferencePageState extends State<PreferencePage> {
     final isLocalEnabled = await VlmService.isLocalModelEnabled();
     final modelPath = await VlmService.getLocalModelPath();
     final mmprojPath = await VlmService.getLocalMmprojPath();
+    final sysInstructions = await VlmService.getSystemInstructions();
+    final temp = await VlmService.getTemperature();
+    final tk = await VlmService.getTopK();
+    final tp = await VlmService.getTopP();
+    final mt = await VlmService.getMaxTokens();
     
     if (mounted) {
       setState(() {
         useLocalModel = isLocalEnabled;
         localModelPath = modelPath;
         localMmprojPath = mmprojPath;
+        systemInstructions = sysInstructions;
+        temperature = temp;
+        topK = tk;
+        topP = tp;
+        maxTokens = mt;
       });
     }
   }
@@ -371,6 +388,9 @@ class _PreferencePageState extends State<PreferencePage> {
                           const SizedBox(height: 20),
                           _buildFileSelectionSection(themeProvider, setModalState),
                         ],
+                        const SizedBox(height: 20),
+                        // VLM Parameters Section
+                        _buildVlmParametersSection(themeProvider, setModalState),
                         const SizedBox(height: 20),
                         // VLM Refresh Section
                         _buildVlmRefreshSection(themeProvider, setModalState),
@@ -567,6 +587,235 @@ class _PreferencePageState extends State<PreferencePage> {
               ),
             ),
           ),
+        ),
+      ],
+    );
+  }
+
+  /// Build VLM parameters section
+  Widget _buildVlmParametersSection(ThemeProvider theme, StateSetter setModalState) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'VLM Parameters',
+          style: TextStyle(
+            fontSize: theme.fontSize + 6,
+            fontWeight: FontWeight.bold,
+            color: theme.labelColor,
+          ),
+        ),
+        const SizedBox(height: 15),
+        // System Instructions
+        _buildTextInputRow(
+          theme,
+          'System Instructions',
+          systemInstructions,
+          'Enter system instructions for the VLM model',
+          (value) async {
+            await VlmService.setSystemInstructions(value);
+            setModalState(() {
+              systemInstructions = value;
+            });
+            setState(() {
+              systemInstructions = value;
+            });
+          },
+          maxLines: 3,
+        ),
+        const SizedBox(height: 15),
+        // Temperature
+        _buildSliderRow(
+          theme,
+          'Temperature',
+          temperature,
+          0.0,
+          2.0,
+          0.1,
+          'Controls randomness. Lower = more focused, Higher = more creative',
+          (value) async {
+            await VlmService.setTemperature(value);
+            setModalState(() {
+              temperature = value;
+            });
+            setState(() {
+              temperature = value;
+            });
+          },
+        ),
+        const SizedBox(height: 15),
+        // Top K
+        _buildSliderRow(
+          theme,
+          'Top K',
+          topK.toDouble(),
+          1.0,
+          100.0,
+          1.0,
+          'Limits token selection to top K most likely tokens',
+          (value) async {
+            final intValue = value.toInt();
+            await VlmService.setTopK(intValue);
+            setModalState(() {
+              topK = intValue;
+            });
+            setState(() {
+              topK = intValue;
+            });
+          },
+        ),
+        const SizedBox(height: 15),
+        // Top P
+        _buildSliderRow(
+          theme,
+          'Top P',
+          topP,
+          0.0,
+          1.0,
+          0.05,
+          'Nucleus sampling. Considers tokens until cumulative probability reaches P',
+          (value) async {
+            await VlmService.setTopP(value);
+            setModalState(() {
+              topP = value;
+            });
+            setState(() {
+              topP = value;
+            });
+          },
+        ),
+        const SizedBox(height: 15),
+        // Max Tokens
+        _buildSliderRow(
+          theme,
+          'Max Tokens',
+          maxTokens.toDouble(),
+          10.0,
+          500.0,
+          10.0,
+          'Maximum number of tokens to generate in response',
+          (value) async {
+            final intValue = value.toInt();
+            await VlmService.setMaxTokens(intValue);
+            setModalState(() {
+              maxTokens = intValue;
+            });
+            setState(() {
+              maxTokens = intValue;
+            });
+          },
+        ),
+      ],
+    );
+  }
+
+  /// Build text input row
+  Widget _buildTextInputRow(
+    ThemeProvider theme,
+    String label,
+    String value,
+    String hint,
+    Function(String) onChanged, {
+    int maxLines = 1,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: theme.fontSize + 2,
+            color: theme.labelColor,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: TextEditingController(text: value),
+          maxLines: maxLines,
+          style: TextStyle(
+            fontSize: theme.fontSize,
+            color: theme.labelColor,
+          ),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: TextStyle(
+              color: theme.unselectedColor,
+              fontSize: theme.fontSize,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: theme.unselectedColor),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: theme.unselectedColor),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: theme.labelColor),
+            ),
+            filled: true,
+            fillColor: theme.primaryColor.withOpacity(0.1),
+          ),
+          onChanged: onChanged,
+        ),
+      ],
+    );
+  }
+
+  /// Build slider row
+  Widget _buildSliderRow(
+    ThemeProvider theme,
+    String label,
+    double value,
+    double min,
+    double max,
+    double divisions,
+    String description,
+    Function(double) onChanged,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: theme.fontSize + 2,
+                color: theme.labelColor,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            Text(
+              value.toStringAsFixed(divisions < 1 ? 2 : 0),
+              style: TextStyle(
+                fontSize: theme.fontSize + 2,
+                color: theme.labelColor,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          description,
+          style: TextStyle(
+            fontSize: theme.fontSize - 2,
+            color: theme.unselectedColor,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Slider(
+          value: value,
+          min: min,
+          max: max,
+          divisions: ((max - min) / divisions).toInt(),
+          activeColor: theme.labelColor,
+          inactiveColor: theme.unselectedColor,
+          onChanged: onChanged,
         ),
       ],
     );

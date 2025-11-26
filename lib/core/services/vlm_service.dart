@@ -3,12 +3,18 @@ import 'package:cactus/cactus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../utils/punctuation_helper.dart';
 
 class VlmService {
   CactusVLM? _vlm;
   static const String _useLocalModelKey = 'use_local_vlm_model';
   static const String _localModelPathKey = 'local_vlm_model_path';
   static const String _localMmprojPathKey = 'local_vlm_mmproj_path';
+  static const String _systemInstructionsKey = 'vlm_system_instructions';
+  static const String _temperatureKey = 'vlm_temperature';
+  static const String _topKKey = 'vlm_top_k';
+  static const String _topPKey = 'vlm_top_p';
+  static const String _maxTokensKey = 'vlm_max_tokens';
 
   /// Check if local model is enabled
   static Future<bool> isLocalModelEnabled() async {
@@ -44,6 +50,70 @@ class VlmService {
   static Future<void> setLocalMmprojPath(String path) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_localMmprojPathKey, path);
+  }
+
+  /// Get system instructions
+  static Future<String> getSystemInstructions() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_systemInstructionsKey) ?? """
+    You are a visual agent and should provide concise answers.
+    Analyze the image carefully. Pay attention to details such as colors, objects, text, and context.
+    Answer the following question based on the image provided.
+    """;
+  }
+
+  /// Set system instructions
+  static Future<void> setSystemInstructions(String instructions) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_systemInstructionsKey, instructions);
+  }
+
+  /// Get temperature
+  static Future<double> getTemperature() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getDouble(_temperatureKey) ?? 0.3;
+  }
+
+  /// Set temperature
+  static Future<void> setTemperature(double temperature) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_temperatureKey, temperature);
+  }
+
+  /// Get topK
+  static Future<int> getTopK() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_topKKey) ?? 40;
+  }
+
+  /// Set topK
+  static Future<void> setTopK(int topK) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_topKKey, topK);
+  }
+
+  /// Get topP
+  static Future<double> getTopP() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getDouble(_topPKey) ?? 0.9;
+  }
+
+  /// Set topP
+  static Future<void> setTopP(double topP) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_topPKey, topP);
+  }
+
+  /// Get maxTokens
+  static Future<int> getMaxTokens() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_maxTokensKey) ?? 100;
+  }
+
+  /// Set maxTokens
+  static Future<void> setMaxTokens(int maxTokens) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_maxTokensKey, maxTokens);
   }
 
   Future<void> initModel({
@@ -229,26 +299,42 @@ class VlmService {
       final tempDir = await getTemporaryDirectory();
       final tempFile = File('${tempDir.path}/temp_image.jpg');
       await tempFile.writeAsBytes(imageData, flush: true);
+      
+      // Get configurable parameters
+      final systemInstructions = await getSystemInstructions();
+      final temperature = await getTemperature();
+      final topK = await getTopK();
+      final topP = await getTopP();
+      final maxTokens = await getMaxTokens();
+      
+      // Determine if prompt is a question and add appropriate intro
+      final isQuestion = PunctuationHelper.isQuestion(prompt);
+      final userContent = isQuestion 
+          ? "Here is an image. Given this image, answer the following question: $prompt Answer:"
+          : "Here is an image. Given this image, your task is to: $prompt";
+      
+      debugPrint('🔍 VLM Prompt Debug:');
+      debugPrint('   Original prompt: "$prompt"');
+      debugPrint('   Is question: $isQuestion');
+      debugPrint('   User content: "$userContent"');
+      
       String response = '';
       await _vlm!.completion(
         [
           ChatMessage(
             role: 'system', 
-            content: """
-            You are a visual agent and should provide concise answers.
-            Answer the following question based on the image provided.
-            """
+            content: systemInstructions,
           ),
           ChatMessage(
             role: 'user',
-            content: "Here is an image. Given this image, answer the following question: $prompt",
+            content: userContent,
           )
         ],
         imagePaths: [tempFile.path],
-        temperature: 0.3,
-        topK: 40,
-        topP: 0.9,
-        maxTokens: 50,
+        temperature: temperature,
+        topK: topK,
+        topP: topP,
+        maxTokens: maxTokens,
         stopSequences: ["<|im_end|>", "<end_of_turn>", "<end_of_utterance>"],
         onToken: (token) {
           response += token;

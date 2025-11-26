@@ -76,7 +76,7 @@ class _HistoryTabState extends State<HistoryTab>
                       label: 'No history yet',
                       hint: 'No conversation history',
                       child: SelectToSpeakText(
-                        'No history yet..',
+                        'No history yet.',
                         style: TextStyle(
                           fontSize: theme.fontSize + 4,
                           fontWeight: FontWeight.w500,
