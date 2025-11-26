@@ -29,7 +29,7 @@
 // Timing and Control Constants
 // ============================================================================
 #define IMAGE_CAPTURE_DEBOUNCE_MS           500
-#define BLE_CHUNK_SEND_DELAY_MS             20
+#define BLE_CHUNK_SEND_DELAY_MS             30
 #define VQA_AUDIO_CHUNK_DURATION_MS         150  // Audio chunk duration for VQA streaming
 #define VQA_STREAMING_BUFFER_COUNT          4    // Number of buffers for smooth streaming
 #define BUTTON_DEBOUNCE_MS                  50   // Reduced button debounce for faster response
