@@ -323,30 +323,43 @@ class VqaCharacteristicEventCallbacks : public BLECharacteristicCallbacks {
         uint8_t* receivedBinaryData = vqaCharacteristic->getData();
         size_t receivedDataLength = vqaCharacteristic->getLength();
         
-        // Handle VQA_START command
+        // Handle VQA_START command - toggle recording on/off
         if (receivedStringValue.equals("VQA_START")) {
-            logInfoMessage("VQA-CONTROL", "VQA_START command received - starting VQA streaming task");
-            
-            // Only start if not already active and no existing task handle
-            if (!vqaSystemState.isOperationActive && vqaSystemState.vqaTaskHandle == nullptr) {
-                // Set active state BEFORE creating task to prevent race conditions
-                vqaSystemState.isOperationActive = true;
-                vqaSystemState.isStopRequested = false;
-                BaseType_t taskResult = xTaskCreate(visualQuestionAnsweringStreamingTask, "VQAStreamingTask", 16384, NULL, 1, &vqaSystemState.vqaTaskHandle);
-                if (taskResult != pdPASS) {
-                    // If task creation failed, reset the state
-                    vqaSystemState.isOperationActive = false;
-                    vqaSystemState.vqaTaskHandle = nullptr;
-                    logErrorMessage("VQA-CONTROL", "Failed to create VQA streaming task");
+            if (!vqaSystemState.isOperationActive) {
+                // Start recording
+                logInfoMessage("VQA-CONTROL", "VQA_START command received - starting VQA streaming task");
+                
+                // Only start if not already active and no existing task handle
+                if (vqaSystemState.vqaTaskHandle == nullptr) {
+                    // Set active state BEFORE creating task to prevent race conditions
+                    vqaSystemState.isOperationActive = true;
+                    vqaSystemState.isStopRequested = false;
+                    BaseType_t taskResult = xTaskCreate(visualQuestionAnsweringStreamingTask, "VQAStreamingTask", 16384, NULL, 1, &vqaSystemState.vqaTaskHandle);
+                    if (taskResult != pdPASS) {
+                        // If task creation failed, reset the state
+                        vqaSystemState.isOperationActive = false;
+                        vqaSystemState.vqaTaskHandle = nullptr;
+                        logErrorMessage("VQA-CONTROL", "Failed to create VQA streaming task");
+                    }
+                } else {
+                    logWarningMessage("VQA-CONTROL", "VQA task handle exists but not active, ignoring START command");
                 }
             } else {
-                logWarningMessage("VQA-CONTROL", "VQA session already active (isActive=" + String(vqaSystemState.isOperationActive) + 
-                                 ", taskHandle=" + String(vqaSystemState.vqaTaskHandle != nullptr ? "SET" : "NULL") + "), ignoring START command");
+                // Stop recording
+                logInfoMessage("VQA-CONTROL", "VQA_START command received while active - stopping VQA streaming task");
+                
+                // Stop the VQA task if it's running
+                if (vqaSystemState.vqaTaskHandle != nullptr) {
+                    vqaSystemState.isStopRequested = true;
+                    logInfoMessage("VQA-CONTROL", "Stop requested for active VQA session");
+                } else {
+                    logWarningMessage("VQA-CONTROL", "VQA marked active but no task handle found");
+                }
             }
             return;
         }
         
-        // Handle VQA_END command  
+        // Handle VQA_END command (legacy support, if needed)
         if (receivedStringValue.equals("VQA_END")) {
             logInfoMessage("VQA-CONTROL", "VQA_END command received - stopping VQA streaming task");
             
