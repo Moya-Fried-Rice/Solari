@@ -1672,6 +1672,7 @@ void loop() {
             if (vqaSystemState.isOperationActive) {
                 vqaSystemState.isStopRequested = true;
                 isVqaRecordingActive = false;
+                playStartSound();
                 logInfoMessage("USER-INPUT", "VQA streaming stop requested");
             } else {
                 logDebugMessage("USER-INPUT", "No VQA operation to stop");
