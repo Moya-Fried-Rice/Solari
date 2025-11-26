@@ -120,7 +120,7 @@ const int SPEAKER_BYTES_PER_SAMPLE = 2;             // Bytes per audio sample (1
 const char* SPEAKER_AUDIO_QUALITY_NAME = "High Quality";
 const int SPEAKER_AUDIO_CHUNK_SIZE = 512;           // Chunk size for audio processing (matched to test breadboard)
 const int SPEAKER_PLAYBACK_DELAY_MS = 12;           // Target delay between audio chunks
-const float SPEAKER_AMPLIFICATION = 2.0;            // Volume amplification factor (matched to test breadboard max amplitude)
+const float SPEAKER_AMPLIFICATION = 1;            // Volume amplification factor (matched to test breadboard max amplitude)
 
 // Microphone Input Configuration (for VQA recording)
 const int MICROPHONE_SAMPLE_RATE = 16000;            // Lower sample rate for efficient VQA transmission
@@ -1194,7 +1194,7 @@ void realTimeAudioStreamingTask(void *taskParameters) {
     disableMicrophoneForAudioPlayback();
     
     // Use exact test breadboard audio processing with streaming capability
-    const float amplification = 3.0;                    // Exact copy from test breadboard
+    const float amplification = SPEAKER_AMPLIFICATION;   // Use global config so changes take effect
     const size_t BUFFER_SIZE = 512;                     // Exact copy from test breadboard
     int16_t amplifiedBuffer[BUFFER_SIZE / 2];           // Buffer for amplified samples
     
@@ -1294,7 +1294,7 @@ void playCompleteAudioBuffer() {
     logInfoMessage("AUDIO-PLAYBACK", "Playing 16-bit PCM audio: " + String(audioDurationSeconds, 1) + " seconds, " + String(totalAudioDataSize) + " bytes");
     
     // Simplified audio playback matching test breadboard approach
-    const float amplification = 3.0;  // Match test breadboard exactly
+    const float amplification = SPEAKER_AMPLIFICATION; // Use global config so changes take effect
     const size_t BUFFER_SIZE = 512;   // Match test breadboard buffer size
     size_t totalBytesPlayed = 0;
     int16_t amplifiedBuffer[BUFFER_SIZE / 2]; // Buffer for amplified samples
@@ -1360,7 +1360,7 @@ void playSoundEffect(const unsigned char* audioData, unsigned int audioLength, c
     
     // Simplified audio playback matching test breadboard approach
     // Amplification factor (matched exactly to test breadboard)
-    const float amplification = 3.0;
+    const float amplification = SPEAKER_AMPLIFICATION; // Use global config so changes take effect
 
     // Play the raw audio data with amplification (matching test breadboard implementation)
     const size_t BUFFER_SIZE = 512;
