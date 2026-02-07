@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:solari/screens/tabs/settings_pages/status.dart';
 import 'package:solari/screens/tabs/settings_pages/editor.dart';
 import 'package:solari/screens/tabs/settings_pages/about.dart';
+import 'package:solari/screens/tabs/settings_pages/stt.dart';
+import 'package:solari/screens/tabs/settings_pages/vision.dart';
 
 class SettingsTab extends StatelessWidget {
   const SettingsTab({super.key});
@@ -14,6 +16,8 @@ class SettingsTab extends StatelessWidget {
     final List<_SettingsItem> items = [
       _SettingsItem(icon: Icons.phone_android, color: colorScheme.primary, pageBuilder: () => const StatusPage()),
       _SettingsItem(icon: Icons.tune, color: colorScheme.secondary, pageBuilder: () => const EditorPage()),
+      _SettingsItem(icon: Icons.mic, color: Colors.orange, pageBuilder: () => const STTPage()),
+      _SettingsItem(icon: Icons.image, color: Colors.purple, pageBuilder: () => const VisionPage()),
       _SettingsItem(icon: Icons.help_outline, color: colorScheme.tertiary, pageBuilder: () => const AboutPage()),
     ];
 
